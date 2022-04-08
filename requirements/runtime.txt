@@ -3,3 +3,4 @@ ubelt>=1.0.0
 networkx>=2.5.1
 rich>=12.0.0
 pandas>=1.2.4
+pint>=0.18

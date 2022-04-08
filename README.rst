@@ -36,6 +36,20 @@ This gives the user fine-grained control if they only want to run a subset of a
 pipeline manually. But if asked to run, cmd_queue will execute the bash jobs.
 
 
+
+Modivation
+==========
+Recently, I needed to run several jobs on 4 jobs across 2 GPUs and then execute a script after all of them were done. What I should have done was use slurm or some other proper queuing system to schedule the jobs, but instead I wrote my own hacky scheduler using tmux. I opened N (number of parallel workers) tmux sessions and then I ran independent jobs in each different sessions.
+
+This worked unreasonably well for my use cases, and it was nice to be able to effectively schedule jobs without heavyweight software like slurm on my machine.
+
+Eventually I did get slurm on my machine, and I abstracted the API of my tmux_queue to be a general "command queue" that can use 1 of 3 backends: serial, tmux, or slurm.
+
+
+Examples
+========
+
+
 All of the dependency checking and book keeping logic is handled in bash
 itself. Write (or better yet template) your bash scripts in Python, and then
 use cmd_queue to "transpile" these sequences of commands to pure bash.
@@ -264,6 +278,12 @@ This prints the very simple slurm submission script:
     JOB_009=$(sbatch --job-name="J0009-demo_queue-20220408T170615-a9e238b5" --output="/home/joncrall/.cache/slurm_queue/demo_queue-20220408T170615-a9e238b5/logs/J0009-demo_queue-20220408T170615-a9e238b5.sh" --wrap 'echo bazbiz && sleep 0.5' "--dependency=afterok:${JOB_008}" --parsable)
 
 
+
+Installation
+============
+This will be on pypi once it is cleaned up, but for now:
+
+python -m pip install git+https://gitlab.kitware.com/computer-vision/cmd_queue.git@main
 
 
    
