@@ -46,6 +46,22 @@ This worked unreasonably well for my use cases, and it was nice to be able to ef
 Eventually I did get slurm on my machine, and I abstracted the API of my tmux_queue to be a general "command queue" that can use 1 of 3 backends: serial, tmux, or slurm.
 
 
+Niche
+=====
+There are many DAG schedulers out there:
+
+ * airflow
+ * luigi
+ * submitit
+ * rq_scheduler
+
+
+The the niche for this is when you have large pipelines of bash commands that
+depend on each other and you want to template out those parameters with logic
+that you define in Python.
+
+
+
 Examples
 ========
 

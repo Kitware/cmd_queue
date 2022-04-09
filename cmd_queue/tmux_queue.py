@@ -53,7 +53,7 @@ class TMUXMultiQueue(base_queue.Queue):
     Create multiple sets of jobs to start in detatched tmux sessions
 
     CommandLine:
-        xdoctest -m cmd_queue.tmux_queue TMUXMultiQueue
+        xdoctest -m cmd_queue.tmux_queue TMUXMultiQueue:0
 
     Example:
         >>> from cmd_queue.serial_queue import *  # NOQA
