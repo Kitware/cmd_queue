@@ -282,6 +282,7 @@ class TMUXMultiQueue(base_queue.Queue):
             >>> # self.run(block=True)
         """
         import networkx as nx
+        from cmd_queue import util
         graph = self._dependency_graph()
 
         # Get rid of implicit dependencies
@@ -301,7 +302,7 @@ class TMUXMultiQueue(base_queue.Queue):
             print('simple_cycles = {}'.format(ub.repr2(simple_cycles, nl=1)))
             import xdev
             xdev.embed()
-            print(base_queue.graph_str(graph))
+            print(util.graph_str(graph))
             raise
 
         in_cut_nodes = set()

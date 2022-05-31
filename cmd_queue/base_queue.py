@@ -97,16 +97,16 @@ class Queue(ub.NiceRepr):
         return self
 
     def print_graph(self):
-        from cmd_queue import base_queue
+        from cmd_queue import util
         import networkx as nx
         graph = self._dependency_graph()
         print('\nGraph:')
-        print(base_queue.graph_str(graph))
+        print(util.graph_str(graph))
 
         print('\nReduced:')
         try:
             reduced_graph = nx.transitive_reduction(graph)
-            print(base_queue.graph_str(reduced_graph))
+            print(util.graph_str(reduced_graph))
         except Exception as ex:
             print(f'ex={ex}')
         print('\n')
