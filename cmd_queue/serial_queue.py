@@ -57,7 +57,7 @@ class BashJob(base_queue.Job):
         self.depends: list[base_queue.Job] = depends
         self.bookkeeper = bookkeeper
         if info_dpath is None:
-            info_dpath = ub.Path.appdir('base_queue/jobinfos/') / self.pathid
+            info_dpath = ub.Path.appdir('cmd_queue/jobinfos/') / self.pathid
         self.info_dpath = info_dpath
         self.pass_fpath = self.info_dpath / f'passed/{self.pathid}.pass'
         self.fail_fpath = self.info_dpath / f'failed/{self.pathid}.fail'
@@ -200,7 +200,7 @@ class SerialQueue(base_queue.Queue):
         self.name = name
         self.rootid = rootid
         if dpath is None:
-            dpath = ub.ensure_app_cache_dir('base_queue', self.pathid)
+            dpath = ub.ensure_app_cache_dir('cmd_queue', self.pathid)
         self.dpath = ub.Path(dpath)
 
         self.unused_kwargs = kwargs

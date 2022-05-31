@@ -47,4 +47,3 @@ def balanced_number_partitioning(items, num_parts):
 
     bin_assignments = [np.array(p, dtype=int) for p in bin_assignments]
     return bin_assignments
-
