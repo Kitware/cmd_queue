@@ -153,6 +153,7 @@ def graph_str(graph, with_labels=True, sources=None, write=None, ascii_only=Fals
 
     """
     import networkx as nx
+    from collections import defaultdict
 
     printbuf = []
     if write is None:
@@ -223,7 +224,7 @@ def graph_str(graph, with_labels=True, sources=None, write=None, ascii_only=Fals
                 # of nodes from which all other nodes can be reached.
                 scc_graph = nx.condensation(graph, sccs)
                 supernode_to_nodes = {sn: [] for sn in scc_graph.nodes()}
-                for n, sn in scc_graph.graph['mapping'].items():
+                for n, sn in scc_graph.graph["mapping"].items():
                     supernode_to_nodes[sn].append(n)
                 sources = []
                 for sn in scc_graph.nodes():
@@ -248,7 +249,6 @@ def graph_str(graph, with_labels=True, sources=None, write=None, ascii_only=Fals
             (None, node, "", (idx == last_idx)) for idx, node in enumerate(sources)
         ][::-1]
 
-        from collections import defaultdict
         num_skipped_children = defaultdict(lambda: 0)
         seen_nodes = set()
         while stack:
@@ -311,23 +311,25 @@ def graph_str(graph, with_labels=True, sources=None, write=None, ascii_only=Fals
                 else:
                     label = node
 
-                # What can we do to minimize the difference between
-                # directed / undirected logic here?
+                # Determine
+                # (1) which children to show after this node.
+                # (2) which parents to show to the right of this node.
+
+                # Can we do better to minimize the difference between the
+                # directed and undirected logic here? The main difference is
+                # that in the undirected case we can skip children that have
+                # already been seen because they would have already shown the
+                # edge to this node.
                 if is_directed:
-                    other_parents = set(pred[node]) - {parent}
                     children = sorted(succ[node])
+                    other_parents = set(pred[node]) - {parent}
                 else:
-                    new_children = [child for child in succ[node] if child not in seen_nodes]
-                    neighbors = set(pred[node])
-                    other_parents = (neighbors - set(new_children)) - {parent}
-                    # Not sure which one to use here:
-                    if 0:
-                        # The parent was already shown and we are undirected so
-                        # exclude the parent from the children (this helps make
-                        # graphs for forests nicer)
-                        children = sorted(set(succ[node]) - {parent})
-                    else:
-                        children = new_children
+                    # Showing only the unseen children results in a more
+                    # concise representation for the undirected case.
+                    children = [
+                        child for child in succ[node] if child not in seen_nodes
+                    ]
+                    other_parents = (set(pred[node]) - set(children)) - {parent}
 
                 other_parents_str = ", ".join([str(p) for p in sorted(other_parents)])
                 if other_parents:
