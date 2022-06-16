@@ -211,10 +211,10 @@ if __name__ == '__main__':
     setup(
         name=NAME,
         version=VERSION,
-        author='joncrall',
+        author='Jon Crall',
         author_email='jon.crall@kitware.com',
-        description=('The cmd_queue Module'),
-        url='<cmd_queue url>',
+        description=('The cmd_queue module for a DAG of bash commands'),
+        url='https://gitlab.kitware.com/computer-vision/cmd_queue',
         long_description=parse_description(),
         long_description_content_type='text/x-rst',
         install_requires=parse_requirements('requirements/runtime.txt'),

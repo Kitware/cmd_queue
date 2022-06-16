@@ -175,7 +175,7 @@ if [[ "${TWINE_REPOSITORY_URL}" == "auto" ]]; then
     #    # If we are not on release, then default to the test pypi upload repo
     #    TWINE_REPOSITORY_URL=${TWINE_REPOSITORY_URL:="https://test.pypi.org/legacy/"}
     #else
-    if [[ "$DEBUG" != "" ]]; then
+    if [[ "$DEBUG" == "" ]]; then
         TWINE_REPOSITORY_URL="live"
     else
         TWINE_REPOSITORY_URL="test"
