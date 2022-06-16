@@ -39,11 +39,17 @@ pipeline manually. But if asked to run, cmd_queue will execute the bash jobs.
 
 Modivation
 ==========
-Recently, I needed to run several jobs on 4 jobs across 2 GPUs and then execute a script after all of them were done. What I should have done was use slurm or some other proper queuing system to schedule the jobs, but instead I wrote my own hacky scheduler using tmux. I opened N (number of parallel workers) tmux sessions and then I ran independent jobs in each different sessions.
+Recently, I needed to run several jobs on 4 jobs across 2 GPUs and then execute
+a script after all of them were done. What I should have done was use slurm or
+some other proper queuing system to schedule the jobs, but instead I wrote my
+own hacky scheduler using tmux. I opened N (number of parallel workers) tmux
+sessions and then I ran independent jobs in each different sessions.
 
 This worked unreasonably well for my use cases, and it was nice to be able to effectively schedule jobs without heavyweight software like slurm on my machine.
 
-Eventually I did get slurm on my machine, and I abstracted the API of my tmux_queue to be a general "command queue" that can use 1 of 3 backends: serial, tmux, or slurm.
+Eventually I did get slurm on my machine, and I abstracted the API of my
+tmux_queue to be a general "command queue" that can use 1 of 3 backends:
+serial, tmux, or slurm.
 
 
 Niche
@@ -60,6 +66,7 @@ The the niche for this is when you have large pipelines of bash commands that
 depend on each other and you want to template out those parameters with logic
 that you define in Python.
 
+We plan on adding an airflow backend.
 
 
 Examples

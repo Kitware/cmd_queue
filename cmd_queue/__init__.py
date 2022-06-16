@@ -1,3 +1,10 @@
+"""
+Simplify chaining of multiple shell commands
+
+
+Serves as a frontend for several DAG backends, including our own custom tmux
+queue. We also support slurm and will soon support airflow.
+"""
 
 __mkinit__ = """
 mkinit -m cmd_queue

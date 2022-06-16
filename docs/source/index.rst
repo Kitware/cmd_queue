@@ -1,15 +1,22 @@
-.. cmd_queue documentation master file, created by
-   sphinx-quickstart on Fri Apr  8 16:39:26 2022.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+:gitlab_url: https://gitlab.kitware.com/computer-vision/cmd_queue
+
+.. The large version wont work because github strips rst image rescaling. https://i.imgur.com/AcWVroL.png
+    # TODO: Add a logo
+    .. image:: https://i.imgur.com/PoYIsWE.png
+       :height: 100px
+       :align: left
 
 Welcome to cmd_queue's documentation!
 =====================================
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+.. The __init__ files contains the top-level documentation overview
+.. automodule:: cmd_queue.__init__
+   :show-inheritance:
 
+.. toctree::
+   :maxdepth: 5
+
+   cmd_queue
 
 
 Indices and tables
@@ -17,4 +24,3 @@ Indices and tables
 
 * :ref:`genindex`
 * :ref:`modindex`
-* :ref:`search`
