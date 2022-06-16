@@ -1,7 +1,11 @@
-"""
+
+__mkinit__ = """
 mkinit -m cmd_queue
 """
-__version__ = '0.0.1'
+__version__ = '0.1.0'
+__author__ = 'Kitware Inc., Jon Crall'
+__author_email__ = 'kitware@kitware.com, jon.crall@kitware.com'
+__url__ = 'https://gitlab.kitware.com/computer-vision/cmd_queue'
 
 
 __submodules__ = {
