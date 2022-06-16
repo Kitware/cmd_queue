@@ -1,7 +1,9 @@
 Command Queue - cmd_queue
 =========================
 
-.. .. |CircleCI| |Travis| |GitlabCIPipeline| |GitlabCICoverage| |Appveyor| |Codecov| |Pypi| |Downloads| |ReadTheDocs|
+.. .. |GitlabCIPipeline| |GitlabCICoverage| |Appveyor| |Codecov| 
+
+|Pypi| |Downloads| |ReadTheDocs|
 
 
 .. The ``cmd_queue`` module.
