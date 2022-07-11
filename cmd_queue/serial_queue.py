@@ -8,7 +8,6 @@ import stat
 import os
 import uuid
 
-
 from cmd_queue import base_queue  # NOQA
 
 
@@ -74,7 +73,7 @@ class BashJob(base_queue.Job):
                 conditions = []
                 for dep in self.depends:
                     conditions.append(f'[ -f {dep.pass_fpath} ]')
-                condition = ' || '.join(conditions)
+                condition = ' && '.join(conditions)
                 prefix_script.append(f'if {condition}; then')
 
         if with_gaurds and not self.bookkeeper:
@@ -147,7 +146,7 @@ class BashJob(base_queue.Job):
         text = '\n'.join(script)
         return text
 
-    def rprint(self, with_status=False, with_gaurds=False, with_rich=0):
+    def rprint(self, with_status=False, with_gaurds=False, with_rich=0, colors=0):
         r"""
         Print info about the commands, optionally with rich
 
@@ -168,20 +167,15 @@ class BashJob(base_queue.Job):
             console = Console()
             console.print(Syntax(code, 'bash'))
         else:
-            print(ub.highlight_code(code, 'bash'))
+            if colors:
+                print(ub.highlight_code(code, 'bash'))
+            else:
+                print(code)
 
 
 class SerialQueue(base_queue.Queue):
     r"""
     A linear job queue written to a single bash file
-
-    TODO:
-        Change this name to just be a Command Script.
-
-        This should be the analog of ub.cmd.
-
-        Using ub.cmd is for one command.
-        Using ub.Script is for multiple commands
 
     Example:
         >>> from cmd_queue.serial_queue import *  # NOQA
@@ -190,6 +184,22 @@ class SerialQueue(base_queue.Queue):
         >>> job2 = self.submit('echo hi 2 && true')
         >>> job3 = self.submit('echo hi 3 && true', depends=job1)
         >>> self.rprint(1, 1)
+        >>> self.run()
+        >>> self.read_state()
+
+    Example:
+        >>> # Test case where a job fails
+        >>> from cmd_queue.serial_queue import *  # NOQA
+        >>> self = SerialQueue('test-serial-queue', rootid='test-serial')
+        >>> job1 = self.submit('echo "job1 fails" && false')
+        >>> job2 = self.submit('echo "job2 never runs"', depends=[job1])
+        >>> job3 = self.submit('echo "job3 never runs"', depends=[job2])
+        >>> job4 = self.submit('echo "job4 passes" && true')
+        >>> job5 = self.submit('echo "job5 fails" && false', depends=[job4])
+        >>> job6 = self.submit('echo "job6 never runs"', depends=[job5])
+        >>> job7 = self.submit('echo "job7 never runs"', depends=[job4, job2])
+        >>> job8 = self.submit('echo "job8 never runs"', depends=[job4, job1])
+        >>> self.rprint()
         >>> self.run()
         >>> self.read_state()
     """
@@ -346,28 +356,6 @@ class SerialQueue(base_queue.Queue):
     def add_header_command(self, command):
         self.header_commands.append(command)
 
-    # def sync(self):
-    #     pass
-
-    # def submit(self, command, **kwargs):
-    #     # TODO: we could accept additional args here that modify how we handle
-    #     # the command in the bash script we build (i.e. if the script is
-    #     # allowed to fail or not)
-    #     # self.commands.append(command)
-    #     if isinstance(command, str):
-    #         name = kwargs.get('name', None)
-    #         if name is None:
-    #             name = kwargs['name'] = self.name + '-job-{}'.format(self.num_real_jobs)
-    #         job = BashJob(command, **kwargs)
-    #     else:
-    #         # Assume job is already a bash job
-    #         job = command
-    #     self.jobs.append(job)
-
-    #     if not job.bookkeeper:
-    #         self.num_real_jobs += 1
-    #     return job
-
     def write(self):
         text = self.finalize_text()
         with open(self.fpath, 'w') as file:
@@ -377,7 +365,7 @@ class SerialQueue(base_queue.Queue):
             stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP))
         return self.fpath
 
-    def rprint(self, with_status=False, with_gaurds=False, with_rich=0):
+    def rprint(self, with_status=False, with_gaurds=False, with_rich=0, colors=0):
         r"""
         Print info about the commands, optionally with rich
 
@@ -400,17 +388,20 @@ class SerialQueue(base_queue.Queue):
             console.print(Panel(Syntax(code, 'bash'), title=str(self.fpath)))
             # console.print(Syntax(code, 'bash'))
         else:
-            print(ub.highlight_code(f'# --- {str(self.fpath)}', 'bash'))
-            print(ub.highlight_code(code, 'bash'))
+            header = f'# --- {str(self.fpath)}'
+            if colors:
+                print(ub.highlight_code(header, 'bash'))
+                print(ub.highlight_code(code, 'bash'))
+            else:
+                print(header)
+                print(code)
 
-    def run(self, block=None, system=False):
-        # block is always true here
+    def run(self, block=True, system=False):
         self.write()
-        # os.system(f'bash {self.fpath}')
-        # verbose=3, check=True)
-        # ub.cmd(f'bash {self.fpath}', verbose=3, check=True, system=True)
-        ub.cmd(f'bash {self.fpath}', verbose=3, check=True, shell=True,
-               system=system)
+        # TODO: can implement a monitor here for non-blocking mode
+        detach = not block
+        ub.cmd(f'bash {self.fpath}', verbose=3, check=True, shell=1,
+               system=system, detach=detach)
 
     def read_state(self):
         import json

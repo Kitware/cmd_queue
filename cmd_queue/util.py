@@ -32,6 +32,7 @@ def balanced_number_partitioning(items, num_parts):
         >>> items = np.array([1, 3, 29, 22, 4, 5, 9])
         >>> num_parts = 3
         >>> bin_assignments = balanced_number_partitioning(items, num_parts)
+        >>> # xdoctest: +REQUIRES(module:kwarray)
         >>> import kwarray
         >>> groups = kwarray.apply_grouping(items, bin_assignments)
         >>> bin_weights = [g.sum() for g in groups]
