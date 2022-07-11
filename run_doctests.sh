@@ -1,2 +1,2 @@
 #!/bin/bash
-xdoctest cmd_queue --style=google all
+xdoctest cmd_queue --style=google all "$@"
