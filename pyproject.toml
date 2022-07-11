@@ -9,6 +9,7 @@ tags = [ "kitware", "purepy", "gitlab",]
 mod_name = "cmd_queue"
 repo_name = "cmd_queue"
 description = "The cmd_queue module for a DAG of bash commands"
+min_python = "3.6"
 url = "https://gitlab.kitware.com/computer-vision/cmd_queue"
 
 [tool.pytest.ini_options]

@@ -1,6 +1,6 @@
 numpy>=1.20.0
 ubelt>=1.0.0
 networkx>=2.5.1
-rich>=12.0.0
+rich>=12.5.1
 pandas>=1.2.4
 pint>=0.18
