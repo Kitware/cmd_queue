@@ -8,7 +8,6 @@ import stat
 import os
 import uuid
 
-
 from cmd_queue import base_queue  # NOQA
 
 
@@ -74,7 +73,7 @@ class BashJob(base_queue.Job):
                 conditions = []
                 for dep in self.depends:
                     conditions.append(f'[ -f {dep.pass_fpath} ]')
-                condition = ' || '.join(conditions)
+                condition = ' && '.join(conditions)
                 prefix_script.append(f'if {condition}; then')
 
         if with_gaurds and not self.bookkeeper:
@@ -175,14 +174,6 @@ class SerialQueue(base_queue.Queue):
     r"""
     A linear job queue written to a single bash file
 
-    TODO:
-        Change this name to just be a Command Script.
-
-        This should be the analog of ub.cmd.
-
-        Using ub.cmd is for one command.
-        Using ub.Script is for multiple commands
-
     Example:
         >>> from cmd_queue.serial_queue import *  # NOQA
         >>> self = SerialQueue('test-serial-queue', rootid='test-serial')
@@ -190,6 +181,22 @@ class SerialQueue(base_queue.Queue):
         >>> job2 = self.submit('echo hi 2 && true')
         >>> job3 = self.submit('echo hi 3 && true', depends=job1)
         >>> self.rprint(1, 1)
+        >>> self.run()
+        >>> self.read_state()
+
+    Example:
+        >>> # Test case where a job fails
+        >>> from cmd_queue.serial_queue import *  # NOQA
+        >>> self = SerialQueue('test-serial-queue', rootid='test-serial')
+        >>> job1 = self.submit('echo "job1 fails" && false')
+        >>> job2 = self.submit('echo "job2 never runs"', depends=[job1])
+        >>> job3 = self.submit('echo "job3 never runs"', depends=[job2])
+        >>> job4 = self.submit('echo "job4 passes" && true')
+        >>> job5 = self.submit('echo "job5 fails" && false', depends=[job4])
+        >>> job6 = self.submit('echo "job6 never runs"', depends=[job5])
+        >>> job7 = self.submit('echo "job7 never runs"', depends=[job4, job2])
+        >>> job8 = self.submit('echo "job8 never runs"', depends=[job4, job1])
+        >>> self.rprint()
         >>> self.run()
         >>> self.read_state()
     """
