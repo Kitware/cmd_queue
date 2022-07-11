@@ -85,6 +85,16 @@ class Queue(ub.NiceRepr):
         return job
 
     @classmethod
+    def available_backends(cls):
+        available = ['serial']
+        if ub.find_exe('tmux'):
+            available.append('tmux')
+        if ub.find_exe('slurm'):
+            if ub.cmd('squeue')['ret'] == 0:
+                available.append('slurm')
+        return available
+
+    @classmethod
     def create(cls, backend='serial', **kwargs):
         from cmd_queue import tmux_queue
         from cmd_queue import serial_queue

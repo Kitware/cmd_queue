@@ -169,6 +169,8 @@ class SlurmJob(base_queue.Job):
                     depends_parts.append(f'{type_}:{part}')
             depends_part = ','.join(depends_parts)
             sbatch_args.append(f'"--dependency={depends_part}"')
+            # Kills jobs too fast
+            # sbatch_args.append('"--kill-on-invalid-dep=yes"')
 
         if self.begin:
             if isinstance(self.begin, int):
@@ -301,15 +303,16 @@ class SlurmQueue(base_queue.Queue):
                 command = f'{varname}=$({command} --parsable)'
                 jobname_to_varname[job.name] = varname
             commands.append(command)
+        self.jobname_to_varname = jobname_to_varname
         text = '\n'.join(commands)
         return text
 
-    def run(self, block=False):
+    def run(self, block=True, system=False):
         if not ub.find_exe('sbatch'):
             raise Exception('sbatch not found')
         self.log_dpath.ensuredir()
         self.write()
-        ub.cmd(f'bash {self.fpath}', verbose=3, check=True)
+        ub.cmd(f'bash {self.fpath}', verbose=3, check=True, system=system)
         if block:
             return self.monitor()
 
@@ -339,6 +342,17 @@ class SlurmQueue(base_queue.Queue):
             num_in_queue = len(df)
             total_monitored = len(jobid_history)
 
+            HACK_KILL_BROKEN_JOBS = 1
+            if HACK_KILL_BROKEN_JOBS:
+                # For whatever reason using kill-on-invalid-dep
+                # kills jobs too fast and not when they are in a dependency state not a
+                # a never satisfied state. Killing these jobs here seems to fix
+                # it.
+                broken_jobs = df[df['NODELIST(REASON)'] == '(DependencyNeverSatisfied)']
+                if len(broken_jobs):
+                    for name in broken_jobs['NAME']:
+                        ub.cmd(f'scancel --name="{name}"')
+
             if num_at_start is None:
                 num_at_start = len(df)
 
@@ -358,13 +372,26 @@ class SlurmQueue(base_queue.Queue):
             finished = (num_in_queue == 0)
             return table, finished
 
-        table, finished = update_status_table()
-        refresh_rate = 0.4
-        with Live(table, refresh_per_second=4) as live:
-            while not finished:
-                time.sleep(refresh_rate)
-                table, finished = update_status_table()
-                live.update(table)
+        try:
+            table, finished = update_status_table()
+            refresh_rate = 0.4
+            with Live(table, refresh_per_second=4) as live:
+                while not finished:
+                    time.sleep(refresh_rate)
+                    table, finished = update_status_table()
+                    live.update(table)
+        except KeyboardInterrupt:
+            from rich.prompt import Confirm
+            flag = Confirm.ask('do you to kill the procs?')
+            if flag:
+                self.kill()
+
+    def kill(self):
+        cancel_commands = []
+        for job in self.jobs:
+            cancel_commands.append(f'scancel --name="{job.name}"')
+        for cmd in cancel_commands:
+            ub.cmd(cmd, verbose=2)
 
     def rprint(self, with_status=False, with_rich=0):
         """

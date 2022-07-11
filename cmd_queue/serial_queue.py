@@ -353,28 +353,6 @@ class SerialQueue(base_queue.Queue):
     def add_header_command(self, command):
         self.header_commands.append(command)
 
-    # def sync(self):
-    #     pass
-
-    # def submit(self, command, **kwargs):
-    #     # TODO: we could accept additional args here that modify how we handle
-    #     # the command in the bash script we build (i.e. if the script is
-    #     # allowed to fail or not)
-    #     # self.commands.append(command)
-    #     if isinstance(command, str):
-    #         name = kwargs.get('name', None)
-    #         if name is None:
-    #             name = kwargs['name'] = self.name + '-job-{}'.format(self.num_real_jobs)
-    #         job = BashJob(command, **kwargs)
-    #     else:
-    #         # Assume job is already a bash job
-    #         job = command
-    #     self.jobs.append(job)
-
-    #     if not job.bookkeeper:
-    #         self.num_real_jobs += 1
-    #     return job
-
     def write(self):
         text = self.finalize_text()
         with open(self.fpath, 'w') as file:

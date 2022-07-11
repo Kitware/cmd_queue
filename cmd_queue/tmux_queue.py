@@ -150,6 +150,8 @@ class TMUXMultiQueue(base_queue.Queue):
 
         if rootid is None:
             rootid = str(ub.timestamp().split('T')[0]) + '_' + ub.hash_data(uuid.uuid4())[0:8]
+        if name is None:
+            name = 'unnamed'
         self.name = name
         self.rootid = rootid
         self.pathid = '{}_{}'.format(self.name, self.rootid)
@@ -472,11 +474,12 @@ class TMUXMultiQueue(base_queue.Queue):
             stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP))
         return self.fpath
 
-    def run(self, block=False, onfail='kill', onexit=''):
+    def run(self, block=True, onfail='kill', onexit='', system=False):
         if not ub.find_exe('tmux'):
             raise Exception('tmux not found')
         self.write()
-        ub.cmd(f'bash {self.fpath}', verbose=self.cmd_verbose, check=True)
+        ub.cmd(f'bash {self.fpath}', verbose=self.cmd_verbose, check=True,
+               system=system)
         if block:
             agg_state = self.monitor()
             if onexit == 'capture':
@@ -485,6 +488,24 @@ class TMUXMultiQueue(base_queue.Queue):
                 if onfail == 'kill':
                     self.kill()
             return agg_state
+
+    def read_state(self):
+        agg_state = {}
+        worker_states = []
+        for worker in self.workers:
+            state = worker.read_state()
+            worker_states.append(state)
+        agg_state['worker_states'] = worker_states
+        try:
+            agg_state['total'] = sum(s['total'] for s in worker_states)
+            agg_state['errored'] = sum(s['errored'] for s in worker_states)
+            agg_state['finished'] = sum(s['finished'] for s in worker_states)
+            agg_state['rootid'] = ub.peek(s['rootid'] for s in worker_states)
+            states = set(s['status'] for s in worker_states)
+            agg_state['status'] = 'done' if states == {'done'} else 'not-done'
+        except Exception:
+            pass
+        return agg_state
 
     def serial_run(self):
         """
