@@ -122,8 +122,6 @@ setup_package_environs(){
 
 setup_package_environs_gitlab_kitware(){
     echo '
-    export EROTEMIC_TEST_PYPI_MASTER_TOKEN_USERNAME=__token__
-    export EROTEMIC_PYPI_MASTER_TOKEN_USERNAME=__token__
     export VARNAME_CI_SECRET="CI_KITWARE_SECRET"
     export VARNAME_TWINE_PASSWORD="EROTEMIC_PYPI_MASTER_TOKEN"
     export VARNAME_TEST_TWINE_PASSWORD="EROTEMIC_TEST_PYPI_MASTER_TOKEN"
@@ -137,8 +135,6 @@ setup_package_environs_gitlab_kitware(){
 
 setup_package_environs_github_erotemic(){
     echo '
-    export EROTEMIC_TEST_PYPI_MASTER_TOKEN_USERNAME=__token__
-    export EROTEMIC_PYPI_MASTER_TOKEN_USERNAME=__token__
     export VARNAME_CI_SECRET="EROTEMIC_CI_SECRET"
     export VARNAME_TWINE_PASSWORD="EROTEMIC_PYPI_MASTER_TOKEN"
     export VARNAME_TEST_TWINE_PASSWORD="EROTEMIC_TEST_PYPI_MASTER_TOKEN"
@@ -151,8 +147,6 @@ setup_package_environs_github_erotemic(){
 
 setup_package_environs_github_pyutils(){
     echo '
-    export PYUTILS_TEST_PYPI_MASTER_TOKEN_USERNAME=__token__
-    export PYUTILS_PYPI_MASTER_TOKEN_USERNAME=__token__
     export VARNAME_CI_SECRET="PYUTILS_CI_SECRET"
     export VARNAME_TWINE_PASSWORD="PYUTILS_PYPI_MASTER_TOKEN"
     export VARNAME_TEST_TWINE_PASSWORD="PYUTILS_TEST_PYPI_MASTER_TOKEN"
@@ -174,8 +168,8 @@ upload_github_secrets(){
     #printf "%s" "$GITHUB_TOKEN" | gh auth login --hostname Github.com --with-token 
     gh auth login 
     source dev/secrets_configuration.sh
-    gh secret set "$VARNAME_TWINE_USERNAME" -b"__token__"
-    gh secret set "$VARNAME_TEST_TWINE_USERNAME" -b"__token__"
+    gh secret set "$VARNAME_TWINE_USERNAME" -b"${!VARNAME_TWINE_USERNAME}"
+    gh secret set "$VARNAME_TEST_TWINE_USERNAME" -b"${!VARNAME_TEST_TWINE_USERNAME}"
     toggle_setx_enter
     gh secret set "$VARNAME_CI_SECRET" -b"${!VARNAME_CI_SECRET}"
     gh secret set "$VARNAME_TWINE_PASSWORD" -b"${!VARNAME_TWINE_PASSWORD}"
