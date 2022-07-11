@@ -7,6 +7,7 @@ Submodules
 .. toctree::
    :maxdepth: 4
 
+   cmd_queue.airflow_queue
    cmd_queue.base_queue
    cmd_queue.serial_queue
    cmd_queue.slurm_queue
