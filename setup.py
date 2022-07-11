@@ -186,8 +186,8 @@ if __name__ == "__main__":
 
     setupkw["name"] = NAME
     setupkw["version"] = VERSION
-    setupkw["author"] = "joncrall"
-    setupkw["author_email"] = "jon.crall@kitware.com"
+    setupkw["author"] = "Kitware Inc., Jon Crall"
+    setupkw["author_email"] = "kitware@kitware.com, jon.crall@kitware.com"
     setupkw["url"] = "https://gitlab.kitware.com/computer-vision/cmd_queue"
     setupkw["description"] = "The cmd_queue module for a DAG of bash commands"
     setupkw["long_description"] = parse_description()
