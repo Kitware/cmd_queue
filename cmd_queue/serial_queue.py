@@ -146,7 +146,7 @@ class BashJob(base_queue.Job):
         text = '\n'.join(script)
         return text
 
-    def rprint(self, with_status=False, with_gaurds=False, with_rich=0):
+    def rprint(self, with_status=False, with_gaurds=False, with_rich=0, colors=0):
         r"""
         Print info about the commands, optionally with rich
 
@@ -167,7 +167,10 @@ class BashJob(base_queue.Job):
             console = Console()
             console.print(Syntax(code, 'bash'))
         else:
-            print(ub.highlight_code(code, 'bash'))
+            if colors:
+                print(ub.highlight_code(code, 'bash'))
+            else:
+                print(code)
 
 
 class SerialQueue(base_queue.Queue):
@@ -362,7 +365,7 @@ class SerialQueue(base_queue.Queue):
             stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP))
         return self.fpath
 
-    def rprint(self, with_status=False, with_gaurds=False, with_rich=0):
+    def rprint(self, with_status=False, with_gaurds=False, with_rich=0, colors=0):
         r"""
         Print info about the commands, optionally with rich
 
@@ -385,17 +388,20 @@ class SerialQueue(base_queue.Queue):
             console.print(Panel(Syntax(code, 'bash'), title=str(self.fpath)))
             # console.print(Syntax(code, 'bash'))
         else:
-            print(ub.highlight_code(f'# --- {str(self.fpath)}', 'bash'))
-            print(ub.highlight_code(code, 'bash'))
+            header = f'# --- {str(self.fpath)}'
+            if colors:
+                print(ub.highlight_code(header, 'bash'))
+                print(ub.highlight_code(code, 'bash'))
+            else:
+                print(header)
+                print(code)
 
-    def run(self, block=None, system=False):
-        # block is always true here
+    def run(self, block=True, system=False):
         self.write()
-        # os.system(f'bash {self.fpath}')
-        # verbose=3, check=True)
-        # ub.cmd(f'bash {self.fpath}', verbose=3, check=True, system=True)
-        ub.cmd(f'bash {self.fpath}', verbose=3, check=True, shell=True,
-               system=system)
+        # TODO: can implement a monitor here for non-blocking mode
+        detach = not block
+        ub.cmd(f'bash {self.fpath}', verbose=3, check=True, shell=1,
+               system=system, detach=detach)
 
     def read_state(self):
         import json
