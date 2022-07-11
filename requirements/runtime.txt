@@ -18,4 +18,5 @@ pandas>=1.1.4     ; python_version < '3.7' and python_version >= '3.6.1'    # Py
 pandas>=1.1.4     ; python_version < '3.6.1' and python_version >= '3.6'    # Python 3.6
 
 
-pint>=0.18
+pint>=0.18      ;                            python_version >= '3.7'    # Python 3.7+
+pint>=0.10      ; python_version < '3.7' and python_version >= '3.6'    # Python 3.6
