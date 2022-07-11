@@ -225,7 +225,7 @@ class SlurmQueue(base_queue.Queue):
         stamp = time.strftime('%Y%m%dT%H%M%S')
         self.unused_kwargs = kwargs
         self.queue_id = name + '-' + stamp + '-' + ub.hash_data(uuid.uuid4())[0:8]
-        self.dpath = ub.Path.appdir('slurm_queue') / self.queue_id
+        self.dpath = ub.Path.appdir('cmd_queue/slurm') / self.queue_id
         self.log_dpath = self.dpath / 'logs'
         self.fpath = self.dpath / (self.queue_id + '.sh')
         self.shell = shell

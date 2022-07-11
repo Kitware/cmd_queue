@@ -33,12 +33,17 @@ class Queue(ub.NiceRepr):
     def sync(self):
         """
         Mark that all future jobs will depend on the current sink jobs
+
+        Returns:
+            Queue:
+                a reference to the queue (for chaining)
         """
         graph = self._dependency_graph()
         # Find the jobs that nobody depends on
         sink_jobs = [graph.nodes[n]['job'] for n, d in graph.out_degree if d == 0]
         # All new jobs must depend on these jobs
         self.all_depends = sink_jobs
+        return self
 
     def submit(self, command, **kwargs):
         # TODO: we could accept additional args here that modify how we handle

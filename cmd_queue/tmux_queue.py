@@ -154,7 +154,7 @@ class TMUXMultiQueue(base_queue.Queue):
         self.rootid = rootid
         self.pathid = '{}_{}'.format(self.name, self.rootid)
         if dpath is None:
-            dpath = ub.ensure_app_cache_dir('cmd_queue')
+            dpath = ub.Path.appdir('cmd_queue/tmux').ensuredir()
         self.dpath = (ub.Path(dpath) / self.pathid).ensuredir()
 
         if environ is None:

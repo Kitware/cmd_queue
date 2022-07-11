@@ -200,7 +200,7 @@ class SerialQueue(base_queue.Queue):
         self.name = name
         self.rootid = rootid
         if dpath is None:
-            dpath = ub.ensure_app_cache_dir('cmd_queue', self.pathid)
+            dpath = ub.Path.appdir('cmd_queue/serial', self.pathid).ensuredir()
         self.dpath = ub.Path(dpath)
 
         self.unused_kwargs = kwargs
@@ -403,13 +403,14 @@ class SerialQueue(base_queue.Queue):
             print(ub.highlight_code(f'# --- {str(self.fpath)}', 'bash'))
             print(ub.highlight_code(code, 'bash'))
 
-    def run(self, block=None):
+    def run(self, block=None, system=False):
         # block is always true here
         self.write()
         # os.system(f'bash {self.fpath}')
         # verbose=3, check=True)
         # ub.cmd(f'bash {self.fpath}', verbose=3, check=True, system=True)
-        ub.cmd(f'bash {self.fpath}', verbose=3, check=True, shell=True)
+        ub.cmd(f'bash {self.fpath}', verbose=3, check=True, shell=True,
+               system=system)
 
     def read_state(self):
         import json
