@@ -356,16 +356,7 @@ class SerialQueue(base_queue.Queue):
     def add_header_command(self, command):
         self.header_commands.append(command)
 
-    def write(self):
-        text = self.finalize_text()
-        with open(self.fpath, 'w') as file:
-            file.write(text)
-        os.chmod(self.fpath, (
-            stat.S_IXUSR | stat.S_IXGRP | stat.S_IRUSR |
-            stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP))
-        return self.fpath
-
-    def rprint(self, with_status=False, with_gaurds=False, with_rich=0, colors=0):
+    def rprint(self, with_status=False, with_gaurds=False, with_rich=0, colors=1):
         r"""
         Print info about the commands, optionally with rich
 

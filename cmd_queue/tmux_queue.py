@@ -466,13 +466,7 @@ class TMUXMultiQueue(base_queue.Queue):
         self.order_jobs()
         for queue in self.workers:
             queue.write()
-        text = self.finalize_text()
-        with open(self.fpath, 'w') as file:
-            file.write(text)
-        os.chmod(self.fpath, (
-            stat.S_IXUSR | stat.S_IXGRP | stat.S_IRUSR |
-            stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP))
-        return self.fpath
+        super().write()
 
     def run(self, block=True, onfail='kill', onexit='', system=False):
         if not ub.find_exe('tmux'):

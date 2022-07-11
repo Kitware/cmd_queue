@@ -237,18 +237,6 @@ class SlurmQueue(base_queue.Queue):
     def __nice__(self):
         return self.queue_id
 
-    def write(self):
-        import os
-        import stat
-        text = self.finalize_text()
-        self.fpath.parent.ensuredir()
-        with open(self.fpath, 'w') as file:
-            file.write(text)
-        os.chmod(self.fpath, (
-            stat.S_IXUSR | stat.S_IXGRP | stat.S_IRUSR |
-            stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP))
-        return self.fpath
-
     def submit(self, command, **kwargs):
         name = kwargs.get('name', None)
         if name is None:

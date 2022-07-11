@@ -45,6 +45,22 @@ class Queue(ub.NiceRepr):
         self.all_depends = sink_jobs
         return self
 
+    def write(self):
+        """
+        Writes the underlying files that defines the queue for whatever program
+        will ingest it to run it.
+        """
+        import os
+        import stat
+        text = self.finalize_text()
+        self.fpath.parent.ensuredir()
+        with open(self.fpath, 'w') as file:
+            file.write(text)
+        os.chmod(self.fpath, (
+            stat.S_IXUSR | stat.S_IXGRP | stat.S_IRUSR |
+            stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP))
+        return self.fpath
+
     def submit(self, command, **kwargs):
         # TODO: we could accept additional args here that modify how we handle
         # the command in the bash script we build (i.e. if the script is
