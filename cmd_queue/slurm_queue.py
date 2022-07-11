@@ -393,6 +393,11 @@ class SlurmQueue(base_queue.Queue):
         for cmd in cancel_commands:
             ub.cmd(cmd, verbose=2)
 
+    def read_state(self):
+        # Not possible to get full info, but we probably could do better than
+        # this
+        return {}
+
     def rprint(self, with_status=False, with_rich=0):
         """
         Print info about the commands, optionally with rich
