@@ -88,6 +88,7 @@ class AirflowQueue(base_queue.Queue):
 
         AIRFLOW__CORE__DAGS_FOLDER="." airflow standalone
         AIRFLOW__CORE__DAGS_FOLDER="." airflow scheduler
+        AIRFLOW__CORE__DAGS_FOLDER="." airflow webserver
 
         AIRFLOW__CORE__DAGS_FOLDER="." airflow dags test zzz_cmd_queue_demo_dag $(date +"%Y-%m-%d")
 
@@ -96,7 +97,6 @@ class AirflowQueue(base_queue.Queue):
         AIRFLOW__CORE__DAGS_FOLDER="." airflow tasks clear zzz_cmd_queue_demo_dag
         AIRFLOW__CORE__DAGS_FOLDER="." airflow dags backfill zzz_cmd_queue_demo_dag --start-date $(date +"%Y-%m-%d")
         cd /home/joncrall/.cache/cmd_queue/SQ-20220711T180827-12f2905e
-
     """
 
     def __init__(self, name=None, shell=None, **kwargs):

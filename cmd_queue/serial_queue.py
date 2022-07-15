@@ -4,11 +4,9 @@ References:
     https://stackoverflow.com/questions/13195655/bash-set-x-without-it-being-printed
 """
 import ubelt as ub
-import stat
-import os
 import uuid
 
-from cmd_queue import base_queue  # NOQA
+from cmd_queue import base_queue
 
 
 def indent(text, prefix='    '):
@@ -146,7 +144,8 @@ class BashJob(base_queue.Job):
         text = '\n'.join(script)
         return text
 
-    def rprint(self, with_status=False, with_gaurds=False, with_rich=0, colors=0):
+    def rprint(self, with_status=False, with_gaurds=False, with_rich=0,
+               colors=1):
         r"""
         Print info about the commands, optionally with rich
 
