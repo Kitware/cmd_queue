@@ -40,8 +40,6 @@ It should be possible to add more functionality, such as:
 """
 import ubelt as ub
 # import itertools as it
-import stat
-import os
 import uuid
 
 from cmd_queue import base_queue
@@ -161,6 +159,9 @@ class TMUXMultiQueue(base_queue.Queue):
 
         if environ is None:
             environ = {}
+
+        # Note: size can be changed as long as it happens before the queue is
+        # written and run.
         self.size = size
         self.environ = environ
         self.fpath = self.dpath / f'run_queues_{self.name}.sh'
@@ -280,6 +281,33 @@ class TMUXMultiQueue(base_queue.Queue):
             >>> job17 = self.submit('true', depends=[job4])
             >>> job18 = self.submit('true', depends=[job17])
             >>> job19 = self.submit('true', depends=[job14, job16, job17])
+            >>> self.print_graph()
+            Graph (reduced):
+            ╟── foo-job-0
+            ╎   └─╼ foo-job-2
+            ╎       └─╼ foo-job-4 ╾ foo-job-3
+            ╎           ├─╼ foo-job-15
+            ╎           │   └─╼ foo-job-16 ╾ foo-job-13
+            ╎           │       └─╼ foo-job-19 ╾ foo-job-14, foo-job-17
+            ╎           ├─╼ foo-job-5
+            ╎           │   └─╼ foo-job-8
+            ╎           ├─╼ foo-job-6
+            ╎           │   ├─╼ foo-job-9
+            ╎           │   └─╼ foo-job-10
+            ╎           │       └─╼ foo-job-12 ╾ foo-job-11
+            ╎           ├─╼ foo-job-13
+            ╎           │   ├─╼ foo-job-14
+            ╎           │   │   └─╼  ...
+            ╎           │   └─╼  ...
+            ╎           ├─╼ foo-job-17
+            ╎           │   ├─╼ foo-job-18
+            ╎           │   └─╼  ...
+            ╎           └─╼ foo-job-7
+            ╎               └─╼ foo-job-11
+            ╎                   └─╼  ...
+            ╙── foo-job-1
+                └─╼ foo-job-3
+                    └─╼  ...
             >>> self.rprint()
             >>> # self.run(block=True)
         """
@@ -366,7 +394,7 @@ class TMUXMultiQueue(base_queue.Queue):
         ranked_job_groups = []
         for rank, group in sorted(rankings.items()):
             subgraph = graph.subgraph(group)
-            # Only things that can run in parapellel are disconnected components
+            # Only things that can run in parallel are disconnected components
             parallel_groups = []
             for wcc in list(nx.weakly_connected_components(subgraph)):
                 sub_subgraph = subgraph.subgraph(wcc)
@@ -529,13 +557,13 @@ class TMUXMultiQueue(base_queue.Queue):
             >>> self = TMUXMultiQueue(3, 'test-queue-monitor')
             >>> job = None
             >>> for i in range(10):
-            >>>     job = self.submit('sleep 2', depends=job)
+            >>>     job = self.submit('sleep 2 && echo "hello 2"', depends=job)
             >>> job = None
             >>> for i in range(10):
-            >>>     job = self.submit('sleep 3', depends=job)
+            >>>     job = self.submit('sleep 3 && echo "hello 2"', depends=job)
             >>> job = None
-            >>> for i in range(10):
-            >>>     job = self.submit('sleep 5', depends=job)
+            >>> for i in range(5):
+            >>>     job = self.submit('sleep 5 && echo "hello 2"', depends=job)
             >>> self.rprint()
             >>> if ub.find_exe('tmux'):
             >>>     self.run(block=True)

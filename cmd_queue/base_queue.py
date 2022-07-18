@@ -127,7 +127,13 @@ class Queue(ub.NiceRepr):
             raise KeyError
         return self
 
-    def print_graph(self, reduced=False):
+    def print_graph(self, reduced=True):
+        """
+        Renders the dependency graph to an "network text"
+
+        Args:
+            reduced (bool): if True only show the implicit dependency forest
+        """
         from cmd_queue import util
         import networkx as nx
         graph = self._dependency_graph()
@@ -159,6 +165,7 @@ class Queue(ub.NiceRepr):
             >>> jobY = self.submit('echo hello && sleep 0.5', depends=[jobX])
             >>> jobZ = self.submit('echo hello && sleep 0.5', depends=[jobY])
             >>> graph = self._dependency_graph()
+            >>> self.print_graph()
         """
         import networkx as nx
         graph = nx.DiGraph()
