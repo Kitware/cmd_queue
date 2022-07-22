@@ -52,7 +52,7 @@ class TMUXMultiQueue(base_queue.Queue):
 
     CommandLine:
         xdoctest -m cmd_queue.tmux_queue TMUXMultiQueue:0
-        xdoctest -m cmd_queue.tmux_queue TMUXMultiQueue:1
+        xdoctest -m cmd_queue.tmux_queue TMUXMultiQueue:2
 
     Example:
         >>> from cmd_queue.serial_queue import *  # NOQA
@@ -96,8 +96,8 @@ class TMUXMultiQueue(base_queue.Queue):
         >>>     self.run(block=1, onexit='')
 
     Example:
-        >>> from cmd_queue.tmux_queue import *  # NOQA
-        >>> self = TMUXMultiQueue(2, 'foo')
+        >>> from cmd_queue.tmux_queue import TMUXMultiQueue
+        >>> self = TMUXMultiQueue(size=2, name='foo')
         >>> print('self = {!r}'.format(self))
         >>> job1 = self.submit('echo hello && sleep 0.5')
         >>> job2 = self.submit('echo world && sleep 0.5', depends=[job1])
@@ -550,11 +550,12 @@ class TMUXMultiQueue(base_queue.Queue):
         Monitor progress until the jobs are done
 
         CommandLine:
-            xdoctest -m cmd_queue.tmux_queue TMUXMultiQueue.monitor
+            xdoctest -m cmd_queue.tmux_queue TMUXMultiQueue.monitor:0
+            xdoctest -m cmd_queue.tmux_queue TMUXMultiQueue.monitor:1
 
         Example:
             >>> from cmd_queue.tmux_queue import *  # NOQA
-            >>> self = TMUXMultiQueue(3, 'test-queue-monitor')
+            >>> self = TMUXMultiQueue(size=3, name='test-queue-monitor')
             >>> job = None
             >>> for i in range(10):
             >>>     job = self.submit('sleep 2 && echo "hello 2"', depends=job)
@@ -567,32 +568,58 @@ class TMUXMultiQueue(base_queue.Queue):
             >>> self.rprint()
             >>> if ub.find_exe('tmux'):
             >>>     self.run(block=True)
-        """
-        import time
-        from rich.live import Live
 
-        if MonitorApp is None:
+        Example:
+            >>> from cmd_queue.tmux_queue import *  # NOQA
+            >>> n = 128
+            >>> self = TMUXMultiQueue(size=n, name='test-giant-queue-monitor')
+            >>> for i in range(n):
+            >>>     job = None
+            >>>     for i in range(4):
+            >>>         job = self.submit('sleep 1 && echo "hello 2"', depends=job)
+            >>> self.rprint()
+            >>> if ub.find_exe('tmux'):
+            >>>     self.run(block=True)
+        """
+        if CmdQueueMonitorApp is None and 0:
+            self._simple_rich_monitor(refresh_rate)
+            table, finished, agg_state = self._build_status_table()
+        else:
             print('Kill commands:')
             for command in self._kill_commands():
                 print(command)
-            try:
+            def table_fn():
                 table, finished, agg_state = self._build_status_table()
-                with Live(table, refresh_per_second=4) as live:
-                    while not finished:
-                        time.sleep(refresh_rate)
-                        table, finished, agg_state = self._build_status_table()
-                        live.update(table)
+                return table
+            try:
+                CmdQueueMonitorApp.start_using(table_fn)
             except KeyboardInterrupt:
                 from rich.prompt import Confirm
                 flag = Confirm.ask('do you to kill the procs?')
                 if flag:
                     self.kill()
-        else:
-            MonitorApp.self = self
-            MonitorApp.run()
             table, finished, agg_state = self._build_status_table()
-
+            print(table)
         return agg_state
+
+    def _simple_rich_monitor(self, refresh_rate=0.4):
+        import time
+        from rich.live import Live
+        print('Kill commands:')
+        for command in self._kill_commands():
+            print(command)
+        try:
+            table, finished, agg_state = self._build_status_table()
+            with Live(table, refresh_per_second=4) as live:
+                while not finished:
+                    time.sleep(refresh_rate)
+                    table, finished, agg_state = self._build_status_table()
+                    live.update(table)
+        except KeyboardInterrupt:
+            from rich.prompt import Confirm
+            flag = Confirm.ask('do you to kill the procs?')
+            if flag:
+                self.kill()
 
     def _build_status_table(self):
         from rich.table import Table
@@ -719,47 +746,9 @@ class TMUXMultiQueue(base_queue.Queue):
 
 
 try:
-    raise ImportError
-    import textual  # NOQA
+    from cmd_queue.monitor_app import CmdQueueMonitorApp
 except ImportError:
-    MonitorApp = None
-else:
-    from textual import App, events
-    # from rich.table import Table
-    from textual.widgets import ScrollView
-
-    class MonitorApp(App):
-
-        def on_key(self):
-            self.console.bell()
-            # super().on_key()
-
-        async def on_load(self, event: events.Load) -> None:
-            """Bind keys with the app loads (but before entering application mode)"""
-            # await self.bind("b", "view.toggle('sidebar')", "Toggle sidebar")
-            await self.bind("q", "quit", "Quit")
-            await self.bind("escape", "quit", "Quit")
-
-        async def on_mount(self, event: events.Mount) -> None:
-
-            self.body = body = ScrollView(auto_width=True)
-
-            await self.view.dock(body)
-
-            async def add_content():
-                table, finished, agg_state = self.self._build_status_table()
-                # table = Table(title="Demo")
-                # for i in range(20):
-                #     table.add_column(f"Col {i + 1}", style="magenta")
-                # for i in range(100):
-                #     table.add_row(*[f"cell {i},{j}" for j in range(20)])
-
-                await body.update(table)
-
-            await self.call_later(add_content)
-
-    def _demo_app():
-        MonitorApp.run(title="Simple App", log="textual.log")
+    CmdQueueMonitorApp = None
 
 
 if 0:
