@@ -5,17 +5,6 @@ from rich.console import Console
 import asyncio
 
 
-from textual import events
-from textual.widget import Widget
-from textual.reactive import watch, Reactive
-from datetime import datetime
-from rich.panel import Panel
-from rich.style import StyleType
-from rich.table import Table
-from rich.console import RenderableType
-from rich.repr import Result
-
-
 class class_or_instancemethod(classmethod):
     """
     References:
@@ -29,6 +18,31 @@ class class_or_instancemethod(classmethod):
 class InstanceRunnableApp(App):
     """
     Extension of App that allows for running an instance
+
+    CommandLine:
+        xdoctest -m /home/joncrall/code/cmd_queue/cmd_queue/textual_extensions.py InstanceRunnableApp:0 --interact
+
+    Example:
+        >>> # xdoctest: +REQUIRES(--interact)
+        >>> from textual import events
+        >>> from textual.widgets import ScrollView
+        >>> class DemoApp(InstanceRunnableApp):
+        >>>     def __init__(self, myvar, **kwargs):
+        >>>         super().__init__(**kwargs)
+        >>>         self.myvar = myvar
+        >>>     async def on_load(self, event: events.Load) -> None:
+        >>>         await self.bind("q", "quit", "Quit")
+        >>>     async def on_mount(self, event: events.Mount) -> None:
+        >>>         self.body = body = ScrollView(auto_width=True)
+        >>>         await self.view.dock(body)
+        >>>         async def add_content():
+        >>>             from rich.text import Text
+        >>>             content = Text(self.myvar)
+        >>>             await body.update(content)
+        >>>         await self.call_later(add_content)
+        >>> DemoApp.run(myvar='Existing classmethod way of running an App')
+        >>> self = DemoApp(myvar='The instance way of running an App')
+        >>> self.run()
     """
 
     @classmethod
@@ -92,66 +106,3 @@ class InstanceRunnableApp(App):
             # Running as an instance method
             cls_or_self._run_as_instance(
                 screen=screen, driver=driver, **kwargs)
-
-
-class ExtHeader(Widget):
-    """
-    """
-    def __init__(
-        self,
-        *,
-        tall: bool = True,
-        style: StyleType = "white on dark_green",
-        clock: bool = True,
-    ) -> None:
-        super().__init__()
-        self.tall = tall
-        self.style = style
-        self.clock = clock
-
-    tall: Reactive[bool] = Reactive(True, layout=True)
-    style: Reactive[StyleType] = Reactive("white on blue")
-    clock: Reactive[bool] = Reactive(True)
-    title: Reactive[str] = Reactive("")
-    sub_title: Reactive[str] = Reactive("")
-
-    @property
-    def full_title(self) -> str:
-        return f"{self.title} - {self.sub_title}" if self.sub_title else self.title
-
-    def __rich_repr__(self) -> Result:
-        yield self.title
-
-    async def watch_tall(self, tall: bool) -> None:
-        self.layout_size = 3 if tall else 1
-
-    def get_clock(self) -> str:
-        return datetime.now().time().strftime("%X")
-
-    def render(self) -> RenderableType:
-        header_table = Table.grid(padding=(0, 1), expand=True)
-        header_table.style = self.style
-        header_table.add_column(justify="left", ratio=0, width=8)
-        header_table.add_column("title", justify="center", ratio=1)
-        header_table.add_column("clock", justify="right", width=8)
-        header_table.add_row(
-            "⚡", self.full_title, self.get_clock() if self.clock else ""
-        )
-        header: RenderableType
-        header = Panel(header_table, style=self.style) if self.tall else header_table
-        return header
-
-    async def on_mount(self, event: events.Mount) -> None:
-        self.set_interval(1.0, callback=self.refresh)
-
-        async def set_title(title: str) -> None:
-            self.title = title
-
-        async def set_sub_title(sub_title: str) -> None:
-            self.sub_title = sub_title
-
-        watch(self.app, "title", set_title)
-        watch(self.app, "sub_title", set_sub_title)
-
-    async def on_click(self, event: events.Click) -> None:
-        self.tall = not self.tall

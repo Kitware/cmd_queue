@@ -544,7 +544,7 @@ class TMUXMultiQueue(base_queue.Queue):
 
         CommandLine:
             xdoctest -m cmd_queue.tmux_queue TMUXMultiQueue.monitor:0
-            xdoctest -m cmd_queue.tmux_queue TMUXMultiQueue.monitor:1
+            xdoctest -m cmd_queue.tmux_queue TMUXMultiQueue.monitor:1 --interact
 
         Example:
             >>> from cmd_queue.tmux_queue import *  # NOQA
@@ -563,7 +563,9 @@ class TMUXMultiQueue(base_queue.Queue):
             >>>     self.run(block=True)
 
         Example:
+            >>> # xdoctest: +REQUIRES(--interact)
             >>> from cmd_queue.tmux_queue import *  # NOQA
+            >>> # Setup a lot of longer running jobs
             >>> n = 128
             >>> self = TMUXMultiQueue(size=n, name='test-giant-queue-monitor')
             >>> for i in range(n):
@@ -574,26 +576,32 @@ class TMUXMultiQueue(base_queue.Queue):
             >>> if ub.find_exe('tmux'):
             >>>     self.run(block=True)
         """
-        if CmdQueueMonitorApp is None and 0:
+        if CmdQueueMonitorApp is None:
             self._simple_rich_monitor(refresh_rate)
-            table, finished, agg_state = self._build_status_table()
         else:
-            print('Kill commands:')
-            for command in self._kill_commands():
-                print(command)
-            def table_fn():
-                table, finished, agg_state = self._build_status_table()
-                return table
-            try:
-                CmdQueueMonitorApp.start_using(table_fn)
-            except KeyboardInterrupt:
-                from rich.prompt import Confirm
-                flag = Confirm.ask('do you to kill the procs?')
-                if flag:
-                    self.kill()
-            table, finished, agg_state = self._build_status_table()
-            print(table)
+            self._textual_monitor()
+        table, finished, agg_state = self._build_status_table()
         return agg_state
+
+    def _textual_monitor(self):
+        from rich import print as rprint
+        print('Kill commands:')
+        for command in self._kill_commands():
+            print(command)
+        def table_fn():
+            table, finished, agg_state = self._build_status_table()
+            return table
+
+        app = CmdQueueMonitorApp(table_fn, kill_fn=self.kill)
+        app.run()
+
+        table, finished, agg_state = self._build_status_table()
+        rprint(table)
+
+        from rich.prompt import Confirm
+        flag = Confirm.ask('do you to kill the procs?')
+        if flag:
+            self.kill()
 
     def _simple_rich_monitor(self, refresh_rate=0.4):
         import time
