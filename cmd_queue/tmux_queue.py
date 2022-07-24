@@ -588,20 +588,19 @@ class TMUXMultiQueue(base_queue.Queue):
         print('Kill commands:')
         for command in self._kill_commands():
             print(command)
-        def table_fn():
-            table, finished, agg_state = self._build_status_table()
-            return table
-
+        table_fn = self._build_status_table
         app = CmdQueueMonitorApp(table_fn, kill_fn=self.kill)
         app.run()
 
         table, finished, agg_state = self._build_status_table()
         rprint(table)
 
-        from rich.prompt import Confirm
-        flag = Confirm.ask('do you to kill the procs?')
-        if flag:
-            self.kill()
+        if not app.graceful_exit:
+            from rich.prompt import Confirm
+            flag = Confirm.ask('do you to kill the procs?')
+            if flag:
+                self.kill()
+            raise Exception('User Stopped The Monitor')
 
     def _simple_rich_monitor(self, refresh_rate=0.4):
         import time

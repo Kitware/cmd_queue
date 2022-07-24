@@ -29,6 +29,31 @@ class class_or_instancemethod(classmethod):
 class InstanceRunnableApp(App):
     """
     Extension of App that allows for running an instance
+
+    CommandLine:
+        xdoctest -m /home/joncrall/code/cmd_queue/cmd_queue/textual_extensions.py InstanceRunnableApp:0 --interact
+
+    Example:
+        >>> # xdoctest: +REQUIRES(--interact)
+        >>> from textual import events
+        >>> from textual.widgets import ScrollView
+        >>> class DemoApp(InstanceRunnableApp):
+        >>>     def __init__(self, myvar, **kwargs):
+        >>>         super().__init__(**kwargs)
+        >>>         self.myvar = myvar
+        >>>     async def on_load(self, event: events.Load) -> None:
+        >>>         await self.bind("q", "quit", "Quit")
+        >>>     async def on_mount(self, event: events.Mount) -> None:
+        >>>         self.body = body = ScrollView(auto_width=True)
+        >>>         await self.view.dock(body)
+        >>>         async def add_content():
+        >>>             from rich.text import Text
+        >>>             content = Text(self.myvar)
+        >>>             await body.update(content)
+        >>>         await self.call_later(add_content)
+        >>> DemoApp.run(myvar='Existing classmethod way of running an App')
+        >>> self = DemoApp(myvar='The instance way of running an App')
+        >>> self.run()
     """
 
     @classmethod
@@ -58,14 +83,21 @@ class InstanceRunnableApp(App):
         """
         New instancemethod logic
         """
+        self.console = console or self.console
+        self.screen = screen or self._screen
+        self.driver = driver or self._driver
+        if kwargs.get('title', None) is not None:
+            self._title = kwargs.pop('title')
+        if kwargs.get('log', None) is not None:
+            self.log_file = open(kwargs.pop('log'), "wt")
+        if kwargs.get('log_verbosity', None) is not None:
+            self.log_verbosity = kwargs.pop('log_verbosity')
         if len(kwargs):
             raise ValueError(
-                'Cannot pass kwargs when running as an instance method. '
-                'Assuming that instance variables are already setup.')
+                'Cannot pass unhandled kwargs when running as an '
+                'instance method. Assuming that instance variables '
+                'are already setup.')
         async def run_app() -> None:
-            self.console = console or self.console
-            self.screen = screen or self._screen
-            self.driver = driver or self._driver
             await self.process_messages()
         asyncio.run(run_app())
 
