@@ -134,20 +134,20 @@ class Queue(ub.NiceRepr):
         Args:
             reduced (bool): if True only show the implicit dependency forest
         """
-        from cmd_queue import util
+        from cmd_queue.util.util_networkx import graph_str
         import networkx as nx
         graph = self._dependency_graph()
         if reduced:
             print('\nGraph (reduced):')
             try:
                 reduced_graph = nx.transitive_reduction(graph)
-                print(util.graph_str(reduced_graph))
+                print(graph_str(reduced_graph))
             except Exception as ex:
                 print(f'ex={ex}')
             print('\n')
         else:
             print('\nGraph:')
-            print(util.graph_str(graph))
+            print(graph_str(graph))
 
     def _dependency_graph(self):
         """

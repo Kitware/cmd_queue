@@ -312,7 +312,7 @@ class TMUXMultiQueue(base_queue.Queue):
             >>> # self.run(block=True)
         """
         import networkx as nx
-        from cmd_queue import util
+        from cmd_queue.util.util_networkx import graph_str
         graph = self._dependency_graph()
 
         # Get rid of implicit dependencies
@@ -332,7 +332,7 @@ class TMUXMultiQueue(base_queue.Queue):
             print('simple_cycles = {}'.format(ub.repr2(simple_cycles, nl=1)))
             import xdev
             xdev.embed()
-            print(util.graph_str(graph))
+            print(graph_str(graph))
             raise
 
         in_cut_nodes = set()
@@ -351,26 +351,11 @@ class TMUXMultiQueue(base_queue.Queue):
                 cut_edges.extend(list(reduced_graph.out_edges(n)))
                 out_cut_nodes.add(n)
 
-        list(nx.dfs_labeled_edges(reduced_graph))
-
-        # cut_nodes = out_cut_nodes | in_cut_nodes
-
-        cut_notes = in_cut_nodes.copy()
-        cut_notes.update([v for u, v in cut_edges])
-
         cut_graph = reduced_graph.copy()
         cut_graph.remove_edges_from(cut_edges)
 
         # Get all the node groups disconnected by the cuts
         condensed = nx.condensation(reduced_graph, nx.weakly_connected_components(cut_graph))
-
-        if 0:
-            from graphid.util import util_graphviz
-            import kwplot
-            kwplot.autompl()
-            util_graphviz.show_nx(graph, fnum=1)
-            util_graphviz.show_nx(reduced_graph, fnum=3)
-            util_graphviz.show_nx(condensed, fnum=2)
 
         # Rank each condensed group, which defines
         # what order it is allowed to be executed in
@@ -385,6 +370,14 @@ class TMUXMultiQueue(base_queue.Queue):
             rank = len(cut_in_members) + len(cut_out_ancestors) + len(cut_in_ancestors)
             for m in members:
                 rankings[rank].update(members)
+
+        if 0:
+            from graphid.util import util_graphviz
+            import kwplot
+            kwplot.autompl()
+            util_graphviz.show_nx(graph, fnum=1)
+            util_graphviz.show_nx(reduced_graph, fnum=3)
+            util_graphviz.show_nx(condensed, fnum=2)
 
         # cmd_queue.graph_str(condensed, write=print)
 
@@ -402,7 +395,7 @@ class TMUXMultiQueue(base_queue.Queue):
                 parallel_groups.append(wcc_order)
             # Ranked bins
             # Solve a bin packing problem to partition these into self.size groups
-            from cmd_queue.util import balanced_number_partitioning
+            from cmd_queue.util.util_algo import balanced_number_partitioning
             group_weights = list(map(len, parallel_groups))
             groupxs = balanced_number_partitioning(group_weights, num_parts=self.size)
             rank_groups = [list(ub.take(parallel_groups, gxs)) for gxs in groupxs]

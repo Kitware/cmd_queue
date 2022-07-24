@@ -3,6 +3,7 @@ from textual.app import App
 from textual.widgets import ScrollView
 from textual.widget import Widget
 from rich.table import Table
+from cmd_queue.util.textual_extensions import InstanceRunnableApp
 # import ubelt as ub
 
 
@@ -46,27 +47,23 @@ def demo_table_fn():
     return table
 
 
-class CmdQueueMonitorApp(App):
+class CmdQueueMonitorApp(InstanceRunnableApp):
     """
     A Textual App to monitor jobs
     """
 
-    # def __init__(self, *args, **kwargs):
-    #     super().__init__(*args, **kwargs)
-    #     print('init self = {}'.format(ub.repr2(self, nl=1)))
-    #     print('init self = {}'.format(ub.repr2(id(self), nl=1)))
-
-    table_fn = None
+    def __init__(self, table_fn, **kwargs):
+        self.table_fn = table_fn
+        super().__init__(**kwargs)
 
     @classmethod
-    def start_using(CmdQueueMonitorApp, table_fn):
+    def demo(CmdQueueMonitorApp):
         """
         It seems to be necessary to create using the class rather than
         an instance. It might be nice to have an instance-level builder, but
         for now this hack should work.
         """
-        CmdQueueMonitorApp.table_fn = table_fn
-        CmdQueueMonitorApp.run()
+        return CmdQueueMonitorApp(demo_table_fn)
 
     @classmethod
     def demo_run(CmdQueueMonitorApp):
@@ -74,9 +71,9 @@ class CmdQueueMonitorApp(App):
         Example:
             >>> # xdoctest: +REQUIRES(--interact)
             >>> from cmd_queue.monitor_app import CmdQueueMonitorApp
-            >>> CmdQueueMonitorApp.demo().run()
+            >>> CmdQueueMonitorApp.demo_run()
         """
-        CmdQueueMonitorApp.start_using(demo_table_fn)
+        CmdQueueMonitorApp.run(demo_table_fn)
 
     async def on_load(self, event: events.Load) -> None:
         await self.bind("q", "quit", "Quit")
@@ -96,9 +93,9 @@ class CmdQueueMonitorApp(App):
         await self.call_later(add_content)
 
 
-if __name__ == '__main__':
-    """
-    CommandLine:
-        python ~/code/cmd_queue/cmd_queue/monitor_app.py
-    """
-    CmdQueueMonitorApp.demo_run()
+# if __name__ == '__main__':
+#     """
+#     CommandLine:
+#         python ~/code/cmd_queue/cmd_queue/monitor_app.py
+#     """
+#     CmdQueueMonitorApp.demo_run()
