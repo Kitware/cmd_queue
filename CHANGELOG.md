@@ -7,6 +7,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version 0.1.2 - Unreleased
 
+### Added
+* Improved textual monitor for tmux queue
+* Keep track of skipped jobs in tmux / serial queue
+
 ## Version 0.1.1 - Unreleased
 
 ### Fixed

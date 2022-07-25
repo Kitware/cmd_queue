@@ -141,6 +141,46 @@ class TMUXMultiQueue(base_queue.Queue):
         >>> job3 = self.submit('echo hello && sleep 0.5')
         >>> self.rprint()
 
+    Example:
+        >>> # Test complex failure case
+        >>> from cmd_queue import Queue
+        >>> self = Queue.create(size=2, name='demo-complex-failure', backend='tmux')
+        >>> # Submit a binary tree that fails at different levels
+        >>> for idx in range(2):
+        >>>     # Level 0
+        >>>     job1000 = self.submit('true')
+        >>>     # Level 1
+        >>>     job1100 = self.submit('true', depends=[job1000])
+        >>>     job1200 = self.submit('false', depends=[job1000], name=f'false0_{idx}')
+        >>>     # Level 2
+        >>>     job1110 = self.submit('true', depends=[job1100])
+        >>>     job1120 = self.submit('false', depends=[job1100], name=f'false1_{idx}')
+        >>>     job1210 = self.submit('true', depends=[job1200])
+        >>>     job1220 = self.submit('true', depends=[job1200])
+        >>>     # Level 3
+        >>>     job1111 = self.submit('true', depends=[job1110])
+        >>>     job1112 = self.submit('false', depends=[job1110], name=f'false2_{idx}')
+        >>>     job1121 = self.submit('true', depends=[job1120])
+        >>>     job1122 = self.submit('true', depends=[job1120])
+        >>>     job1211 = self.submit('true', depends=[job1210])
+        >>>     job1212 = self.submit('true', depends=[job1210])
+        >>>     job1221 = self.submit('true', depends=[job1220])
+        >>>     job1222 = self.submit('true', depends=[job1220])
+        >>> # Submit a chain that fails in the middle
+        >>> chain1 = self.submit('true', name='chain1')
+        >>> chain2 = self.submit('true', depends=[chain1], name='chain2')
+        >>> chain3 = self.submit('false', depends=[chain2], name='chain3')
+        >>> chain4 = self.submit('true', depends=[chain3], name='chain4')
+        >>> chain5 = self.submit('true', depends=[chain4], name='chain5')
+        >>> # Submit 4 loose passing jobs
+        >>> for _ in range(4):
+        >>>     self.submit('true', name=f'loose_true{_}')
+        >>> # Submit 4 loose failing jobs
+        >>> for _ in range(4):
+        >>>     self.submit('false', name=f'loose_false{_}')
+        >>> self.rprint()
+        >>> self.print_graph()
+        >>> self.run(with_textual=False)
     """
     def __init__(self, size=1, name=None, dpath=None, rootid=None, environ=None,
                  gres=None):
@@ -489,17 +529,18 @@ class TMUXMultiQueue(base_queue.Queue):
             queue.write()
         super().write()
 
-    def run(self, block=True, onfail='kill', onexit='', system=False):
+    def run(self, block=True, onfail='kill', onexit='', system=False,
+            with_textual='auto'):
         if not ub.find_exe('tmux'):
             raise Exception('tmux not found')
         self.write()
         ub.cmd(f'bash {self.fpath}', verbose=self.cmd_verbose, check=True,
                system=system)
         if block:
-            agg_state = self.monitor()
+            agg_state = self.monitor(with_textual=with_textual)
             if onexit == 'capture':
                 self.capture()
-            if not agg_state['errored']:
+            if not agg_state['failed']:
                 if onfail == 'kill':
                     self.kill()
             return agg_state
@@ -513,8 +554,9 @@ class TMUXMultiQueue(base_queue.Queue):
         agg_state['worker_states'] = worker_states
         try:
             agg_state['total'] = sum(s['total'] for s in worker_states)
-            agg_state['errored'] = sum(s['errored'] for s in worker_states)
-            agg_state['finished'] = sum(s['finished'] for s in worker_states)
+            agg_state['failed'] = sum(s['failed'] for s in worker_states)
+            agg_state['passed'] = sum(s['passed'] for s in worker_states)
+            agg_state['skipped'] = sum(s['skipped'] for s in worker_states)
             agg_state['rootid'] = ub.peek(s['rootid'] for s in worker_states)
             states = set(s['status'] for s in worker_states)
             agg_state['status'] = 'done' if states == {'done'} else 'not-done'
@@ -538,7 +580,7 @@ class TMUXMultiQueue(base_queue.Queue):
         for fpath in queue_fpaths:
             ub.cmd(f'{fpath}', verbose=self.cmd_verbose, check=True)
 
-    def monitor(self, refresh_rate=0.4):
+    def monitor(self, refresh_rate=0.4, with_textual='auto'):
         """
         Monitor progress until the jobs are done
 
@@ -576,10 +618,13 @@ class TMUXMultiQueue(base_queue.Queue):
             >>> if ub.find_exe('tmux'):
             >>>     self.run(block=True)
         """
-        if CmdQueueMonitorApp is None:
-            self._simple_rich_monitor(refresh_rate)
-        else:
+        if with_textual == 'auto':
+            with_textual = CmdQueueMonitorApp is not None
+
+        if with_textual:
             self._textual_monitor()
+        else:
+            self._simple_rich_monitor(refresh_rate)
         table, finished, agg_state = self._build_status_table()
         return agg_state
 
@@ -625,7 +670,7 @@ class TMUXMultiQueue(base_queue.Queue):
         from rich.table import Table
         # https://rich.readthedocs.io/en/stable/live.html
         table = Table()
-        columns = ['name', 'status', 'finished', 'errors', 'total']
+        columns = ['name', 'status', 'passed', 'errors', 'skipped' 'total']
         for col in columns:
             table.add_column(col)
 
@@ -633,35 +678,39 @@ class TMUXMultiQueue(base_queue.Queue):
         agg_state = {
             'name': 'agg',
             'status': '',
-            'errored': 0,
-            'finished': 0,
+            'failed': 0,
+            'passed': 0,
+            'skipped': 0,
             'total': 0
         }
 
         for worker in self.workers:
-            fin_color = ''
-            err_color = ''
+            pass_color = ''
+            fail_color = ''
+            skip_color = ''
             state = worker.read_state()
             if state['status'] == 'unknown':
                 finished = False
-                fin_color = '[yellow]'
+                pass_color = '[yellow]'
             else:
                 finished &= (state['status'] == 'done')
                 if state['status'] == 'done':
-                    fin_color = '[green]'
+                    pass_color = '[green]'
 
-                if (state['errored'] > 0):
-                    err_color = '[red]'
+                if (state['failed'] > 0):
+                    fail_color = '[red]'
 
                 agg_state['total'] += state['total']
-                agg_state['finished'] += state['finished']
-                agg_state['errored'] += state['errored']
+                agg_state['passed'] += state['passed']
+                agg_state['failed'] += state['failed']
+                agg_state['skipped'] += state['skipped']
 
             table.add_row(
                 state['name'],
                 state['status'],
-                f"{fin_color}{state['finished']}",
-                f"{err_color}{state['errored']}",
+                f"{pass_color}{state['passed']}",
+                f"{fail_color}{state['failed']}",
+                f"{skip_color}{state['skipped']}",
                 f"{state['total']}",
             )
 
@@ -674,8 +723,8 @@ class TMUXMultiQueue(base_queue.Queue):
             table.add_row(
                 agg_state['name'],
                 agg_state['status'],
-                f"{agg_state['finished']}",
-                f"{agg_state['errored']}",
+                f"{agg_state['passed']}",
+                f"{agg_state['failed']}",
                 f"{agg_state['total']}",
             )
         return table, finished, agg_state

@@ -67,7 +67,7 @@ class CmdQueueMonitorApp(InstanceRunnableApp):
             nonlocal countdown
             import random
             r = random.random()
-            columns = ['name', 'status', 'finished', 'errors', 'total']
+            columns = ['name', 'status', 'passed', 'errors', 'total']
             table = rich.table.Table()
             for col in columns:
                 table.add_column(col)

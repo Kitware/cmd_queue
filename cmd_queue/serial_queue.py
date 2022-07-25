@@ -39,9 +39,17 @@ class BashJob(base_queue.Job):
 
     Example:
         >>> from cmd_queue.serial_queue import *  # NOQA
+        >>> # Demo full boilerplate for a job with no dependencies
         >>> self = BashJob('echo hi', 'myjob')
-        >>> self.rprint(0, 1)
         >>> self.rprint(1, 1)
+
+    Example:
+        >>> from cmd_queue.serial_queue import *  # NOQA
+        >>> # Demo full boilerplate for a job with dependencies
+        >>> dep = BashJob('echo hi', name='job1')
+        >>> conditionals = {'on_skip': ['echo "CUSTOM MESSAGE FOR WHEN WE SKIP A JOB"']}
+        >>> self = BashJob('echo hi', name='job2', depends=[dep])
+        >>> self.rprint(1, 1, conditionals=conditionals)
     """
     def __init__(self, command, name=None, depends=None, gpus=None, cpus=None,
                  mem=None, bookkeeper=0, info_dpath=None, **kwargs):
@@ -64,6 +72,32 @@ class BashJob(base_queue.Job):
         script = []
         prefix_script = []
         suffix_script = []
+
+        if with_status:
+            # Base conditionals
+            _job_conditionals = {
+                # when the job runs and succeedes
+                'on_pass': [
+                    f'mkdir -p {self.pass_fpath.parent}',
+                    f'printf "pass" > {self.pass_fpath}',
+                ],
+                # when the job fails or does not run
+                'on_fail': [
+                    f'mkdir -p {self.fail_fpath.parent}',
+                    f'printf "fail" > {self.fail_fpath}',
+                ],
+                # when dependencies are unmet
+                'on_skip': [ ]
+            }
+
+            # Append custom conditionals
+            if conditionals:
+                for k, v in _job_conditionals.items():
+                    if k in conditionals:
+                        v2 = conditionals.get(k)
+                        if not ub.iterable(v2):
+                            v2 = [v2]
+                        v.extend(v2)
 
         if with_status:
             if self.depends:
@@ -93,6 +127,9 @@ class BashJob(base_queue.Job):
         if with_status:
             if self.depends:
                 suffix_script.append('else')
+                if _job_conditionals['on_skip']:
+                    on_skip_part = indent(_job_conditionals['on_skip'])
+                    suffix_script.append(on_skip_part)
                 suffix_script.append('    RETURN_CODE=126')
                 suffix_script.append('fi')
                 script = prefix_script + [indent(script)] + suffix_script
@@ -106,25 +143,6 @@ class BashJob(base_queue.Job):
             ]
             dump_status = _bash_json_dump(json_fmt_parts, self.stat_fpath)
 
-            _job_conditionals = {
-                'on_pass': [
-                    f'mkdir -p {self.pass_fpath.parent}',
-                    f'printf "pass" > {self.pass_fpath}',
-                ],
-                'on_fail': [
-                    f'mkdir -p {self.fail_fpath.parent}',
-                    f'printf "fail" > {self.fail_fpath}',
-                ]
-            }
-
-            if conditionals:
-                for k, v in _job_conditionals.items():
-                    if k in conditionals:
-                        v2 = conditionals.get(k)
-                        if not ub.iterable(v2):
-                            v2 = [v2]
-                        v.extend(v2)
-
             on_pass_part = indent(_job_conditionals['on_pass'])
             on_fail_part = indent(_job_conditionals['on_fail'])
             conditional_body = '\n'.join([
@@ -134,18 +152,18 @@ class BashJob(base_queue.Job):
                 on_fail_part,
                 'fi'
             ])
-            script.append('# <bookkeeping> ')
+            script.append('#     <bookkeeping> ')
             script.append(f'mkdir -p {self.stat_fpath.parent}')
             script.append(dump_status)
             script.append(conditional_body)
-            script.append('# </bookkeeping> ')
+            script.append('#     </bookkeeping> ')
 
         assert isinstance(script, list)
         text = '\n'.join(script)
         return text
 
     def rprint(self, with_status=False, with_gaurds=False, with_rich=0,
-               colors=1):
+               colors=1, **kwargs):
         r"""
         Print info about the commands, optionally with rich
 
@@ -159,7 +177,7 @@ class BashJob(base_queue.Job):
             >>> self.rprint(with_status=0)
         """
         code = self.finalize_text(with_status=with_status,
-                                  with_gaurds=with_gaurds)
+                                  with_gaurds=with_gaurds, **kwargs)
         if with_rich:
             from rich.syntax import Syntax
             from rich.console import Console
@@ -198,10 +216,11 @@ class SerialQueue(base_queue.Queue):
         >>> job6 = self.submit('echo "job6 never runs"', depends=[job5])
         >>> job7 = self.submit('echo "job7 never runs"', depends=[job4, job2])
         >>> job8 = self.submit('echo "job8 never runs"', depends=[job4, job1])
-        >>> self.rprint()
+        >>> self.rprint(1, 1)
         >>> self.run()
         >>> self.read_state()
     """
+
     def __init__(self, name='', dpath=None, rootid=None, environ=None, cwd=None, **kwargs):
         super().__init__()
         if rootid is None:
@@ -244,8 +263,9 @@ class SerialQueue(base_queue.Queue):
             script.append(ub.codeblock(
                 f'''
                 # Init state to keep track of job progress
-                (( "_CMD_QUEUE_NUM_ERRORED=0" )) || true
-                (( "_CMD_QUEUE_NUM_FINISHED=0" )) || true
+                (( "_CMD_QUEUE_NUM_FAILED=0" )) || true
+                (( "_CMD_QUEUE_NUM_PASSED=0" )) || true
+                (( "_CMD_QUEUE_NUM_SKIPPED=0" )) || true
                 _CMD_QUEUE_TOTAL={total}
                 _CMD_QUEUE_STATUS=""
                 '''))
@@ -267,8 +287,9 @@ class SerialQueue(base_queue.Queue):
                 # Name, format-string, and value for json status
                 json_fmt_parts = [
                     ('status', '"%s"', '$_CMD_QUEUE_STATUS'),
-                    ('finished', '%d', '$_CMD_QUEUE_NUM_FINISHED'),
-                    ('errored', '%d', '$_CMD_QUEUE_NUM_ERRORED'),
+                    ('passed', '%d', '$_CMD_QUEUE_NUM_PASSED'),
+                    ('failed', '%d', '$_CMD_QUEUE_NUM_FAILED'),
+                    ('skipped', '%d', '$_CMD_QUEUE_NUM_SKIPPED'),
                     ('total', '%d', '$_CMD_QUEUE_TOTAL'),
                     ('name', '"%s"', self.name),
                     ('rootid', '"%s"', self.rootid),
@@ -336,8 +357,9 @@ class SerialQueue(base_queue.Queue):
                         ''').format(num + 1, total, job.name))
 
                     conditionals = {
-                        'on_pass': '(( "_CMD_QUEUE_NUM_FINISHED=_CMD_QUEUE_NUM_FINISHED+1" )) || true',
-                        'on_fail': '(( "_CMD_QUEUE_NUM_ERRORED=_CMD_QUEUE_NUM_ERRORED+1" )) || true',
+                        'on_pass': '(( "_CMD_QUEUE_NUM_PASSED=_CMD_QUEUE_NUM_PASSED+1" )) || true',
+                        'on_fail': '(( "_CMD_QUEUE_NUM_FAILED=_CMD_QUEUE_NUM_FAILED+1" )) || true',
+                        'on_skip': '(( "_CMD_QUEUE_NUM_SKIPPED=_CMD_QUEUE_NUM_SKIPPED+1" )) || true',
                     }
                     script.append(job.finalize_text(with_status, with_gaurds, conditionals))
                     if with_status:
@@ -345,6 +367,13 @@ class SerialQueue(base_queue.Queue):
                     num += 1
 
         _mark_status('done')
+
+        # Print summary of status at the end.
+        if with_status:
+            script.append('# Display final status of this serial queue')
+            script.append('echo "Command Queue Final Status:"')
+            script.append(f'cat "{self.state_fpath}"')
+            pass
 
         if with_gaurds:
             script.append('set +e')
@@ -406,8 +435,9 @@ class SerialQueue(base_queue.Queue):
                     'name': self.name,
                     'status': 'unknown',
                     'total': self.num_real_jobs,
-                    'finished': None,
-                    'errored': None,
+                    'passed': None,
+                    'failed': None,
+                    'skipped': None,
                 }
             except json.JSONDecodeError:
                 # we might have tried to read the file while it was being
