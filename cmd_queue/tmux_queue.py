@@ -211,6 +211,8 @@ class TMUXMultiQueue(base_queue.Queue):
         self.jobs = []
         self.header_commands = []
 
+        self._tmux_session_prefix = 'cmdq_'
+
         self._new_workers()
 
     def _new_workers(self, start=0):
@@ -225,7 +227,7 @@ class TMUXMultiQueue(base_queue.Queue):
 
         workers = [
             serial_queue.SerialQueue(
-                name='queue_{}_{}'.format(self.name, worker_idx),
+                name='{}{}_{}'.format(self._tmux_session_prefix, self.name, worker_idx),
                 rootid=self.rootid,
                 dpath=self.dpath,
                 environ=e
@@ -529,10 +531,37 @@ class TMUXMultiQueue(base_queue.Queue):
             queue.write()
         super().write()
 
+    def kill_other_queues(self, ask_first=True):
+        import parse
+        queue_name_pattern = parse.Parser(self._tmux_session_prefix + '{name}_{rootid}')
+        current_sessions = self._tmux_current_sessions()
+        other_session_ids = []
+        for info in current_sessions:
+            matched = queue_name_pattern.parse(info['id'])
+            if matched is not None:
+                other_session_ids.append(info['id'])
+        print(f'other_session_ids={other_session_ids}')
+        if other_session_ids:
+            print('It looks like there are other running cmd-queue sessions')
+            print('Commands to kill them:')
+            kill_commands = []
+            for sess_id in other_session_ids:
+                command2 = f'tmux kill-session -t {sess_id}'
+                print(command2)
+                kill_commands.append(command2)
+            from rich import prompt
+            if not ask_first or prompt.Confirm().ask('Do you want to kill the other sessions?'):
+                for command in kill_commands:
+                    ub.cmd(command, verbose=self.cmd_verbose)
+
     def run(self, block=True, onfail='kill', onexit='', system=False,
-            with_textual='auto'):
+            with_textual='auto', check_other_sessions=True):
+
         if not ub.find_exe('tmux'):
             raise Exception('tmux not found')
+        if check_other_sessions:
+            self.kill_other_queues(ask_first=True)
+
         self.write()
         ub.cmd(f'bash {self.fpath}', verbose=self.cmd_verbose, check=True,
                system=system)
@@ -670,7 +699,7 @@ class TMUXMultiQueue(base_queue.Queue):
         from rich.table import Table
         # https://rich.readthedocs.io/en/stable/live.html
         table = Table()
-        columns = ['name', 'status', 'passed', 'errors', 'skipped' 'total']
+        columns = ['tmux session name', 'status', 'passed', 'failed', 'skipped', 'total']
         for col in columns:
             table.add_column(col)
 
@@ -699,6 +728,8 @@ class TMUXMultiQueue(base_queue.Queue):
 
                 if (state['failed'] > 0):
                     fail_color = '[red]'
+                if (state['skipped'] > 0):
+                    skip_color = '[yellow]'
 
                 agg_state['total'] += state['total']
                 agg_state['passed'] += state['passed']
@@ -725,6 +756,7 @@ class TMUXMultiQueue(base_queue.Queue):
                 agg_state['status'],
                 f"{agg_state['passed']}",
                 f"{agg_state['failed']}",
+                f"{agg_state['skipped']}",
                 f"{agg_state['total']}",
             )
         return table, finished, agg_state
