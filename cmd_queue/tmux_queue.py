@@ -227,7 +227,7 @@ class TMUXMultiQueue(base_queue.Queue):
 
         workers = [
             serial_queue.SerialQueue(
-                name='{}{}_{}'.format(self._tmux_session_prefix, self.name, worker_idx),
+                name='{}{}_{:03d}'.format(self._tmux_session_prefix, self.name, worker_idx),
                 rootid=self.rootid,
                 dpath=self.dpath,
                 environ=e
