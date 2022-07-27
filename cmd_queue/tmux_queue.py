@@ -64,7 +64,7 @@ class TMUXMultiQueue(base_queue.Queue):
         >>> self.rprint()
         >>> self.print_graph()
         >>> if ub.find_exe('tmux'):
-        >>>     self.run(block=True, onexit='capture')
+        >>>     self.run(block=True, onexit='capture', check_other_sessions=0)
 
     Example:
         >>> from cmd_queue.tmux_queue import *  # NOQA
@@ -94,7 +94,7 @@ class TMUXMultiQueue(base_queue.Queue):
         >>> self.rprint()
         >>> self.print_graph()
         >>> if ub.find_exe('tmux'):
-        >>>     self.run(block=1, onexit='')
+        >>>     self.run(block=1, onexit='', check_other_sessions=0)
 
     Example:
         >>> from cmd_queue.tmux_queue import TMUXMultiQueue
@@ -113,7 +113,7 @@ class TMUXMultiQueue(base_queue.Queue):
         >>> self.write()
         >>> self.rprint()
         >>> if ub.find_exe('tmux'):
-        >>>     self.run()
+        >>>     self.run(check_other_sessions=0)
         >>>     self.monitor()
         >>>     self.current_output()
         >>>     self.kill()
@@ -181,7 +181,7 @@ class TMUXMultiQueue(base_queue.Queue):
         >>>     self.submit('false', name=f'loose_false{_}')
         >>> self.rprint()
         >>> self.print_graph()
-        >>> self.run(with_textual=False)
+        >>> self.run(with_textual=False, check_other_sessions=0)
     """
     def __init__(self, size=1, name=None, dpath=None, rootid=None, environ=None,
                  gres=None):
@@ -297,7 +297,7 @@ class TMUXMultiQueue(base_queue.Queue):
             >>> job3 = self.submit('echo hello && sleep 0.5', depends=[job2a, job2b])
             >>> self.rprint()
 
-            self.run(block=True)
+            self.run(block=True, check_other_sessions=0)
 
         Example:
             >>> from cmd_queue.tmux_queue import *  # NOQA
@@ -324,33 +324,35 @@ class TMUXMultiQueue(base_queue.Queue):
             >>> job17 = self.submit('true', depends=[job4])
             >>> job18 = self.submit('true', depends=[job17])
             >>> job19 = self.submit('true', depends=[job14, job16, job17])
-            >>> self.print_graph()
-            Graph (reduced):
+            >>> self.print_graph(reduced=False)
+            ...
+            Graph:
             ╟── foo-job-0
             ╎   └─╼ foo-job-2
-            ╎       └─╼ foo-job-4 ╾ foo-job-3
-            ╎           ├─╼ foo-job-15
-            ╎           │   └─╼ foo-job-16 ╾ foo-job-13
-            ╎           │       └─╼ foo-job-19 ╾ foo-job-14, foo-job-17
+            ╎       └─╼ foo-job-4 ╾ foo-job-3, foo-job-1
             ╎           ├─╼ foo-job-5
             ╎           │   └─╼ foo-job-8
             ╎           ├─╼ foo-job-6
             ╎           │   ├─╼ foo-job-9
             ╎           │   └─╼ foo-job-10
             ╎           │       └─╼ foo-job-12 ╾ foo-job-11
+            ╎           ├─╼ foo-job-7
+            ╎           │   └─╼ foo-job-11
+            ╎           │       └─╼  ...
             ╎           ├─╼ foo-job-13
             ╎           │   ├─╼ foo-job-14
-            ╎           │   │   └─╼  ...
+            ╎           │   │   └─╼ foo-job-19 ╾ foo-job-16, foo-job-17
+            ╎           │   └─╼ foo-job-16 ╾ foo-job-15
+            ╎           │       └─╼  ...
+            ╎           ├─╼ foo-job-15
             ╎           │   └─╼  ...
-            ╎           ├─╼ foo-job-17
-            ╎           │   ├─╼ foo-job-18
-            ╎           │   └─╼  ...
-            ╎           └─╼ foo-job-7
-            ╎               └─╼ foo-job-11
-            ╎                   └─╼  ...
+            ╎           └─╼ foo-job-17
+            ╎               ├─╼ foo-job-18
+            ╎               └─╼  ...
             ╙── foo-job-1
-                └─╼ foo-job-3
-                    └─╼  ...
+                ├─╼ foo-job-3
+                │   └─╼  ...
+                └─╼  ...
             >>> self.rprint()
             >>> # self.run(block=True)
         """
@@ -619,6 +621,7 @@ class TMUXMultiQueue(base_queue.Queue):
             xdoctest -m cmd_queue.tmux_queue TMUXMultiQueue.monitor:1 --interact
 
         Example:
+            >>> # xdoctest: +REQUIRES(--interact)
             >>> from cmd_queue.tmux_queue import *  # NOQA
             >>> self = TMUXMultiQueue(size=3, name='test-queue-monitor')
             >>> job = None
@@ -632,7 +635,7 @@ class TMUXMultiQueue(base_queue.Queue):
             >>>     job = self.submit('sleep 5 && echo "hello 2"', depends=job)
             >>> self.rprint()
             >>> if ub.find_exe('tmux'):
-            >>>     self.run(block=True)
+            >>>     self.run(block=True, check_other_sessions=0)
 
         Example:
             >>> # xdoctest: +REQUIRES(--interact)
@@ -646,7 +649,7 @@ class TMUXMultiQueue(base_queue.Queue):
             >>>         job = self.submit('sleep 1 && echo "hello 2"', depends=job)
             >>> self.rprint()
             >>> if ub.find_exe('tmux'):
-            >>>     self.run(block=True)
+            >>>     self.run(block=True, check_other_sessions=0)
         """
         if with_textual == 'auto':
             with_textual = CmdQueueMonitorApp is not None

@@ -127,6 +127,8 @@ class Queue(ub.NiceRepr):
             depends = kwargs.pop('depends', None)
             if depends is not None:
                 # Resolve any strings to job objects
+                if not ub.iterable(depends):
+                    depends = [depends]
                 depends = [
                     self.named_jobs[dep] if isinstance(dep, str) else dep
                     for dep in depends]
