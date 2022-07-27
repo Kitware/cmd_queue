@@ -74,7 +74,7 @@ class TMUXMultiQueue(base_queue.Queue):
         >>> def add_edge(name, depends):
         >>>     if name is not None:
         >>>         _depends = [self.named_jobs[n] for n in depends if n is not None]
-        >>>         self.submit(f'echo {name=}, {depends=} && sleep 0.1', name=name, depends=_depends)
+        >>>         self.submit(f'echo name={name}, depends={depends} && sleep 0.1', name=name, depends=_depends)
         >>> def add_branch(suffix):
         >>>     f = 0.3
         >>>     pred = f'pred{suffix}' if rng.random() > f else None
