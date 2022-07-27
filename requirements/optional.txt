@@ -1,1 +1,1 @@
-textual>=12.5.1
+textual>=0.1.18
