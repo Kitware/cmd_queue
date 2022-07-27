@@ -199,9 +199,8 @@ class SlurmQueue(base_queue.Queue):
         >>> self.write()
         >>> self.rprint()
         >>> # xdoctest: +REQUIRES(--run)
-        >>> self.run()
-        >>> #if ub.find_exe('slurm'):
-        >>> #    self.run()
+        >>> if not self.is_available():
+        >>>     self.run()
 
     Example:
         >>> from cmd_queue.slurm_queue import *  # NOQA
@@ -237,17 +236,19 @@ class SlurmQueue(base_queue.Queue):
     def __nice__(self):
         return self.queue_id
 
-    def write(self):
-        import os
-        import stat
-        text = self.finalize_text()
-        self.fpath.parent.ensuredir()
-        with open(self.fpath, 'w') as file:
-            file.write(text)
-        os.chmod(self.fpath, (
-            stat.S_IXUSR | stat.S_IXGRP | stat.S_IRUSR |
-            stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP))
-        return self.fpath
+    @classmethod
+    def is_available(cls):
+        """
+        Determines if we can run the slurm queue or not.
+        """
+        if ub.find_exe('squeue'):
+            import psutil
+            slurmd_running = any(p.name() == 'slurmd' for p in psutil.process_iter())
+            if slurmd_running:
+                squeue_working = (ub.cmd('squeue')['ret'] == 0)
+                if squeue_working:
+                    return True
+        return False
 
     def submit(self, command, **kwargs):
         name = kwargs.get('name', None)
@@ -268,9 +269,19 @@ class SlurmQueue(base_queue.Queue):
                 depends = self.all_depends + depends
             kwargs['depends'] = depends
 
-        job = SlurmJob(command, **kwargs)
+        depends = kwargs.pop('depends', None)
+        if depends is not None:
+            # Resolve any strings to job objects
+            if not ub.iterable(depends):
+                depends = [depends]
+            depends = [
+                self.named_jobs[dep] if isinstance(dep, str) else dep
+                for dep in depends]
+
+        job = SlurmJob(command, depends=depends, **kwargs)
         self.jobs.append(job)
         self.num_real_jobs += 1
+        self.named_jobs[job.name] = job
         return job
 
     def add_header_command(self, command):
@@ -308,8 +319,8 @@ class SlurmQueue(base_queue.Queue):
         return text
 
     def run(self, block=True, system=False):
-        if not ub.find_exe('sbatch'):
-            raise Exception('sbatch not found')
+        if not self.is_available():
+            raise Exception('slurm backend is not available')
         self.log_dpath.ensuredir()
         self.write()
         ub.cmd(f'bash {self.fpath}', verbose=3, check=True, system=system)
@@ -398,7 +409,7 @@ class SlurmQueue(base_queue.Queue):
         # this
         return {}
 
-    def rprint(self, with_status=False, with_rich=0):
+    def rprint(self, with_status=False, with_rich=0, colors=0):
         """
         Print info about the commands, optionally with rich
         """
@@ -407,8 +418,12 @@ class SlurmQueue(base_queue.Queue):
         # from rich.console import Console
         # console = Console()
         code = self.finalize_text()
-        print(ub.highlight_code(f'# --- {str(self.fpath)}', 'bash'))
-        print(ub.highlight_code(code, 'bash'))
+        if colors:
+            print(ub.highlight_code(f'# --- {str(self.fpath)}', 'bash'))
+            print(ub.highlight_code(code, 'bash'))
+        else:
+            print(f'# --- {str(self.fpath)}')
+            print(code)
         # console.print(Panel(Syntax(code, 'bash'), title=str(self.fpath)))
 
 

@@ -20,3 +20,5 @@ pandas>=1.1.4     ; python_version < '3.6.1' and python_version >= '3.6'    # Py
 
 pint>=0.18      ;                            python_version >= '3.7'    # Python 3.7+
 pint>=0.10      ; python_version < '3.7' and python_version >= '3.6'    # Python 3.6
+
+psutil>=5.9.1

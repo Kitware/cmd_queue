@@ -10,11 +10,12 @@ It should be possible to add more functionality, such as:
     - [x] Ability to query status of jobs - tmux script writes status to a
           file, secondary thread reads is.
 
-    - [ ] Unique identifier per queue
+    - [x] Unique identifier per queue
 
     - [ ] Central scheduler - given that we can know when a job is done
           a central scheduling process can run in the background, check
-          the status of existing jobs, and spawn new jobs
+          the status of existing jobs, and spawn new jobs. --- Maybe not
+          needed.
 
     - [X] Dependencies between jobs - given a central scheduler, it can
           only spawn a new job if a its dependencies have been met.
@@ -24,11 +25,11 @@ It should be possible to add more functionality, such as:
           next job if it "fits" given the resources taken by the current
           running jobs.
 
-    - [ ] Duck typed API that uses Slurm if available. Slurm is a robust
+    - [x] Duck typed API that uses Slurm if available. Slurm is a robust
           full featured queuing system. If it is available we should
           make it easy for the user to swap the tmux queue for slurm.
 
-    - [ ] Duck typed API that uses subprocesses. Tmux is not always available,
+    - [x] Duck typed API that uses subprocesses. Tmux is not always available,
           we could go even lighter weight and simply execute a subprocess that
           does the same thing as the linear queue. The downside is you don't
           get the nice tmux way of looking at the status of what the jobs are
@@ -40,8 +41,6 @@ It should be possible to add more functionality, such as:
 """
 import ubelt as ub
 # import itertools as it
-import stat
-import os
 import uuid
 
 from cmd_queue import base_queue
@@ -54,7 +53,7 @@ class TMUXMultiQueue(base_queue.Queue):
 
     CommandLine:
         xdoctest -m cmd_queue.tmux_queue TMUXMultiQueue:0
-        xdoctest -m cmd_queue.tmux_queue TMUXMultiQueue:1
+        xdoctest -m cmd_queue.tmux_queue TMUXMultiQueue:2
 
     Example:
         >>> from cmd_queue.serial_queue import *  # NOQA
@@ -64,8 +63,8 @@ class TMUXMultiQueue(base_queue.Queue):
         >>> job3 = self.submit('echo hi 3 && true', depends=job1)
         >>> self.rprint()
         >>> self.print_graph()
-        >>> if ub.find_exe('tmux'):
-        >>>     self.run(block=True, onexit='capture')
+        >>> if self.is_available():
+        >>>     self.run(block=True, onexit='capture', check_other_sessions=0)
 
     Example:
         >>> from cmd_queue.tmux_queue import *  # NOQA
@@ -75,7 +74,7 @@ class TMUXMultiQueue(base_queue.Queue):
         >>> def add_edge(name, depends):
         >>>     if name is not None:
         >>>         _depends = [self.named_jobs[n] for n in depends if n is not None]
-        >>>         self.submit(f'echo {name=}, {depends=} && sleep 0.1', name=name, depends=_depends)
+        >>>         self.submit(f'echo name={name}, depends={depends} && sleep 0.1', name=name, depends=_depends)
         >>> def add_branch(suffix):
         >>>     f = 0.3
         >>>     pred = f'pred{suffix}' if rng.random() > f else None
@@ -94,12 +93,12 @@ class TMUXMultiQueue(base_queue.Queue):
         >>>     add_branch(str(i))
         >>> self.rprint()
         >>> self.print_graph()
-        >>> if ub.find_exe('tmux'):
-        >>>     self.run(block=1, onexit='')
+        >>> if self.is_available():
+        >>>     self.run(block=1, onexit='', check_other_sessions=0)
 
     Example:
-        >>> from cmd_queue.tmux_queue import *  # NOQA
-        >>> self = TMUXMultiQueue(2, 'foo')
+        >>> from cmd_queue.tmux_queue import TMUXMultiQueue
+        >>> self = TMUXMultiQueue(size=2, name='foo')
         >>> print('self = {!r}'.format(self))
         >>> job1 = self.submit('echo hello && sleep 0.5')
         >>> job2 = self.submit('echo world && sleep 0.5', depends=[job1])
@@ -113,8 +112,8 @@ class TMUXMultiQueue(base_queue.Queue):
         >>> job10 = self.submit('echo bazbiz && sleep 0.5', depends=[job9])
         >>> self.write()
         >>> self.rprint()
-        >>> if ub.find_exe('tmux'):
-        >>>     self.run()
+        >>> if self.is_available():
+        >>>     self.run(check_other_sessions=0)
         >>>     self.monitor()
         >>>     self.current_output()
         >>>     self.kill()
@@ -125,7 +124,7 @@ class TMUXMultiQueue(base_queue.Queue):
         >>> job1 = self.submit('echo hello && sleep 0.5')
         >>> job2 = self.submit('echo hello && sleep 0.5')
         >>> self.rprint()
-
+        >>> # --
         >>> from cmd_queue.tmux_queue import *  # NOQA
         >>> self = TMUXMultiQueue(2, 'foo')
         >>> job1 = self.submit('echo hello && sleep 0.5')
@@ -135,7 +134,7 @@ class TMUXMultiQueue(base_queue.Queue):
         >>> job3 = self.submit('echo hello && sleep 0.5')
         >>> self.sync()
         >>> self.rprint()
-
+        >>> # --
         >>> from cmd_queue.tmux_queue import *  # NOQA
         >>> self = TMUXMultiQueue(2, 'foo')
         >>> job1 = self.submit('echo hello && sleep 0.5')
@@ -143,6 +142,47 @@ class TMUXMultiQueue(base_queue.Queue):
         >>> job3 = self.submit('echo hello && sleep 0.5')
         >>> self.rprint()
 
+    Example:
+        >>> # Test complex failure case
+        >>> from cmd_queue import Queue
+        >>> self = Queue.create(size=2, name='demo-complex-failure', backend='tmux')
+        >>> # Submit a binary tree that fails at different levels
+        >>> for idx in range(2):
+        >>>     # Level 0
+        >>>     job1000 = self.submit('true')
+        >>>     # Level 1
+        >>>     job1100 = self.submit('true', depends=[job1000])
+        >>>     job1200 = self.submit('false', depends=[job1000], name=f'false0_{idx}')
+        >>>     # Level 2
+        >>>     job1110 = self.submit('true', depends=[job1100])
+        >>>     job1120 = self.submit('false', depends=[job1100], name=f'false1_{idx}')
+        >>>     job1210 = self.submit('true', depends=[job1200])
+        >>>     job1220 = self.submit('true', depends=[job1200])
+        >>>     # Level 3
+        >>>     job1111 = self.submit('true', depends=[job1110])
+        >>>     job1112 = self.submit('false', depends=[job1110], name=f'false2_{idx}')
+        >>>     job1121 = self.submit('true', depends=[job1120])
+        >>>     job1122 = self.submit('true', depends=[job1120])
+        >>>     job1211 = self.submit('true', depends=[job1210])
+        >>>     job1212 = self.submit('true', depends=[job1210])
+        >>>     job1221 = self.submit('true', depends=[job1220])
+        >>>     job1222 = self.submit('true', depends=[job1220])
+        >>> # Submit a chain that fails in the middle
+        >>> chain1 = self.submit('true', name='chain1')
+        >>> chain2 = self.submit('true', depends=[chain1], name='chain2')
+        >>> chain3 = self.submit('false', depends=[chain2], name='chain3')
+        >>> chain4 = self.submit('true', depends=[chain3], name='chain4')
+        >>> chain5 = self.submit('true', depends=[chain4], name='chain5')
+        >>> # Submit 4 loose passing jobs
+        >>> for _ in range(4):
+        >>>     self.submit('true', name=f'loose_true{_}')
+        >>> # Submit 4 loose failing jobs
+        >>> for _ in range(4):
+        >>>     self.submit('false', name=f'loose_false{_}')
+        >>> self.rprint()
+        >>> self.print_graph()
+        >>> if self.is_available():
+        >>>     self.run(with_textual=False, check_other_sessions=0)
     """
     def __init__(self, size=1, name=None, dpath=None, rootid=None, environ=None,
                  gres=None):
@@ -161,6 +201,9 @@ class TMUXMultiQueue(base_queue.Queue):
 
         if environ is None:
             environ = {}
+
+        # Note: size can be changed as long as it happens before the queue is
+        # written and run.
         self.size = size
         self.environ = environ
         self.fpath = self.dpath / f'run_queues_{self.name}.sh'
@@ -170,7 +213,16 @@ class TMUXMultiQueue(base_queue.Queue):
         self.jobs = []
         self.header_commands = []
 
+        self._tmux_session_prefix = 'cmdq_'
+
         self._new_workers()
+
+    @classmethod
+    def is_available(cls):
+        """
+        Determines if we can run the tmux queue or not.
+        """
+        return ub.find_exe('tmux')
 
     def _new_workers(self, start=0):
         per_worker_environs = [self.environ] * self.size
@@ -184,7 +236,7 @@ class TMUXMultiQueue(base_queue.Queue):
 
         workers = [
             serial_queue.SerialQueue(
-                name='queue_{}_{}'.format(self.name, worker_idx),
+                name='{}{}_{:03d}'.format(self._tmux_session_prefix, self.name, worker_idx),
                 rootid=self.rootid,
                 dpath=self.dpath,
                 environ=e
@@ -253,7 +305,7 @@ class TMUXMultiQueue(base_queue.Queue):
             >>> job3 = self.submit('echo hello && sleep 0.5', depends=[job2a, job2b])
             >>> self.rprint()
 
-            self.run(block=True)
+            self.run(block=True, check_other_sessions=0)
 
         Example:
             >>> from cmd_queue.tmux_queue import *  # NOQA
@@ -280,11 +332,40 @@ class TMUXMultiQueue(base_queue.Queue):
             >>> job17 = self.submit('true', depends=[job4])
             >>> job18 = self.submit('true', depends=[job17])
             >>> job19 = self.submit('true', depends=[job14, job16, job17])
+            >>> self.print_graph(reduced=False)
+            ...
+            Graph:
+            ╟── foo-job-0
+            ╎   └─╼ foo-job-2
+            ╎       └─╼ foo-job-4 ╾ foo-job-3, foo-job-1
+            ╎           ├─╼ foo-job-5
+            ╎           │   └─╼ foo-job-8
+            ╎           ├─╼ foo-job-6
+            ╎           │   ├─╼ foo-job-9
+            ╎           │   └─╼ foo-job-10
+            ╎           │       └─╼ foo-job-12 ╾ foo-job-11
+            ╎           ├─╼ foo-job-7
+            ╎           │   └─╼ foo-job-11
+            ╎           │       └─╼  ...
+            ╎           ├─╼ foo-job-13
+            ╎           │   ├─╼ foo-job-14
+            ╎           │   │   └─╼ foo-job-19 ╾ foo-job-16, foo-job-17
+            ╎           │   └─╼ foo-job-16 ╾ foo-job-15
+            ╎           │       └─╼  ...
+            ╎           ├─╼ foo-job-15
+            ╎           │   └─╼  ...
+            ╎           └─╼ foo-job-17
+            ╎               ├─╼ foo-job-18
+            ╎               └─╼  ...
+            ╙── foo-job-1
+                ├─╼ foo-job-3
+                │   └─╼  ...
+                └─╼  ...
             >>> self.rprint()
             >>> # self.run(block=True)
         """
         import networkx as nx
-        from cmd_queue import util
+        from cmd_queue.util.util_networkx import graph_str
         graph = self._dependency_graph()
 
         # Get rid of implicit dependencies
@@ -304,7 +385,7 @@ class TMUXMultiQueue(base_queue.Queue):
             print('simple_cycles = {}'.format(ub.repr2(simple_cycles, nl=1)))
             import xdev
             xdev.embed()
-            print(util.graph_str(graph))
+            print(graph_str(graph))
             raise
 
         in_cut_nodes = set()
@@ -323,26 +404,11 @@ class TMUXMultiQueue(base_queue.Queue):
                 cut_edges.extend(list(reduced_graph.out_edges(n)))
                 out_cut_nodes.add(n)
 
-        list(nx.dfs_labeled_edges(reduced_graph))
-
-        # cut_nodes = out_cut_nodes | in_cut_nodes
-
-        cut_notes = in_cut_nodes.copy()
-        cut_notes.update([v for u, v in cut_edges])
-
         cut_graph = reduced_graph.copy()
         cut_graph.remove_edges_from(cut_edges)
 
         # Get all the node groups disconnected by the cuts
         condensed = nx.condensation(reduced_graph, nx.weakly_connected_components(cut_graph))
-
-        if 0:
-            from graphid.util import util_graphviz
-            import kwplot
-            kwplot.autompl()
-            util_graphviz.show_nx(graph, fnum=1)
-            util_graphviz.show_nx(reduced_graph, fnum=3)
-            util_graphviz.show_nx(condensed, fnum=2)
 
         # Rank each condensed group, which defines
         # what order it is allowed to be executed in
@@ -358,6 +424,14 @@ class TMUXMultiQueue(base_queue.Queue):
             for m in members:
                 rankings[rank].update(members)
 
+        if 0:
+            from graphid.util import util_graphviz
+            import kwplot
+            kwplot.autompl()
+            util_graphviz.show_nx(graph, fnum=1)
+            util_graphviz.show_nx(reduced_graph, fnum=3)
+            util_graphviz.show_nx(condensed, fnum=2)
+
         # cmd_queue.graph_str(condensed, write=print)
 
         # Each rank defines a group that must itself be ordered
@@ -366,7 +440,7 @@ class TMUXMultiQueue(base_queue.Queue):
         ranked_job_groups = []
         for rank, group in sorted(rankings.items()):
             subgraph = graph.subgraph(group)
-            # Only things that can run in parapellel are disconnected components
+            # Only things that can run in parallel are disconnected components
             parallel_groups = []
             for wcc in list(nx.weakly_connected_components(subgraph)):
                 sub_subgraph = subgraph.subgraph(wcc)
@@ -374,7 +448,7 @@ class TMUXMultiQueue(base_queue.Queue):
                 parallel_groups.append(wcc_order)
             # Ranked bins
             # Solve a bin packing problem to partition these into self.size groups
-            from cmd_queue.util import balanced_number_partitioning
+            from cmd_queue.util.util_algo import balanced_number_partitioning
             group_weights = list(map(len, parallel_groups))
             groupxs = balanced_number_partitioning(group_weights, num_parts=self.size)
             rank_groups = [list(ub.take(parallel_groups, gxs)) for gxs in groupxs]
@@ -466,25 +540,55 @@ class TMUXMultiQueue(base_queue.Queue):
         self.order_jobs()
         for queue in self.workers:
             queue.write()
-        text = self.finalize_text()
-        with open(self.fpath, 'w') as file:
-            file.write(text)
-        os.chmod(self.fpath, (
-            stat.S_IXUSR | stat.S_IXGRP | stat.S_IRUSR |
-            stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP))
-        return self.fpath
+        super().write()
 
-    def run(self, block=True, onfail='kill', onexit='', system=False):
-        if not ub.find_exe('tmux'):
+    def kill_other_queues(self, ask_first=True):
+        """
+        Find other tmux sessions that look like they were started with
+        cmd_queue and kill them.
+        """
+        import parse
+        queue_name_pattern = parse.Parser(self._tmux_session_prefix + '{name}_{rootid}')
+        current_sessions = self._tmux_current_sessions()
+        other_session_ids = []
+        for info in current_sessions:
+            matched = queue_name_pattern.parse(info['id'])
+            if matched is not None:
+                other_session_ids.append(info['id'])
+        print(f'other_session_ids={other_session_ids}')
+        if other_session_ids:
+            print('It looks like there are other running cmd-queue sessions')
+            print('Commands to kill them:')
+            kill_commands = []
+            for sess_id in other_session_ids:
+                command2 = f'tmux kill-session -t {sess_id}'
+                print(command2)
+                kill_commands.append(command2)
+            from rich import prompt
+            if not ask_first or prompt.Confirm().ask('Do you want to kill the other sessions?'):
+                for command in kill_commands:
+                    ub.cmd(command, verbose=self.cmd_verbose)
+
+    def run(self, block=True, onfail='kill', onexit='', system=False,
+            with_textual='auto', check_other_sessions='auto'):
+
+        if not self.is_available():
             raise Exception('tmux not found')
+        if check_other_sessions:
+            if check_other_sessions == 'auto':
+                if not has_stdin():
+                    check_other_sessions = False
+            if check_other_sessions:
+                self.kill_other_queues(ask_first=True)
+
         self.write()
         ub.cmd(f'bash {self.fpath}', verbose=self.cmd_verbose, check=True,
                system=system)
         if block:
-            agg_state = self.monitor()
+            agg_state = self.monitor(with_textual=with_textual)
             if onexit == 'capture':
                 self.capture()
-            if not agg_state['errored']:
+            if not agg_state['failed']:
                 if onfail == 'kill':
                     self.kill()
             return agg_state
@@ -498,8 +602,9 @@ class TMUXMultiQueue(base_queue.Queue):
         agg_state['worker_states'] = worker_states
         try:
             agg_state['total'] = sum(s['total'] for s in worker_states)
-            agg_state['errored'] = sum(s['errored'] for s in worker_states)
-            agg_state['finished'] = sum(s['finished'] for s in worker_states)
+            agg_state['failed'] = sum(s['failed'] for s in worker_states)
+            agg_state['passed'] = sum(s['passed'] for s in worker_states)
+            agg_state['skipped'] = sum(s['skipped'] for s in worker_states)
             agg_state['rootid'] = ub.peek(s['rootid'] for s in worker_states)
             states = set(s['status'] for s in worker_states)
             agg_state['status'] = 'done' if states == {'done'} else 'not-done'
@@ -523,60 +628,102 @@ class TMUXMultiQueue(base_queue.Queue):
         for fpath in queue_fpaths:
             ub.cmd(f'{fpath}', verbose=self.cmd_verbose, check=True)
 
-    def monitor(self, refresh_rate=0.4):
+    def monitor(self, refresh_rate=0.4, with_textual='auto'):
         """
         Monitor progress until the jobs are done
 
         CommandLine:
-            xdoctest -m cmd_queue.tmux_queue TMUXMultiQueue.monitor
+            xdoctest -m cmd_queue.tmux_queue TMUXMultiQueue.monitor:0
+            xdoctest -m cmd_queue.tmux_queue TMUXMultiQueue.monitor:1 --interact
 
         Example:
+            >>> # xdoctest: +REQUIRES(--interact)
             >>> from cmd_queue.tmux_queue import *  # NOQA
-            >>> self = TMUXMultiQueue(3, 'test-queue-monitor')
+            >>> self = TMUXMultiQueue(size=3, name='test-queue-monitor')
             >>> job = None
             >>> for i in range(10):
-            >>>     job = self.submit('sleep 2', depends=job)
+            >>>     job = self.submit('sleep 2 && echo "hello 2"', depends=job)
             >>> job = None
             >>> for i in range(10):
-            >>>     job = self.submit('sleep 3', depends=job)
+            >>>     job = self.submit('sleep 3 && echo "hello 2"', depends=job)
             >>> job = None
-            >>> for i in range(10):
-            >>>     job = self.submit('sleep 5', depends=job)
+            >>> for i in range(5):
+            >>>     job = self.submit('sleep 5 && echo "hello 2"', depends=job)
             >>> self.rprint()
-            >>> if ub.find_exe('tmux'):
-            >>>     self.run(block=True)
+            >>> if self.is_available():
+            >>>     self.run(block=True, check_other_sessions=0)
+
+        Example:
+            >>> # xdoctest: +REQUIRES(--interact)
+            >>> from cmd_queue.tmux_queue import *  # NOQA
+            >>> # Setup a lot of longer running jobs
+            >>> n = 128
+            >>> self = TMUXMultiQueue(size=n, name='test-giant-queue-monitor')
+            >>> for i in range(n):
+            >>>     job = None
+            >>>     for i in range(4):
+            >>>         job = self.submit('sleep 1 && echo "hello 2"', depends=job)
+            >>> self.rprint()
+            >>> if self.is_available():
+            >>>     self.run(block=True, check_other_sessions=0)
         """
+        if with_textual == 'auto':
+            with_textual = CmdQueueMonitorApp is not None
+            # If we dont have stdin (i.e. running in pytest) we cant use
+            # textual.
+            if not has_stdin():
+                with_textual = False
+
+        if with_textual:
+            self._textual_monitor()
+        else:
+            self._simple_rich_monitor(refresh_rate)
+        table, finished, agg_state = self._build_status_table()
+        return agg_state
+
+    def _textual_monitor(self):
+        from rich import print as rprint
+        print('Kill commands:')
+        for command in self._kill_commands():
+            print(command)
+        table_fn = self._build_status_table
+        app = CmdQueueMonitorApp(table_fn, kill_fn=self.kill)
+        app.run()
+
+        table, finished, agg_state = self._build_status_table()
+        rprint(table)
+
+        if not app.graceful_exit:
+            from rich.prompt import Confirm
+            flag = Confirm.ask('do you to kill the procs?')
+            if flag:
+                self.kill()
+            raise Exception('User Stopped The Monitor')
+
+    def _simple_rich_monitor(self, refresh_rate=0.4):
         import time
         from rich.live import Live
-
-        if MonitorApp is None:
-            print('Kill commands:')
-            for command in self._kill_commands():
-                print(command)
-            try:
-                table, finished, agg_state = self._build_status_table()
-                with Live(table, refresh_per_second=4) as live:
-                    while not finished:
-                        time.sleep(refresh_rate)
-                        table, finished, agg_state = self._build_status_table()
-                        live.update(table)
-            except KeyboardInterrupt:
-                from rich.prompt import Confirm
-                flag = Confirm.ask('do you to kill the procs?')
-                if flag:
-                    self.kill()
-        else:
-            MonitorApp.self = self
-            MonitorApp.run()
+        print('Kill commands:')
+        for command in self._kill_commands():
+            print(command)
+        try:
             table, finished, agg_state = self._build_status_table()
-
-        return agg_state
+            with Live(table, refresh_per_second=4) as live:
+                while not finished:
+                    time.sleep(refresh_rate)
+                    table, finished, agg_state = self._build_status_table()
+                    live.update(table)
+        except KeyboardInterrupt:
+            from rich.prompt import Confirm
+            flag = Confirm.ask('do you to kill the procs?')
+            if flag:
+                self.kill()
 
     def _build_status_table(self):
         from rich.table import Table
         # https://rich.readthedocs.io/en/stable/live.html
         table = Table()
-        columns = ['name', 'status', 'finished', 'errors', 'total']
+        columns = ['tmux session name', 'status', 'passed', 'failed', 'skipped', 'total']
         for col in columns:
             table.add_column(col)
 
@@ -584,35 +731,41 @@ class TMUXMultiQueue(base_queue.Queue):
         agg_state = {
             'name': 'agg',
             'status': '',
-            'errored': 0,
-            'finished': 0,
+            'failed': 0,
+            'passed': 0,
+            'skipped': 0,
             'total': 0
         }
 
         for worker in self.workers:
-            fin_color = ''
-            err_color = ''
+            pass_color = ''
+            fail_color = ''
+            skip_color = ''
             state = worker.read_state()
             if state['status'] == 'unknown':
                 finished = False
-                fin_color = '[yellow]'
+                pass_color = '[yellow]'
             else:
                 finished &= (state['status'] == 'done')
                 if state['status'] == 'done':
-                    fin_color = '[green]'
+                    pass_color = '[green]'
 
-                if (state['errored'] > 0):
-                    err_color = '[red]'
+                if (state['failed'] > 0):
+                    fail_color = '[red]'
+                if (state['skipped'] > 0):
+                    skip_color = '[yellow]'
 
                 agg_state['total'] += state['total']
-                agg_state['finished'] += state['finished']
-                agg_state['errored'] += state['errored']
+                agg_state['passed'] += state['passed']
+                agg_state['failed'] += state['failed']
+                agg_state['skipped'] += state['skipped']
 
             table.add_row(
                 state['name'],
                 state['status'],
-                f"{fin_color}{state['finished']}",
-                f"{err_color}{state['errored']}",
+                f"{pass_color}{state['passed']}",
+                f"{fail_color}{state['failed']}",
+                f"{skip_color}{state['skipped']}",
                 f"{state['total']}",
             )
 
@@ -625,13 +778,14 @@ class TMUXMultiQueue(base_queue.Queue):
             table.add_row(
                 agg_state['name'],
                 agg_state['status'],
-                f"{agg_state['finished']}",
-                f"{agg_state['errored']}",
+                f"{agg_state['passed']}",
+                f"{agg_state['failed']}",
+                f"{agg_state['skipped']}",
                 f"{agg_state['total']}",
             )
         return table, finished, agg_state
 
-    def rprint(self, with_status=False, with_gaurds=False, with_rich=0):
+    def rprint(self, with_status=False, with_gaurds=False, with_rich=0, colors=1):
         """
         Print info about the commands, optionally with rich
         """
@@ -642,7 +796,7 @@ class TMUXMultiQueue(base_queue.Queue):
         console = Console()
         for queue in self.workers:
             queue.rprint(with_status=with_status, with_gaurds=with_gaurds,
-                         with_rich=with_rich)
+                         with_rich=with_rich, colors=colors)
             # code = queue.finalize_text(with_status=with_status)
             # if with_rich:
             #     console.print(Panel(Syntax(code, 'bash'), title=str(queue.fpath)))
@@ -652,7 +806,16 @@ class TMUXMultiQueue(base_queue.Queue):
             #     print(ub.highlight_code(code, 'bash'))
 
         code = self.finalize_text()
-        console.print(Panel(Syntax(code, 'bash'), title=str(self.fpath)))
+
+        if with_rich:
+            console.print(Panel(Syntax(code, 'bash'), title=str(self.fpath)))
+        else:
+            if colors:
+                print(ub.highlight_code('# --- ' + str(self.fpath), 'bash'))
+                print(ub.highlight_code(code, 'bash'))
+            else:
+                print('# --- ' + str(self.fpath))
+                print(code)
 
     def current_output(self):
         for queue in self.workers:
@@ -696,48 +859,21 @@ class TMUXMultiQueue(base_queue.Queue):
         return sessions
 
 
+def has_stdin():
+    import sys
+    try:
+        sys.stdin.fileno()
+    except Exception:
+        return False
+    else:
+        return True
+
+
 try:
-    raise ImportError
     import textual  # NOQA
+    from cmd_queue.monitor_app import CmdQueueMonitorApp
 except ImportError:
-    MonitorApp = None
-else:
-    from textual import App, events
-    # from rich.table import Table
-    from textual.widgets import ScrollView
-
-    class MonitorApp(App):
-
-        def on_key(self):
-            self.console.bell()
-            # super().on_key()
-
-        async def on_load(self, event: events.Load) -> None:
-            """Bind keys with the app loads (but before entering application mode)"""
-            # await self.bind("b", "view.toggle('sidebar')", "Toggle sidebar")
-            await self.bind("q", "quit", "Quit")
-            await self.bind("escape", "quit", "Quit")
-
-        async def on_mount(self, event: events.Mount) -> None:
-
-            self.body = body = ScrollView(auto_width=True)
-
-            await self.view.dock(body)
-
-            async def add_content():
-                table, finished, agg_state = self.self._build_status_table()
-                # table = Table(title="Demo")
-                # for i in range(20):
-                #     table.add_column(f"Col {i + 1}", style="magenta")
-                # for i in range(100):
-                #     table.add_row(*[f"cell {i},{j}" for j in range(20)])
-
-                await body.update(table)
-
-            await self.call_later(add_content)
-
-    def _demo_app():
-        MonitorApp.run(title="Simple App", log="textual.log")
+    CmdQueueMonitorApp = None
 
 
 if 0:

@@ -27,6 +27,48 @@ class Queue(ub.NiceRepr):
         self.all_depends = None
         self.named_jobs = {}
 
+    def change_backend(self, backend, **kwargs):
+        """
+        Create a new version of this queue with a different backend.
+
+        Currently metadata is not carried over. Submit an MR if you need this
+        functionality.
+
+        Example:
+            >>> from cmd_queue import Queue
+            >>> self = Queue.create(size=5, name='demo')
+            >>> self.submit('echo "Hello World"', name='job1a')
+            >>> self.submit('echo "Hello Revocable"', name='job1b')
+            >>> self.submit('echo "Hello Crushed"', depends=['job1a'], name='job2a')
+            >>> self.submit('echo "Hello Shadow"', depends=['job1b'], name='job2b')
+            >>> self.submit('echo "Hello Excavate"', depends=['job2a', 'job2b'], name='job3')
+            >>> self.submit('echo "Hello Barrette"', depends=[], name='jobX')
+            >>> self.submit('echo "Hello Overwrite"', depends=['jobX'], name='jobY')
+            >>> self.submit('echo "Hello Giblet"', depends=['jobY'], name='jobZ')
+            >>> serial_backend = self.change_backend('serial')
+            >>> tmux_backend = self.change_backend('tmux')
+            >>> slurm_backend = self.change_backend('slurm')
+            >>> airflow_backend = self.change_backend('airflow')
+            >>> serial_backend.rprint()
+            >>> tmux_backend.rprint()
+            >>> slurm_backend.rprint()
+            >>> airflow_backend.rprint()
+        """
+        new = Queue.create(backend=backend, **kwargs)
+        for job_name, job in self.named_jobs.items():
+            new_depends = []
+            if job.depends:
+                for dep in job.depends:
+                    new_dep = new.named_jobs[dep.name]
+                    new_depends.append(new_dep)
+            # TODO: carry over metadata
+            new.submit(job.command, depends=new_depends, name=job.name)
+        return new
+
+        for job in self.jobs:
+            new.submit(job.commands)
+            pass
+
     def __len__(self):
         return self.num_real_jobs
 
@@ -44,6 +86,22 @@ class Queue(ub.NiceRepr):
         # All new jobs must depend on these jobs
         self.all_depends = sink_jobs
         return self
+
+    def write(self):
+        """
+        Writes the underlying files that defines the queue for whatever program
+        will ingest it to run it.
+        """
+        import os
+        import stat
+        text = self.finalize_text()
+        self.fpath.parent.ensuredir()
+        with open(self.fpath, 'w') as file:
+            file.write(text)
+        os.chmod(self.fpath, (
+            stat.S_IXUSR | stat.S_IXGRP | stat.S_IRUSR |
+            stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP))
+        return self.fpath
 
     def submit(self, command, **kwargs):
         # TODO: we could accept additional args here that modify how we handle
@@ -66,7 +124,15 @@ class Queue(ub.NiceRepr):
                         depends = [depends]
                     depends = self.all_depends + depends
                 kwargs['depends'] = depends
-            job = serial_queue.BashJob(command, **kwargs)
+            depends = kwargs.pop('depends', None)
+            if depends is not None:
+                # Resolve any strings to job objects
+                if not ub.iterable(depends):
+                    depends = [depends]
+                depends = [
+                    self.named_jobs[dep] if isinstance(dep, str) else dep
+                    for dep in depends]
+            job = serial_queue.BashJob(command, depends=depends, **kwargs)
         else:
             # Assume job is already a bash job
             job = command
@@ -85,55 +151,75 @@ class Queue(ub.NiceRepr):
         return job
 
     @classmethod
+    def _backend_classes(cls):
+        from cmd_queue import tmux_queue
+        from cmd_queue import serial_queue
+        from cmd_queue import slurm_queue
+        from cmd_queue import airflow_queue
+        lut = {
+            'serial': serial_queue.SerialQueue,
+            'tmux': tmux_queue.TMUXMultiQueue,
+            'slurm': slurm_queue.SlurmQueue,
+            'airflow': airflow_queue.AirflowQueue,
+        }
+        return lut
+
+    @classmethod
     def available_backends(cls):
-        available = ['serial']
-        if ub.find_exe('tmux'):
-            available.append('tmux')
-        if ub.find_exe('slurm'):
-            if ub.cmd('squeue')['ret'] == 0:
-                available.append('slurm')
+        lut = cls._backend_classes()
+        available = [name for name, qcls in lut.items() if qcls.is_available()]
         return available
 
     @classmethod
     def create(cls, backend='serial', **kwargs):
-        from cmd_queue import tmux_queue
-        from cmd_queue import serial_queue
-        from cmd_queue import slurm_queue
         if backend == 'serial':
+            from cmd_queue import serial_queue
             kwargs.pop('size', None)
             self = serial_queue.SerialQueue(**kwargs)
         elif backend == 'tmux':
+            from cmd_queue import tmux_queue
             self = tmux_queue.TMUXMultiQueue(**kwargs)
         elif backend == 'slurm':
+            from cmd_queue import slurm_queue
             kwargs.pop('size', None)
             self = slurm_queue.SlurmQueue(**kwargs)
+        elif backend == 'airflow':
+            from cmd_queue import airflow_queue
+            kwargs.pop('size', None)
+            self = airflow_queue.AirflowQueue(**kwargs)
         else:
             raise KeyError
         return self
 
-    def print_graph(self, reduced=False):
-        from cmd_queue import util
+    def print_graph(self, reduced=True):
+        """
+        Renders the dependency graph to an "network text"
+
+        Args:
+            reduced (bool): if True only show the implicit dependency forest
+        """
+        from cmd_queue.util.util_networkx import graph_str
         import networkx as nx
         graph = self._dependency_graph()
         if reduced:
             print('\nGraph (reduced):')
             try:
                 reduced_graph = nx.transitive_reduction(graph)
-                print(util.graph_str(reduced_graph))
+                print(graph_str(reduced_graph))
             except Exception as ex:
                 print(f'ex={ex}')
             print('\n')
         else:
             print('\nGraph:')
-            print(util.graph_str(graph))
+            print(graph_str(graph))
 
     def _dependency_graph(self):
         """
         Builds a networkx dependency graph for the current jobs
 
         Example:
-            >>> from cmd_queue.tmux_queue import *  # NOQA
-            >>> self = TMUXMultiQueue(5, 'foo')
+            >>> from cmd_queue import Queue
+            >>> self = Queue.create(size=5, name='foo')
             >>> job1a = self.submit('echo hello && sleep 0.5')
             >>> job1b = self.submit('echo hello && sleep 0.5')
             >>> job2a = self.submit('echo hello && sleep 0.5', depends=[job1a])
@@ -143,6 +229,7 @@ class Queue(ub.NiceRepr):
             >>> jobY = self.submit('echo hello && sleep 0.5', depends=[jobX])
             >>> jobZ = self.submit('echo hello && sleep 0.5', depends=[jobY])
             >>> graph = self._dependency_graph()
+            >>> self.print_graph()
         """
         import networkx as nx
         graph = nx.DiGraph()
