@@ -535,6 +535,10 @@ class TMUXMultiQueue(base_queue.Queue):
         super().write()
 
     def kill_other_queues(self, ask_first=True):
+        """
+        Find other tmux sessions that look like they were started with
+        cmd_queue and kill them.
+        """
         import parse
         queue_name_pattern = parse.Parser(self._tmux_session_prefix + '{name}_{rootid}')
         current_sessions = self._tmux_current_sessions()
@@ -558,12 +562,16 @@ class TMUXMultiQueue(base_queue.Queue):
                     ub.cmd(command, verbose=self.cmd_verbose)
 
     def run(self, block=True, onfail='kill', onexit='', system=False,
-            with_textual='auto', check_other_sessions=True):
+            with_textual='auto', check_other_sessions='auto'):
 
         if not ub.find_exe('tmux'):
             raise Exception('tmux not found')
         if check_other_sessions:
-            self.kill_other_queues(ask_first=True)
+            if check_other_sessions == 'auto':
+                if not has_stdin():
+                    check_other_sessions = False
+            if check_other_sessions:
+                self.kill_other_queues(ask_first=True)
 
         self.write()
         ub.cmd(f'bash {self.fpath}', verbose=self.cmd_verbose, check=True,
@@ -655,10 +663,7 @@ class TMUXMultiQueue(base_queue.Queue):
             with_textual = CmdQueueMonitorApp is not None
             # If we dont have stdin (i.e. running in pytest) we cant use
             # textual.
-            import sys
-            try:
-                sys.stdin.fileno()
-            except Exception:
+            if not has_stdin():
                 with_textual = False
 
         if with_textual:
@@ -844,6 +849,16 @@ class TMUXMultiQueue(base_queue.Queue):
                     'rest': rest
                 })
         return sessions
+
+
+def has_stdin():
+    import sys
+    try:
+        sys.stdin.fileno()
+    except Exception:
+        return False
+    else:
+        return True
 
 
 try:
