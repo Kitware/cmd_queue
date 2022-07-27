@@ -251,6 +251,14 @@ class SerialQueue(base_queue.Queue):
     def __nice__(self):
         return f'{self.pathid} - {self.num_real_jobs}'
 
+    @classmethod
+    def is_available(cls):
+        """
+        This queue is always available.
+        """
+        # TODO: get this working
+        return True
+
     def finalize_text(self, with_status=True, with_gaurds=True):
         script = [self.header]
 

@@ -63,7 +63,7 @@ class TMUXMultiQueue(base_queue.Queue):
         >>> job3 = self.submit('echo hi 3 && true', depends=job1)
         >>> self.rprint()
         >>> self.print_graph()
-        >>> if ub.find_exe('tmux'):
+        >>> if self.is_available():
         >>>     self.run(block=True, onexit='capture', check_other_sessions=0)
 
     Example:
@@ -93,7 +93,7 @@ class TMUXMultiQueue(base_queue.Queue):
         >>>     add_branch(str(i))
         >>> self.rprint()
         >>> self.print_graph()
-        >>> if ub.find_exe('tmux'):
+        >>> if self.is_available():
         >>>     self.run(block=1, onexit='', check_other_sessions=0)
 
     Example:
@@ -112,7 +112,7 @@ class TMUXMultiQueue(base_queue.Queue):
         >>> job10 = self.submit('echo bazbiz && sleep 0.5', depends=[job9])
         >>> self.write()
         >>> self.rprint()
-        >>> if ub.find_exe('tmux'):
+        >>> if self.is_available():
         >>>     self.run(check_other_sessions=0)
         >>>     self.monitor()
         >>>     self.current_output()
@@ -181,7 +181,8 @@ class TMUXMultiQueue(base_queue.Queue):
         >>>     self.submit('false', name=f'loose_false{_}')
         >>> self.rprint()
         >>> self.print_graph()
-        >>> self.run(with_textual=False, check_other_sessions=0)
+        >>> if self.is_available():
+        >>>     self.run(with_textual=False, check_other_sessions=0)
     """
     def __init__(self, size=1, name=None, dpath=None, rootid=None, environ=None,
                  gres=None):
@@ -215,6 +216,13 @@ class TMUXMultiQueue(base_queue.Queue):
         self._tmux_session_prefix = 'cmdq_'
 
         self._new_workers()
+
+    @classmethod
+    def is_available(cls):
+        """
+        Determines if we can run the tmux queue or not.
+        """
+        return ub.find_exe('tmux')
 
     def _new_workers(self, start=0):
         per_worker_environs = [self.environ] * self.size
@@ -564,7 +572,7 @@ class TMUXMultiQueue(base_queue.Queue):
     def run(self, block=True, onfail='kill', onexit='', system=False,
             with_textual='auto', check_other_sessions='auto'):
 
-        if not ub.find_exe('tmux'):
+        if not self.is_available():
             raise Exception('tmux not found')
         if check_other_sessions:
             if check_other_sessions == 'auto':
@@ -642,7 +650,7 @@ class TMUXMultiQueue(base_queue.Queue):
             >>> for i in range(5):
             >>>     job = self.submit('sleep 5 && echo "hello 2"', depends=job)
             >>> self.rprint()
-            >>> if ub.find_exe('tmux'):
+            >>> if self.is_available():
             >>>     self.run(block=True, check_other_sessions=0)
 
         Example:
@@ -656,7 +664,7 @@ class TMUXMultiQueue(base_queue.Queue):
             >>>     for i in range(4):
             >>>         job = self.submit('sleep 1 && echo "hello 2"', depends=job)
             >>> self.rprint()
-            >>> if ub.find_exe('tmux'):
+            >>> if self.is_available():
             >>>     self.run(block=True, check_other_sessions=0)
         """
         if with_textual == 'auto':

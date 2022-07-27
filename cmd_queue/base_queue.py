@@ -151,13 +151,23 @@ class Queue(ub.NiceRepr):
         return job
 
     @classmethod
+    def _backend_classes(cls):
+        from cmd_queue import tmux_queue
+        from cmd_queue import serial_queue
+        from cmd_queue import slurm_queue
+        from cmd_queue import airflow_queue
+        lut = {
+            'serial': serial_queue.SerialQueue,
+            'tmux': tmux_queue.TMUXMultiQueue,
+            'slurm': slurm_queue.SlurmQueue,
+            'airflow': airflow_queue.AirflowQueue,
+        }
+        return lut
+
+    @classmethod
     def available_backends(cls):
-        available = ['serial']
-        if ub.find_exe('tmux'):
-            available.append('tmux')
-        if ub.find_exe('slurm'):
-            if ub.cmd('squeue')['ret'] == 0:
-                available.append('slurm')
+        lut = cls._backend_classes()
+        available = [name for name, qcls in lut.items() if qcls.is_available()]
         return available
 
     @classmethod

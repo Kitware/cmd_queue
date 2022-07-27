@@ -139,6 +139,14 @@ class AirflowQueue(base_queue.Queue):
         #     tags=[self.queue_id],
         # )
 
+    @classmethod
+    def is_available(cls):
+        """
+        Determines if we can run the tmux queue or not.
+        """
+        # TODO: get this working
+        return False
+
     def run(self, block=True, system=False):
         self.write()
         # TODO: can implement a monitor here for non-blocking mode

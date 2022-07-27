@@ -199,9 +199,8 @@ class SlurmQueue(base_queue.Queue):
         >>> self.write()
         >>> self.rprint()
         >>> # xdoctest: +REQUIRES(--run)
-        >>> self.run()
-        >>> #if ub.find_exe('slurm'):
-        >>> #    self.run()
+        >>> if not self.is_available():
+        >>>     self.run()
 
     Example:
         >>> from cmd_queue.slurm_queue import *  # NOQA
@@ -236,6 +235,16 @@ class SlurmQueue(base_queue.Queue):
 
     def __nice__(self):
         return self.queue_id
+
+    @classmethod
+    def is_available(cls):
+        """
+        Determines if we can run the slurm queue or not.
+        """
+        if ub.find_exe('squeue'):
+            if ub.cmd('squeue')['ret'] == 0:
+                return True
+        return False
 
     def submit(self, command, **kwargs):
         name = kwargs.get('name', None)
@@ -306,8 +315,8 @@ class SlurmQueue(base_queue.Queue):
         return text
 
     def run(self, block=True, system=False):
-        if not ub.find_exe('sbatch'):
-            raise Exception('sbatch not found')
+        if not self.is_available():
+            raise Exception('slurm backend is not available')
         self.log_dpath.ensuredir()
         self.write()
         ub.cmd(f'bash {self.fpath}', verbose=3, check=True, system=system)
