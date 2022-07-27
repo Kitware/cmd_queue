@@ -10,11 +10,12 @@ It should be possible to add more functionality, such as:
     - [x] Ability to query status of jobs - tmux script writes status to a
           file, secondary thread reads is.
 
-    - [ ] Unique identifier per queue
+    - [x] Unique identifier per queue
 
     - [ ] Central scheduler - given that we can know when a job is done
           a central scheduling process can run in the background, check
-          the status of existing jobs, and spawn new jobs
+          the status of existing jobs, and spawn new jobs. --- Maybe not
+          needed.
 
     - [X] Dependencies between jobs - given a central scheduler, it can
           only spawn a new job if a its dependencies have been met.
@@ -24,11 +25,11 @@ It should be possible to add more functionality, such as:
           next job if it "fits" given the resources taken by the current
           running jobs.
 
-    - [ ] Duck typed API that uses Slurm if available. Slurm is a robust
+    - [x] Duck typed API that uses Slurm if available. Slurm is a robust
           full featured queuing system. If it is available we should
           make it easy for the user to swap the tmux queue for slurm.
 
-    - [ ] Duck typed API that uses subprocesses. Tmux is not always available,
+    - [x] Duck typed API that uses subprocesses. Tmux is not always available,
           we could go even lighter weight and simply execute a subprocess that
           does the same thing as the linear queue. The downside is you don't
           get the nice tmux way of looking at the status of what the jobs are

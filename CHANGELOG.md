@@ -11,6 +11,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 * Improved textual monitor for tmux queue
 * Keep track of skipped jobs in tmux / serial queue
 * The tmux queue can now clean up other existing sessions if you start fresh
+* Basic airflow queue.
+
+### Changed
+* Job dependencies can now be given by name.
 
 ## Version 0.1.1 - Unreleased
 

@@ -205,10 +205,18 @@ class AirflowQueue(base_queue.Queue):
                     depends = [depends]
                 depends = self.all_depends + depends
             kwargs['depends'] = depends
+
+        depends = kwargs.pop('depends', None)
+        if depends is not None:
+            # Resolve any strings to job objects
+            depends = [
+                self.named_jobs[dep] if isinstance(dep, str) else dep
+                for dep in depends]
         # dag = self.dag
-        job = AirflowJob(command, **kwargs)
+        job = AirflowJob(command, depends=depends, **kwargs)
         self.jobs.append(job)
         self.num_real_jobs += 1
+        self.named_jobs[job.name] = job
         return job
 
     def rprint(self, with_status=False, with_gaurds=False, with_rich=1, colors=1):

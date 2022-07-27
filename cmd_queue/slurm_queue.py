@@ -256,9 +256,17 @@ class SlurmQueue(base_queue.Queue):
                 depends = self.all_depends + depends
             kwargs['depends'] = depends
 
-        job = SlurmJob(command, **kwargs)
+        depends = kwargs.pop('depends', None)
+        if depends is not None:
+            # Resolve any strings to job objects
+            depends = [
+                self.named_jobs[dep] if isinstance(dep, str) else dep
+                for dep in depends]
+
+        job = SlurmJob(command, depends=depends, **kwargs)
         self.jobs.append(job)
         self.num_real_jobs += 1
+        self.named_jobs[job.name] = job
         return job
 
     def add_header_command(self, command):
