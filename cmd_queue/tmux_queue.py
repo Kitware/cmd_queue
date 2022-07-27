@@ -870,6 +870,7 @@ def has_stdin():
 
 
 try:
+    import textual
     from cmd_queue.monitor_app import CmdQueueMonitorApp
 except ImportError:
     CmdQueueMonitorApp = None
