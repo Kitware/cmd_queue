@@ -27,7 +27,7 @@ class Queue(ub.NiceRepr):
         self.all_depends = None
         self.named_jobs = {}
 
-    def change_backend(self, backend):
+    def change_backend(self, backend, **kwargs):
         """
         Create a new version of this queue with a different backend.
 
@@ -54,7 +54,7 @@ class Queue(ub.NiceRepr):
             >>> slurm_backend.rprint()
             >>> airflow_backend.rprint()
         """
-        new = Queue.create(backend=backend)
+        new = Queue.create(backend=backend, **kwargs)
         for job_name, job in self.named_jobs.items():
             new_depends = []
             if job.depends:

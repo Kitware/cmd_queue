@@ -762,7 +762,7 @@ class TMUXMultiQueue(base_queue.Queue):
             )
         return table, finished, agg_state
 
-    def rprint(self, with_status=False, with_gaurds=False, with_rich=0):
+    def rprint(self, with_status=False, with_gaurds=False, with_rich=0, colors=1):
         """
         Print info about the commands, optionally with rich
         """
@@ -773,7 +773,7 @@ class TMUXMultiQueue(base_queue.Queue):
         console = Console()
         for queue in self.workers:
             queue.rprint(with_status=with_status, with_gaurds=with_gaurds,
-                         with_rich=with_rich)
+                         with_rich=with_rich, colors=colors)
             # code = queue.finalize_text(with_status=with_status)
             # if with_rich:
             #     console.print(Panel(Syntax(code, 'bash'), title=str(queue.fpath)))
@@ -783,7 +783,16 @@ class TMUXMultiQueue(base_queue.Queue):
             #     print(ub.highlight_code(code, 'bash'))
 
         code = self.finalize_text()
-        console.print(Panel(Syntax(code, 'bash'), title=str(self.fpath)))
+
+        if with_rich:
+            console.print(Panel(Syntax(code, 'bash'), title=str(self.fpath)))
+        else:
+            if colors:
+                print(ub.highlight_code('# --- ' + str(self.fpath), 'bash'))
+                print(ub.highlight_code(code, 'bash'))
+            else:
+                print('# --- ' + str(self.fpath))
+                print(code)
 
     def current_output(self):
         for queue in self.workers:

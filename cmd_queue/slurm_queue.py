@@ -394,7 +394,7 @@ class SlurmQueue(base_queue.Queue):
         # this
         return {}
 
-    def rprint(self, with_status=False, with_rich=0):
+    def rprint(self, with_status=False, with_rich=0, colors=0):
         """
         Print info about the commands, optionally with rich
         """
@@ -403,8 +403,12 @@ class SlurmQueue(base_queue.Queue):
         # from rich.console import Console
         # console = Console()
         code = self.finalize_text()
-        print(ub.highlight_code(f'# --- {str(self.fpath)}', 'bash'))
-        print(ub.highlight_code(code, 'bash'))
+        if colors:
+            print(ub.highlight_code(f'# --- {str(self.fpath)}', 'bash'))
+            print(ub.highlight_code(code, 'bash'))
+        else:
+            print(f'# --- {str(self.fpath)}')
+            print(code)
         # console.print(Panel(Syntax(code, 'bash'), title=str(self.fpath)))
 
 
