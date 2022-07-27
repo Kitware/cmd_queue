@@ -6,9 +6,18 @@ Serves as a frontend for several DAG backends, including our own custom tmux
 queue. We also support slurm and will soon support airflow.
 
 Example:
+    >>> # The available backends classmethod lets you know which backends
+    >>> # your system has access to. The "serial" backend should always be
+    >>> # available. Everthing else requires some degree of setup (tmux
+    >>> # is the easiest, just install it, no configuration needed).
     >>> import cmd_queue
     >>> print(cmd_queue.Queue.available_backends())  # xdoctest: +IGNORE_WANT
     ['serial', 'tmux', 'slurm']
+
+Example:
+    >>> # The API to submit jobs is the same regardless of the backend.
+    >>> # Job dependencies can be specified by name, or by the returned
+    >>> # job objects.
     >>> import cmd_queue
     >>> queue = cmd_queue.Queue.create(backend='serial')
     >>> job1a = queue.submit('echo "Hello World" && sleep 0.1', name='job1a')
@@ -21,6 +30,7 @@ Example:
     >>> jobZ = queue.submit('echo "Hello Giblet" && sleep 0.1', depends=[jobY], name='jobZ')
     ...
     >>> # Use print_graph to get a "network text" representation of the DAG
+    >>> # This gives you a sense of what jobs can run in parallel
     >>> queue.print_graph(reduced=False)
     Graph:
     ╟── job1a
@@ -32,6 +42,8 @@ Example:
     ╙── jobX
         └─╼ jobY
             └─╼ jobZ
+    >>> # The purpose of command queue is not to run the code, but to
+    >>> # generate the code that would run the code.
     >>> # The rprint command (rich print) gives you the gist of the code
     >>> # command queue would run. Flags can be given to modify conciseness.
     >>> queue.rprint(with_rich=0, colors=0)
@@ -179,8 +191,8 @@ Example:
 
 
 Example:
-    >>> # You can also run the job directly with the run method.
-    >>> # Note: xdoctest doesnt seem to capture the set -x parts. Not sure why.
+    >>> # Given a Queue object, the "run" method will attempt to execute it
+    >>> # for you and give you a sense of progress.
     >>> # xdoctest: +IGNORE_WANT
     >>> import cmd_queue
     >>> queue = cmd_queue.Queue.create(backend='serial')
@@ -192,6 +204,10 @@ Example:
     >>> jobX = queue.submit('echo "Hello Barrette" && sleep 0.1', depends=[], name='jobX')
     >>> jobY = queue.submit('echo "Hello Overwrite" && sleep 0.1', depends=[jobX], name='jobY')
     >>> jobZ = queue.submit('echo "Hello Giblet" && sleep 0.1', depends=[jobY], name='jobZ')
+    >>> # Using the serial queue simply executes all of the commands in order in
+    >>> # the current session. This behavior can be useful as a fallback or
+    >>> # for debugging.
+    >>> # Note: xdoctest doesnt seem to capture the set -x parts. Not sure why.
     >>> queue.run(block=True, system=True)  # xdoctest: +IGNORE_WANT
     ┌─── START CMD ───
     [ubelt.cmd] ...@...:...$ bash ...sh
@@ -225,9 +241,13 @@ Example:
     >>> # The TMUX queue does not show output directly by default (although
     >>> # it does have access to methods that let it grab logs from tmux)
     >>> # But normally you can attach to the tmux sessions to look at them
-    >>> if ub.find_exe('tmux'):
+    >>> # The default monitor will depend on if you have textual installed or not.
+    >>> # Another default behavior is that it will ask if you want to kill
+    >>> # previous command queue tmux sessions, but this can be disabled.
+    >>> import ubelt as ub
+    >>> if 'tmux' in cmd_queue.Queue.available_backends():
     >>>     tmux_queue = queue.change_backend('tmux', size=2)
-    >>>     tmux_queue.run(with_textual=False)
+    >>>     tmux_queue.run(with_textual='auto', check_other_sessions=False)
     [ubelt.cmd] joncrall@calculex:~/code/cmd_queue$ bash /home/joncrall/.cache/cmd_queue/tmux/unnamed_2022-07-27_cbfeedda/run_queues_unnamed.sh
     submitting 8 jobs
     jobs submitted
@@ -240,13 +260,24 @@ Example:
     │ agg               │ done   │ 8      │ 0      │ 0       │ 8     │
     └───────────────────┴────────┴────────┴────────┴─────────┴───────┘
     >>> # The monitoring for the slurm queue is basic, and the extent to
-    >>> # which features can be added will depend on your slurm config
-    >>> if ub.find_exe('slurm'):
+    >>> # which features can be added will depend on your slurm config.
+    >>> # Any other slurm monitoring tools can be used. There are plans
+    >>> # to implement a textual monitor based on the slurm logfiles.
+    >>> if 'slurm' in cmd_queue.Queue.available_backends():
     >>>     slurm_queue = queue.change_backend('slurm')
     >>>     slurm_queue.run()
+    ┌─── START CMD ───
+    [ubelt.cmd] ...sh
+    └─── END CMD ───
+                             slurm-monitor
+    ┏━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┓
+    ┃ num_running ┃ num_in_queue ┃ total_monitored ┃ num_at_start ┃
+    ┡━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━┩
+    │ 0           │ 31           │ 118             │ 118          │
+    └─────────────┴──────────────┴─────────────────┴──────────────┘
     >>> # xdoctest: +SKIP
     >>> # Running airflow queues is not implemented yet
-    >>> if ub.find_exe('airflow'):
+    >>> if 'airflow' in cmd_queue.Queue.available_backends():
     >>>     airflow_queue = queue.change_backend('airflow')
     >>>     airflow_queue.run()
 """

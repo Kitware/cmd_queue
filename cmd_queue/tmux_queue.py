@@ -124,7 +124,7 @@ class TMUXMultiQueue(base_queue.Queue):
         >>> job1 = self.submit('echo hello && sleep 0.5')
         >>> job2 = self.submit('echo hello && sleep 0.5')
         >>> self.rprint()
-
+        >>> # --
         >>> from cmd_queue.tmux_queue import *  # NOQA
         >>> self = TMUXMultiQueue(2, 'foo')
         >>> job1 = self.submit('echo hello && sleep 0.5')
@@ -134,7 +134,7 @@ class TMUXMultiQueue(base_queue.Queue):
         >>> job3 = self.submit('echo hello && sleep 0.5')
         >>> self.sync()
         >>> self.rprint()
-
+        >>> # --
         >>> from cmd_queue.tmux_queue import *  # NOQA
         >>> self = TMUXMultiQueue(2, 'foo')
         >>> job1 = self.submit('echo hello && sleep 0.5')
@@ -650,6 +650,13 @@ class TMUXMultiQueue(base_queue.Queue):
         """
         if with_textual == 'auto':
             with_textual = CmdQueueMonitorApp is not None
+            # If we dont have stdin (i.e. running in pytest) we cant use
+            # textual.
+            import sys
+            try:
+                sys.stdin.fileno()
+            except Exception:
+                with_textual = False
 
         if with_textual:
             self._textual_monitor()
