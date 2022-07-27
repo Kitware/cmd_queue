@@ -143,6 +143,7 @@ Example:
     >>> # The slurm queue is very simple, it just constructs one bash file that is the
     >>> # sbatch commands to submit your jobs. All of the other details are taken care of
     >>> # by slurm itself.
+    >>> # xdoctest: +IGNORE_WANT
     >>> slurm_queue = queue.change_backend('slurm')
     >>> slurm_queue.rprint(with_rich=0, colors=0)
     # --- ...sh
