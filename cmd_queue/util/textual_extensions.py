@@ -1,8 +1,8 @@
 try:
     from textual.app import App
-    from textual.driver import Driver
-    from typing import Type
-    from rich.console import Console
+    # from textual.driver import Driver
+    # from typing import Type
+    # from rich.console import Console
     import asyncio
 
     # from textual import events
@@ -34,7 +34,7 @@ class InstanceRunnableApp(App):
     Extension of App that allows for running an instance
 
     CommandLine:
-        xdoctest -m /home/joncrall/code/cmd_queue/cmd_queue/textual_extensions.py InstanceRunnableApp:0 --interact
+        xdoctest -m cmd_queue.textual_extensions InstanceRunnableApp:0 --interact
 
     Example:
         >>> # xdoctest: +REQUIRES(module:textual)
