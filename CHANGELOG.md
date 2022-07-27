@@ -5,7 +5,10 @@ We are currently working on porting this changelog to the specifications in
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## Version 0.1.2 - Unreleased
+## Version 0.1.3 - Unreleased
+
+
+## Version 0.1.2 - Released 2022-07-27
 
 ### Added
 * Improved textual monitor for tmux queue
@@ -16,7 +19,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Changed
 * Job dependencies can now be given by name.
 
-## Version 0.1.1 - Unreleased
+## Version 0.1.1 - Released 2022-07-27
 
 ### Fixed
 * Bug where serial queue would execute jobs if any dependency passed.
