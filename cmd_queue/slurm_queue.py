@@ -242,8 +242,12 @@ class SlurmQueue(base_queue.Queue):
         Determines if we can run the slurm queue or not.
         """
         if ub.find_exe('squeue'):
-            if ub.cmd('squeue')['ret'] == 0:
-                return True
+            import psutil
+            slurmd_running = any(p.name() == 'slurmd' for p in psutil.process_iter())
+            if slurmd_running:
+                squeue_working = (ub.cmd('squeue')['ret'] == 0)
+                if squeue_working:
+                    return True
         return False
 
     def submit(self, command, **kwargs):
