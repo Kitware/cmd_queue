@@ -99,14 +99,18 @@ class BashJob(base_queue.Job):
                             v2 = [v2]
                         v.extend(v2)
 
+        had_conditions = False
         if with_status:
             if self.depends:
                 # Dont allow us to run if any dependencies have failed
                 conditions = []
                 for dep in self.depends:
-                    conditions.append(f'[ -f {dep.pass_fpath} ]')
-                condition = ' && '.join(conditions)
-                prefix_script.append(f'if {condition}; then')
+                    if dep is not None:
+                        conditions.append(f'[ -f {dep.pass_fpath} ]')
+                if conditions:
+                    had_conditions = True
+                    condition = ' && '.join(conditions)
+                    prefix_script.append(f'if {condition}; then')
 
         if with_gaurds and not self.bookkeeper:
             # -x Tells bash to print the command before it executes it
@@ -124,15 +128,14 @@ class BashJob(base_queue.Job):
             if with_status:
                 script.append('RETURN_CODE=$?')
 
-        if with_status:
-            if self.depends:
-                suffix_script.append('else')
-                if _job_conditionals['on_skip']:
-                    on_skip_part = indent(_job_conditionals['on_skip'])
-                    suffix_script.append(on_skip_part)
-                suffix_script.append('    RETURN_CODE=126')
-                suffix_script.append('fi')
-                script = prefix_script + [indent(script)] + suffix_script
+        if had_conditions:
+            suffix_script.append('else')
+            if _job_conditionals['on_skip']:
+                on_skip_part = indent(_job_conditionals['on_skip'])
+                suffix_script.append(on_skip_part)
+            suffix_script.append('    RETURN_CODE=126')
+            suffix_script.append('fi')
+            script = prefix_script + [indent(script)] + suffix_script
 
         if with_status:
             # import shlex
@@ -423,11 +426,11 @@ class SerialQueue(base_queue.Queue):
                 print(header)
                 print(code)
 
-    def run(self, block=True, system=False):
+    def run(self, block=True, system=False, shell=1):
         self.write()
         # TODO: can implement a monitor here for non-blocking mode
         detach = not block
-        ub.cmd(f'bash {self.fpath}', verbose=3, check=True, shell=1,
+        ub.cmd(f'bash {self.fpath}', verbose=3, check=True, shell=shell,
                system=system, detach=detach)
 
     def read_state(self):

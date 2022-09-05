@@ -7,6 +7,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version 0.1.3 - Unreleased
 
+### Fixed:
+* Bug in serial queue when a dependency was None
+
 
 ## Version 0.1.2 - Released 2022-07-27
 
@@ -29,7 +32,3 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 * Initial version
-
-
-
-python -m watch.cli.coco_align_geotiffs --src /media/joncrall/raid/home/joncrall/data/dvc-repos/smart_watch_dvc/Uncropped-Drop4-2022-07-18-c10-TA1-S2-L8-ACC/data_US_C002_fielded.kwcoco.json --dst /media/joncrall/raid/home/joncrall/data/dvc-repos/smart_watch_dvc/Aligned-Drop4-2022-07-18-c10-TA1-S2-L8-ACC/imgonly-US_C002.kwcoco.json --regions /media/joncrall/raid/home/joncrall/data/dvc-repos/smart_watch_dvc/annotations/region_models/US_C002.geojson --context_factor=1 --geo_preprop=auto --keep=roi-img '--include_channels=blue|green|red|nir|swir16|swir22' --exclude_channels=None --visualize=False --debug_valid_regions=False --rpc_align_method affine_warp --verbose=0 --aux_workers=0 --workers=12
