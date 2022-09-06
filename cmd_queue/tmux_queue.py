@@ -523,6 +523,8 @@ class TMUXMultiQueue(base_queue.Queue):
             ''').format(self.num_real_jobs)]
         for queue in self.workers:
             # run_command_in_tmux_queue(command, name)
+            # TODO: figure out how to forward environment variables from the
+            # running sessions. We dont want to log secrets to plaintext.
             part = ub.codeblock(
                 f'''
                 ### Run Queue: {queue.pathid} with {len(queue)} jobs
@@ -887,6 +889,14 @@ if 0:
     tmux send -t {queue.pathid} "source {queue.fpath}" Enter
 
     tmux new-session -d -s my_session_id "bash"
+
+    # References:
+    # https://stackoverflow.com/questions/20701757/tmux-setting-environment-variables-for-sessions
+    # Requires tmux 3.2
+    export MYSECRET=12345
+    tmux new-session -d -s my_session_id "bash"
+
+    tmux set -t my_session_id update-environment MYSECRET
 
     tmux list-sessions
     tmux list-panes -a
