@@ -7,6 +7,15 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version 0.1.4 - Unreleased
 
+### Changed
+* The kill-other-session logic now only asks to kill sessions with the same
+  name.
+
+* The serial / tmux queue now output stdout/stderr of each process to a log
+  file and write a status indicating when a command has started to run.
+
+* Slurm is available check now looks to see if any node exists that is not down.
+
 
 ## Version 0.1.3 - Released 2022-09-05
 

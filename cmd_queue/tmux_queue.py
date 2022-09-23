@@ -556,7 +556,8 @@ class TMUXMultiQueue(base_queue.Queue):
         for info in current_sessions:
             matched = queue_name_pattern.parse(info['id'])
             if matched is not None:
-                other_session_ids.append(info['id'])
+                if self.name == matched['name']:
+                    other_session_ids.append(info['id'])
         print(f'other_session_ids={other_session_ids}')
         if other_session_ids:
             print('It looks like there are other running cmd-queue sessions')
