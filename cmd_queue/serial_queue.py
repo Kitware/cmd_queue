@@ -142,6 +142,9 @@ class BashJob(base_queue.Job):
         if with_gaurds and not self.bookkeeper:
             # -x Tells bash to print the command before it executes it
             # +e tells bash to allow the command to fail
+            if self.log:
+                # https://stackoverflow.com/questions/6871859/piping-command-output-to-tee-but-also-save-exit-code-of-command
+                script.append('set -o pipefail')
             script.append('set +e -x')
 
         if with_status:
@@ -161,6 +164,8 @@ class BashJob(base_queue.Job):
             # captures the last return code and doesnt print this command.
             # Also set -e so our boilerplate is not allowed to fail
             script.append('{ RETURN_CODE=$? ; set +x -e; } 2>/dev/null')
+            if self.log:
+                script.append('set +o pipefail')
         else:
             if with_status:
                 script.append('RETURN_CODE=$?')
