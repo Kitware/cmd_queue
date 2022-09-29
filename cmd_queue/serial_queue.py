@@ -110,6 +110,10 @@ class BashJob(base_queue.Job):
                             v2 = [v2]
                         v.extend(v2)
 
+        if with_status:
+            prefix_script.append('# Ensure job status directory')
+            prefix_script.append(f'mkdir -p {self.stat_fpath.parent}')
+
         had_conditions = False
         if with_status:
             if self.depends:
@@ -124,8 +128,7 @@ class BashJob(base_queue.Job):
                     prefix_script.append(f'if {condition}; then')
 
         if with_status:
-            script.append('#     <before_command> ')
-            script.append(f'mkdir -p {self.stat_fpath.parent}')
+            script.append('# before_command:')
             # import shlex
             json_fmt_parts = [
                 ('ret', '%s', 'null'),
@@ -137,6 +140,7 @@ class BashJob(base_queue.Job):
                     ('logs', '"%s"', self.log_fpath),
                 ]
             dump_pre_status = _bash_json_dump(json_fmt_parts, self.stat_fpath)
+            script.append('# Mark job as running')
             script.append(dump_pre_status)
 
         if with_gaurds and not self.bookkeeper:
@@ -145,11 +149,13 @@ class BashJob(base_queue.Job):
             if self.log:
                 # https://stackoverflow.com/questions/6871859/piping-command-output-to-tee-but-also-save-exit-code-of-command
                 script.append('set -o pipefail')
+            script.append('# Disable exit-on-error, enable command echo')
             script.append('set +e -x')
 
         if with_status:
-            script.append('#     </before_command> ')
-            script.append('#     <command> ')
+            # script.append('#     </before_command> ')
+            # script.append('#     <command> ')
+            script.append('# command:')
         if self.log and with_status:
             logged_command = f'({self.command}) 2>&1 | tee {self.log_fpath}'
             script.append(logged_command)
@@ -157,17 +163,20 @@ class BashJob(base_queue.Job):
             script.append(self.command)
 
         if with_status:
-            script.append('#     </command> ')
-            script.append('#     <after_command> ')
+            # script.append('#     </command> ')
+            # script.append('#     <after_command> ')
+            script.append('# after_command:')
         if with_gaurds:
             # Tells bash to stop printing commands, but is clever in that it
             # captures the last return code and doesnt print this command.
             # Also set -e so our boilerplate is not allowed to fail
+            script.append('# Capture job return code, disable command echo, enable exit-on-error')
             script.append('{ RETURN_CODE=$? ; set +x -e; } 2>/dev/null')
             if self.log:
                 script.append('set +o pipefail')
         else:
             if with_status:
+                script.append('# Capture job return code')
                 script.append('RETURN_CODE=$?')
 
         if had_conditions:
@@ -178,6 +187,8 @@ class BashJob(base_queue.Job):
             suffix_script.append('    RETURN_CODE=126')
             suffix_script.append('fi')
             script = prefix_script + [indent(script)] + suffix_script
+        else:
+            script = prefix_script + script + suffix_script
 
         if with_status:
             # import shlex
@@ -201,9 +212,10 @@ class BashJob(base_queue.Job):
                 on_fail_part,
                 'fi'
             ])
+            script.append('# Mark job as stopped')
             script.append(dump_post_status)
             script.append(conditional_body)
-            script.append('#     </after_command> ')
+            # script.append('#     </after_command> ')
 
         assert isinstance(script, list)
         text = '\n'.join(script)
@@ -308,7 +320,9 @@ class SerialQueue(base_queue.Queue):
         return True
 
     def finalize_text(self, with_status=True, with_gaurds=True):
+        import cmd_queue
         script = [self.header]
+        script += ['# Written by cmd_queue {}'.format(cmd_queue.__version__)]
 
         total = self.num_real_jobs
 
@@ -351,6 +365,7 @@ class SerialQueue(base_queue.Queue):
                     ('rootid', '"%s"', self.rootid),
                 ]
                 dump_code = _bash_json_dump(json_fmt_parts, self.state_fpath)
+                script.append('# Update queue status')
                 script.append(dump_code)
                 # script.append('cat ' + str(self.state_fpath))
 
@@ -392,8 +407,11 @@ class SerialQueue(base_queue.Queue):
                 _command_exit()
 
         if self.jobs:
-            script.append('#')
+            script.append('')
+            script.append('# ----')
             script.append('# Jobs')
+            script.append('# ----')
+            script.append('')
 
             num = 0
             for job in self.jobs:
@@ -402,6 +420,8 @@ class SerialQueue(base_queue.Queue):
                         script.append(job.finalize_text(with_status, with_gaurds))
                 else:
                     if with_status:
+                        script.append('')
+                        script.append('#')
                         script.append('# <job>')
 
                     _mark_status('run')
@@ -420,6 +440,8 @@ class SerialQueue(base_queue.Queue):
                     script.append(job.finalize_text(with_status, with_gaurds, conditionals))
                     if with_status:
                         script.append('# </job>')
+                        script.append('#')
+                        script.append('')
                     num += 1
 
         _mark_status('done')
@@ -477,6 +499,17 @@ class SerialQueue(base_queue.Queue):
         detach = not block
         ub.cmd(f'bash {self.fpath}', verbose=3, check=True, shell=shell,
                system=system, detach=detach)
+
+    def job_details(self):
+        import json
+        for job in self.jobs:
+            print('+--------')
+            print(f'job={job}')
+            job_status = json.loads(job.stat_fpath.read_text())
+            print('job_status = {}'.format(ub.repr2(job_status, nl=1)))
+            if job.log_fpath.exists():
+                print(job.log_fpath.read_text())
+            print('L________')
 
     def read_state(self):
         import json
