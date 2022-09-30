@@ -319,7 +319,7 @@ class SerialQueue(base_queue.Queue):
         # TODO: get this working
         return True
 
-    def finalize_text(self, with_status=True, with_gaurds=True):
+    def finalize_text(self, with_status=True, with_gaurds=True, with_locks=True):
         import cmd_queue
         script = [self.header]
         script += ['# Written by cmd_queue {}'.format(cmd_queue.__version__)]
@@ -416,7 +416,7 @@ class SerialQueue(base_queue.Queue):
             num = 0
             for job in self.jobs:
                 if job.bookkeeper:
-                    if with_status:
+                    if with_locks:
                         script.append(job.finalize_text(with_status, with_gaurds))
                 else:
                     if with_status:

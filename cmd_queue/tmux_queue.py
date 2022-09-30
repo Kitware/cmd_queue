@@ -225,6 +225,7 @@ class TMUXMultiQueue(base_queue.Queue):
         return ub.find_exe('tmux')
 
     def _new_workers(self, start=0):
+        import itertools as it
         per_worker_environs = [self.environ] * self.size
         if self.gres:
             # TODO: more sophisticated GPU policy?
@@ -232,7 +233,8 @@ class TMUXMultiQueue(base_queue.Queue):
                 ub.dict_union(e, {
                     'CUDA_VISIBLE_DEVICES': str(cvd),
                 })
-                for cvd, e in zip(self.gres, per_worker_environs)]
+                for cvd, e in zip(it.cycle(self.gres), per_worker_environs)
+            ]
 
         workers = [
             serial_queue.SerialQueue(
