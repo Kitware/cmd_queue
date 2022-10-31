@@ -79,7 +79,8 @@ class BashJob(base_queue.Job):
         self.stat_fpath = self.info_dpath / f'status/{self.pathid}.stat'
         self.log_fpath = self.info_dpath / f'status/{self.pathid}.logs'
 
-    def finalize_text(self, with_status=True, with_gaurds=True, conditionals=None):
+    def finalize_text(self, with_status=True, with_gaurds=True,
+                      conditionals=None):
         script = []
         prefix_script = []
         suffix_script = []
@@ -462,7 +463,8 @@ class SerialQueue(base_queue.Queue):
     def add_header_command(self, command):
         self.header_commands.append(command)
 
-    def rprint(self, with_status=False, with_gaurds=False, with_rich=0, colors=1):
+    def rprint(self, with_status=False, with_gaurds=False, with_rich=0,
+               colors=1, with_locks=True):
         r"""
         Print info about the commands, optionally with rich
 
@@ -476,7 +478,8 @@ class SerialQueue(base_queue.Queue):
             >>> self.rprint(with_status=0)
         """
         code = self.finalize_text(with_status=with_status,
-                                  with_gaurds=with_gaurds)
+                                  with_gaurds=with_gaurds,
+                                  with_locks=with_locks)
         if with_rich:
             from rich.panel import Panel
             from rich.syntax import Syntax
@@ -493,7 +496,7 @@ class SerialQueue(base_queue.Queue):
                 print(header)
                 print(code)
 
-    def run(self, block=True, system=False, shell=1):
+    def run(self, block=True, system=False, shell=1, **kw):
         self.write()
         # TODO: can implement a monitor here for non-blocking mode
         detach = not block

@@ -231,7 +231,7 @@ class Queue(ub.NiceRepr):
         Args:
             reduced (bool): if True only show the implicit dependency forest
         """
-        self.write_network_text(reduced=True)
+        self.write_network_text(reduced=reduced)
 
     def _dependency_graph(self):
         """
