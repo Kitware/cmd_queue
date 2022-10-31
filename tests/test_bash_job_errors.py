@@ -74,6 +74,10 @@ def test_tmux_queue_errors():
     queue.rprint(1, 1)
     queue.write()
 
+    if not queue.is_available():
+        import pytest
+        pytest.skip('Skip tmux test. Tmux is not available')
+
     queue.run(block=0)
     queue.monitor(with_textual=False)
     queue.kill()
