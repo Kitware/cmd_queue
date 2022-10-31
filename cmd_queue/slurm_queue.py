@@ -247,7 +247,16 @@ class SlurmQueue(base_queue.Queue):
             if slurmd_running:
                 squeue_working = (ub.cmd('squeue')['ret'] == 0)
                 if squeue_working:
-                    return True
+                    # Check if nodes are available or down
+                    sinfo = ub.cmd('sinfo --json')
+                    if sinfo['ret'] == 0:
+                        import json
+                        sinfo_out = json.loads(sinfo['out'])
+                        has_working_nodes = not all(
+                            node['state'] == 'down'
+                            for node in sinfo_out['nodes'])
+                        if has_working_nodes:
+                            return True
         return False
 
     def submit(self, command, **kwargs):

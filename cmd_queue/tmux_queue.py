@@ -225,6 +225,7 @@ class TMUXMultiQueue(base_queue.Queue):
         return ub.find_exe('tmux')
 
     def _new_workers(self, start=0):
+        import itertools as it
         per_worker_environs = [self.environ] * self.size
         if self.gres:
             # TODO: more sophisticated GPU policy?
@@ -232,7 +233,8 @@ class TMUXMultiQueue(base_queue.Queue):
                 ub.dict_union(e, {
                     'CUDA_VISIBLE_DEVICES': str(cvd),
                 })
-                for cvd, e in zip(self.gres, per_worker_environs)]
+                for cvd, e in zip(it.cycle(self.gres), per_worker_environs)
+            ]
 
         workers = [
             serial_queue.SerialQueue(
@@ -556,7 +558,8 @@ class TMUXMultiQueue(base_queue.Queue):
         for info in current_sessions:
             matched = queue_name_pattern.parse(info['id'])
             if matched is not None:
-                other_session_ids.append(info['id'])
+                if self.name == matched['name']:
+                    other_session_ids.append(info['id'])
         print(f'other_session_ids={other_session_ids}')
         if other_session_ids:
             print('It looks like there are other running cmd-queue sessions')
@@ -787,7 +790,8 @@ class TMUXMultiQueue(base_queue.Queue):
             )
         return table, finished, agg_state
 
-    def rprint(self, with_status=False, with_gaurds=False, with_rich=0, colors=1):
+    def rprint(self, with_status=False, with_gaurds=False, with_rich=0,
+               with_locks=1, colors=1):
         """
         Print info about the commands, optionally with rich
         """
@@ -798,7 +802,8 @@ class TMUXMultiQueue(base_queue.Queue):
         console = Console()
         for queue in self.workers:
             queue.rprint(with_status=with_status, with_gaurds=with_gaurds,
-                         with_rich=with_rich, colors=colors)
+                         with_rich=with_rich, with_locks=with_locks,
+                         colors=colors)
             # code = queue.finalize_text(with_status=with_status)
             # if with_rich:
             #     console.print(Panel(Syntax(code, 'bash'), title=str(queue.fpath)))

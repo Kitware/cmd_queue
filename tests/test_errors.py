@@ -16,3 +16,11 @@ def test_failures_on_each_backend():
         self.rprint()
         self.run()
         self.read_state()
+
+
+if __name__ == '__main__':
+    """
+    CommandLine:
+        python ~/code/cmd_queue/tests/test_errors.py
+    """
+    test_failures_on_each_backend()

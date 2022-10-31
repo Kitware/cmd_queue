@@ -37,6 +37,15 @@ class BashJob(base_queue.Job):
     r"""
     A job meant to run inside of a larger bash file. Analog of SlurmJob
 
+    Attributes:
+        name (str): a name for this job
+        pathid (str): a unique id based on the name and a hashed uuid
+        command (str): the shell command to run
+        depends (List[BashJob] | None): the jobs that this job depends on
+        bookkeeper (bool): flag indicating if this is a bookkeeping job or not
+        info_dpath (PathLike): where information about this job will be stored
+        log (bool): if True, output of the job will be teed and saved to a file
+
     Example:
         >>> from cmd_queue.serial_queue import *  # NOQA
         >>> # Demo full boilerplate for a job with no dependencies
@@ -52,7 +61,7 @@ class BashJob(base_queue.Job):
         >>> self.rprint(1, 1, conditionals=conditionals)
     """
     def __init__(self, command, name=None, depends=None, gpus=None, cpus=None,
-                 mem=None, bookkeeper=0, info_dpath=None, **kwargs):
+                 mem=None, bookkeeper=0, info_dpath=None, log=True, **kwargs):
         if depends is not None and not ub.iterable(depends):
             depends = [depends]
         self.name = name
@@ -61,14 +70,17 @@ class BashJob(base_queue.Job):
         self.command = command
         self.depends: list[base_queue.Job] = depends
         self.bookkeeper = bookkeeper
+        self.log = log
         if info_dpath is None:
             info_dpath = ub.Path.appdir('cmd_queue/jobinfos/') / self.pathid
         self.info_dpath = info_dpath
         self.pass_fpath = self.info_dpath / f'passed/{self.pathid}.pass'
         self.fail_fpath = self.info_dpath / f'failed/{self.pathid}.fail'
         self.stat_fpath = self.info_dpath / f'status/{self.pathid}.stat'
+        self.log_fpath = self.info_dpath / f'status/{self.pathid}.logs'
 
-    def finalize_text(self, with_status=True, with_gaurds=True, conditionals=None):
+    def finalize_text(self, with_status=True, with_gaurds=True,
+                      conditionals=None):
         script = []
         prefix_script = []
         suffix_script = []
@@ -99,6 +111,10 @@ class BashJob(base_queue.Job):
                             v2 = [v2]
                         v.extend(v2)
 
+        if with_status:
+            prefix_script.append('# Ensure job status directory')
+            prefix_script.append(f'mkdir -p {self.stat_fpath.parent}')
+
         had_conditions = False
         if with_status:
             if self.depends:
@@ -112,20 +128,56 @@ class BashJob(base_queue.Job):
                     condition = ' && '.join(conditions)
                     prefix_script.append(f'if {condition}; then')
 
+        if with_status:
+            script.append('# before_command:')
+            # import shlex
+            json_fmt_parts = [
+                ('ret', '%s', 'null'),
+                ('name', '"%s"', self.name),
+                # ('command', '"%s"', shlex.quote(self.command)),
+            ]
+            if self.log:
+                json_fmt_parts += [
+                    ('logs', '"%s"', self.log_fpath),
+                ]
+            dump_pre_status = _bash_json_dump(json_fmt_parts, self.stat_fpath)
+            script.append('# Mark job as running')
+            script.append(dump_pre_status)
+
         if with_gaurds and not self.bookkeeper:
             # -x Tells bash to print the command before it executes it
-            script.append('set +e -x')  # and +e allow the command to fail
+            # +e tells bash to allow the command to fail
+            if self.log:
+                # https://stackoverflow.com/questions/6871859/piping-command-output-to-tee-but-also-save-exit-code-of-command
+                script.append('set -o pipefail')
+            script.append('# Disable exit-on-error, enable command echo')
+            script.append('set +e -x')
 
-        script.append(self.command)
+        if with_status:
+            # script.append('#     </before_command> ')
+            # script.append('#     <command> ')
+            script.append('# command:')
+        if self.log and with_status:
+            logged_command = f'({self.command}) 2>&1 | tee {self.log_fpath}'
+            script.append(logged_command)
+        else:
+            script.append(self.command)
 
+        if with_status:
+            # script.append('#     </command> ')
+            # script.append('#     <after_command> ')
+            script.append('# after_command:')
         if with_gaurds:
-            # Tells bash to stop printing commands, but
-            # is clever in that it cpatures the last return code
-            # and doesnt print this command.
+            # Tells bash to stop printing commands, but is clever in that it
+            # captures the last return code and doesnt print this command.
             # Also set -e so our boilerplate is not allowed to fail
+            script.append('# Capture job return code, disable command echo, enable exit-on-error')
             script.append('{ RETURN_CODE=$? ; set +x -e; } 2>/dev/null')
+            if self.log:
+                script.append('set +o pipefail')
         else:
             if with_status:
+                script.append('# Capture job return code')
                 script.append('RETURN_CODE=$?')
 
         if had_conditions:
@@ -136,6 +188,8 @@ class BashJob(base_queue.Job):
             suffix_script.append('    RETURN_CODE=126')
             suffix_script.append('fi')
             script = prefix_script + [indent(script)] + suffix_script
+        else:
+            script = prefix_script + script + suffix_script
 
         if with_status:
             # import shlex
@@ -144,7 +198,11 @@ class BashJob(base_queue.Job):
                 ('name', '"%s"', self.name),
                 # ('command', '"%s"', shlex.quote(self.command)),
             ]
-            dump_status = _bash_json_dump(json_fmt_parts, self.stat_fpath)
+            if self.log:
+                json_fmt_parts += [
+                    ('logs', '"%s"', self.log_fpath),
+                ]
+            dump_post_status = _bash_json_dump(json_fmt_parts, self.stat_fpath)
 
             on_pass_part = indent(_job_conditionals['on_pass'])
             on_fail_part = indent(_job_conditionals['on_fail'])
@@ -155,11 +213,10 @@ class BashJob(base_queue.Job):
                 on_fail_part,
                 'fi'
             ])
-            script.append('#     <bookkeeping> ')
-            script.append(f'mkdir -p {self.stat_fpath.parent}')
-            script.append(dump_status)
+            script.append('# Mark job as stopped')
+            script.append(dump_post_status)
             script.append(conditional_body)
-            script.append('#     </bookkeeping> ')
+            # script.append('#     </after_command> ')
 
         assert isinstance(script, list)
         text = '\n'.join(script)
@@ -200,12 +257,13 @@ class SerialQueue(base_queue.Queue):
     Example:
         >>> from cmd_queue.serial_queue import *  # NOQA
         >>> self = SerialQueue('test-serial-queue', rootid='test-serial')
-        >>> job1 = self.submit('echo hi 1 && false')
-        >>> job2 = self.submit('echo hi 2 && true')
-        >>> job3 = self.submit('echo hi 3 && true', depends=job1)
+        >>> job1 = self.submit('echo "this job fails" && false')
+        >>> job2 = self.submit('echo "this job works" && true')
+        >>> job3 = self.submit('echo "this job wont run" && true', depends=job1)
         >>> self.rprint(1, 1)
         >>> self.run()
-        >>> self.read_state()
+        >>> state = self.read_state()
+        >>> print('state = {}'.format(ub.repr2(state, nl=1)))
 
     Example:
         >>> # Test case where a job fails
@@ -262,8 +320,10 @@ class SerialQueue(base_queue.Queue):
         # TODO: get this working
         return True
 
-    def finalize_text(self, with_status=True, with_gaurds=True):
+    def finalize_text(self, with_status=True, with_gaurds=True, with_locks=True):
+        import cmd_queue
         script = [self.header]
+        script += ['# Written by cmd_queue {}'.format(cmd_queue.__version__)]
 
         total = self.num_real_jobs
 
@@ -306,6 +366,7 @@ class SerialQueue(base_queue.Queue):
                     ('rootid', '"%s"', self.rootid),
                 ]
                 dump_code = _bash_json_dump(json_fmt_parts, self.state_fpath)
+                script.append('# Update queue status')
                 script.append(dump_code)
                 # script.append('cat ' + str(self.state_fpath))
 
@@ -347,17 +408,22 @@ class SerialQueue(base_queue.Queue):
                 _command_exit()
 
         if self.jobs:
-            script.append('#')
+            script.append('')
+            script.append('# ----')
             script.append('# Jobs')
+            script.append('# ----')
+            script.append('')
 
             num = 0
             for job in self.jobs:
                 if job.bookkeeper:
-                    if with_status:
+                    if with_locks:
                         script.append(job.finalize_text(with_status, with_gaurds))
                 else:
                     if with_status:
-                        script.append('# <command>')
+                        script.append('')
+                        script.append('#')
+                        script.append('# <job>')
 
                     _mark_status('run')
 
@@ -374,7 +440,9 @@ class SerialQueue(base_queue.Queue):
                     }
                     script.append(job.finalize_text(with_status, with_gaurds, conditionals))
                     if with_status:
-                        script.append('# </command>')
+                        script.append('# </job>')
+                        script.append('#')
+                        script.append('')
                     num += 1
 
         _mark_status('done')
@@ -395,7 +463,8 @@ class SerialQueue(base_queue.Queue):
     def add_header_command(self, command):
         self.header_commands.append(command)
 
-    def rprint(self, with_status=False, with_gaurds=False, with_rich=0, colors=1):
+    def rprint(self, with_status=False, with_gaurds=False, with_rich=0,
+               colors=1, with_locks=True):
         r"""
         Print info about the commands, optionally with rich
 
@@ -409,7 +478,8 @@ class SerialQueue(base_queue.Queue):
             >>> self.rprint(with_status=0)
         """
         code = self.finalize_text(with_status=with_status,
-                                  with_gaurds=with_gaurds)
+                                  with_gaurds=with_gaurds,
+                                  with_locks=with_locks)
         if with_rich:
             from rich.panel import Panel
             from rich.syntax import Syntax
@@ -426,12 +496,23 @@ class SerialQueue(base_queue.Queue):
                 print(header)
                 print(code)
 
-    def run(self, block=True, system=False, shell=1):
+    def run(self, block=True, system=False, shell=1, **kw):
         self.write()
         # TODO: can implement a monitor here for non-blocking mode
         detach = not block
         ub.cmd(f'bash {self.fpath}', verbose=3, check=True, shell=shell,
                system=system, detach=detach)
+
+    def job_details(self):
+        import json
+        for job in self.jobs:
+            print('+--------')
+            print(f'job={job}')
+            job_status = json.loads(job.stat_fpath.read_text())
+            print('job_status = {}'.format(ub.repr2(job_status, nl=1)))
+            if job.log_fpath.exists():
+                print(job.log_fpath.read_text())
+            print('L________')
 
     def read_state(self):
         import json
@@ -463,6 +544,31 @@ class SerialQueue(base_queue.Queue):
 
 
 def _bash_json_dump(json_fmt_parts, fpath):
+    """
+    Make a printf command that dumps a json file indicating some status in a
+    bash environment.
+
+    Args:
+        List[Tuple[str, str, str]]: A list of 3-tupels indicating the name of
+            the json key, the printf code, and the bash expression to fill the
+            printf code.
+
+        fpath (str): where bash should write the json file
+
+    Returns:
+        str : the bash that will perform the printf
+
+    Example:
+        >>> from cmd_queue.serial_queue import _bash_json_dump
+        >>> json_fmt_parts = [
+        >>>     ('home', '%s', '$HOME'),
+        >>>     ('const', '%s', 'MY_CONSTANT'),
+        >>>     ('ps2', '"%s"', '$PS2'),
+        >>> ]
+        >>> fpath = 'out.json'
+        >>> dump_code = _bash_json_dump(json_fmt_parts, fpath)
+        >>> print(dump_code)
+    """
     printf_body_parts = [
         '"{}": {}'.format(k, f) for k, f, v in json_fmt_parts
     ]

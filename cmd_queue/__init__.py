@@ -49,8 +49,12 @@ Example:
     >>> queue.rprint(with_rich=0, colors=0)
     # --- ...
     #!/bin/bash
-    #
+    # Written by cmd_queue ...
+    <BLANKLINE>
+    # ----
     # Jobs
+    # ----
+    <BLANKLINE>
     #
     ### Command 1 / 8 - job1a
     echo "Hello World" && sleep 0.1
@@ -83,11 +87,13 @@ Example:
     >>> # sessions that can run in parallel, and a bash script that submits
     >>> # them as different sessions (note: locks exist but are ommitted here)
     >>> tmux_queue = queue.change_backend('tmux', size=2)
-    >>> tmux_queue.rprint(with_rich=0, colors=0)
+    >>> tmux_queue.rprint(with_rich=0, colors=0, with_locks=0)
     # --- ...sh
     #!/bin/bash
-    #
+    # Written by cmd_queue ...
+    # ----
     # Jobs
+    # ----
     #
     ### Command 1 / 3 - jobX
     echo "Hello Barrette" && sleep 0.1
@@ -99,8 +105,10 @@ Example:
     echo "Hello Giblet" && sleep 0.1
     # --- ...sh
     #!/bin/bash
-    #
+    # Written by cmd_queue ...
+    # ----
     # Jobs
+    # ----
     #
     ### Command 1 / 4 - job1a
     echo "Hello World" && sleep 0.1
@@ -115,8 +123,10 @@ Example:
     echo "Hello Shadow" && sleep 0.1
     # --- ...sh
     #!/bin/bash
-    #
+    # Written by cmd_queue ...
+    # ----
     # Jobs
+    # ----
     #
     ### Command 1 / 1 - job3
     echo "Hello Excavate" && sleep 0.1
@@ -286,7 +296,7 @@ Example:
 __mkinit__ = """
 mkinit -m cmd_queue
 """
-__version__ = '0.1.3'
+__version__ = '0.1.4'
 
 
 __submodules__ = {

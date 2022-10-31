@@ -104,6 +104,11 @@ class Queue(ub.NiceRepr):
         return self.fpath
 
     def submit(self, command, **kwargs):
+        """
+        Args:
+            name: specify the name of the job
+            **kwargs: passed to BashJob
+        """
         # TODO: we could accept additional args here that modify how we handle
         # the command in the bash script we build (i.e. if the script is
         # allowed to fail or not)
@@ -191,6 +196,34 @@ class Queue(ub.NiceRepr):
             raise KeyError
         return self
 
+    def write_network_text(self, reduced=True, rich='auto'):
+        try:
+            import rich as rich_mod
+        except ImportError:
+            rich_mod = None
+        if rich == 'auto':
+            rich = rich_mod is not None
+
+        if rich:
+            print_ = rich_mod.print
+        else:
+            print_ = print
+
+        from cmd_queue.util.util_networkx import write_network_text
+        import networkx as nx
+        graph = self._dependency_graph()
+        if reduced:
+            print_('\nGraph (reduced):')
+            try:
+                reduced_graph = nx.transitive_reduction(graph)
+                write_network_text(reduced_graph, path=print_, end='')
+            except Exception as ex:
+                print_(f'ex={ex}')
+            print_('\n')
+        else:
+            print_('\nGraph:')
+            write_network_text(graph, path=print_, end='')
+
     def print_graph(self, reduced=True):
         """
         Renders the dependency graph to an "network text"
@@ -198,20 +231,7 @@ class Queue(ub.NiceRepr):
         Args:
             reduced (bool): if True only show the implicit dependency forest
         """
-        from cmd_queue.util.util_networkx import graph_str
-        import networkx as nx
-        graph = self._dependency_graph()
-        if reduced:
-            print('\nGraph (reduced):')
-            try:
-                reduced_graph = nx.transitive_reduction(graph)
-                print(graph_str(reduced_graph))
-            except Exception as ex:
-                print(f'ex={ex}')
-            print('\n')
-        else:
-            print('\nGraph:')
-            print(graph_str(graph))
+        self.write_network_text(reduced=reduced)
 
     def _dependency_graph(self):
         """
