@@ -1,6 +1,14 @@
 import ubelt as ub
 
 
+class DuplicateJobError(KeyError):
+    ...
+
+
+class UnknownBackendError(KeyError):
+    ...
+
+
 class Job(ub.NiceRepr):
     """
     Base class for a job
@@ -19,7 +27,10 @@ class Job(ub.NiceRepr):
 
 class Queue(ub.NiceRepr):
     """
-    Base class for a queue
+    Base class for a queue.
+
+    Use the ``create`` classmethod to make a concrete instance with an
+    available backend.
     """
 
     def __init__(self):
@@ -145,7 +156,7 @@ class Queue(ub.NiceRepr):
 
         try:
             if job.name in self.named_jobs:
-                raise KeyError(f'duplicate key {job.name}')
+                raise DuplicateJobError(f'duplicate key {job.name}')
         except Exception:
             raise
 
@@ -177,6 +188,17 @@ class Queue(ub.NiceRepr):
 
     @classmethod
     def create(cls, backend='serial', **kwargs):
+        """
+        Main entry point to create a queue
+
+        Args:
+            **kwargs:
+                environ (dict | None): environment variables
+                name (str): queue name
+                dpath (str): queue work directory
+                gres (int): number of gpus
+                size (int): only for tmux queue, number of parallel queues
+        """
         if backend == 'serial':
             from cmd_queue import serial_queue
             kwargs.pop('size', None)
@@ -193,7 +215,7 @@ class Queue(ub.NiceRepr):
             kwargs.pop('size', None)
             self = airflow_queue.AirflowQueue(**kwargs)
         else:
-            raise KeyError
+            raise UnknownBackendError
         return self
 
     def write_network_text(self, reduced=True, rich='auto'):

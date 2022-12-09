@@ -321,6 +321,14 @@ class SerialQueue(base_queue.Queue):
         return True
 
     def finalize_text(self, with_status=True, with_gaurds=True, with_locks=True):
+        """
+        Create the bash script that will:
+
+            1. Run all of the jobs in this queue.
+            2. Track the results.
+            3. Prevent jobs with unmet dependencies from running.
+
+        """
         import cmd_queue
         script = [self.header]
         script += ['# Written by cmd_queue {}'.format(cmd_queue.__version__)]

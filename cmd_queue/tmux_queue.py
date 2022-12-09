@@ -38,6 +38,14 @@ It should be possible to add more functionality, such as:
           elsewhere either, but my search terms might be wrong.
 
     - [ ] Handle the case where some jobs need the GPU and others do not
+
+Example:
+    >>> import cmd_queue
+    >>> queue = cmd_queue.Queue.create(backend='tmux')
+    >>> job1 = queue.submit('echo "Hello World" && sleep 0.1')
+    >>> job2 = queue.submit('echo "Hello Kitty" && sleep 0.1', depends=[job1])
+    >>> queue.run()
+
 """
 import ubelt as ub
 # import itertools as it
@@ -57,7 +65,7 @@ class TMUXMultiQueue(base_queue.Queue):
 
     Example:
         >>> from cmd_queue.serial_queue import *  # NOQA
-        >>> self = TMUXMultiQueue(1, 'test-serial-queue')
+        >>> self = TMUXMultiQueue(1, 'test-tmux-queue')
         >>> job1 = self.submit('echo hi 1 && false')
         >>> job2 = self.submit('echo hi 2 && true')
         >>> job3 = self.submit('echo hi 3 && true', depends=job1)
@@ -672,6 +680,7 @@ class TMUXMultiQueue(base_queue.Queue):
             >>> if self.is_available():
             >>>     self.run(block=True, check_other_sessions=0)
         """
+        print('Start monitor')
         if with_textual == 'auto':
             with_textual = CmdQueueMonitorApp is not None
             # If we dont have stdin (i.e. running in pytest) we cant use
