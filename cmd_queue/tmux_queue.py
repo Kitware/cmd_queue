@@ -44,7 +44,8 @@ Example:
     >>> queue = cmd_queue.Queue.create(backend='tmux')
     >>> job1 = queue.submit('echo "Hello World" && sleep 0.1')
     >>> job2 = queue.submit('echo "Hello Kitty" && sleep 0.1', depends=[job1])
-    >>> queue.run()
+    >>> if queue.is_available():
+    >>>     queue.run()
 
 """
 import ubelt as ub
