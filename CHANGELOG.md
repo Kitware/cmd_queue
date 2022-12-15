@@ -5,7 +5,14 @@ We are currently working on porting this changelog to the specifications in
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## Version 0.1.4 - Unreleased
+## Version 0.1.5 - Unreleased
+
+### Added
+* UnknownBackendError and DuplicateJobError
+* Add `tags` property to Jobs and `exclude_tags` to `rprint`.
+
+
+## Version 0.1.4 - Released 2022-10-31
 
 ### Changed
 * The kill-other-session logic now only asks to kill sessions with the same
@@ -47,3 +54,4 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 * Initial version
+

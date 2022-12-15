@@ -5,8 +5,8 @@ References:
 """
 import ubelt as ub
 import uuid
-
 from cmd_queue import base_queue
+from cmd_queue.util import util_tags
 
 
 def indent(text, prefix='    '):
@@ -43,8 +43,11 @@ class BashJob(base_queue.Job):
         command (str): the shell command to run
         depends (List[BashJob] | None): the jobs that this job depends on
         bookkeeper (bool): flag indicating if this is a bookkeeping job or not
-        info_dpath (PathLike): where information about this job will be stored
+        info_dpath (PathLike | None): where information about this job will be stored
         log (bool): if True, output of the job will be teed and saved to a file
+        tags (List[str] | str | None):
+            a list of strings that can be used to group jobs or filter the
+            queue or other custom purposes.
 
     Example:
         >>> from cmd_queue.serial_queue import *  # NOQA
@@ -61,7 +64,8 @@ class BashJob(base_queue.Job):
         >>> self.rprint(1, 1, conditionals=conditionals)
     """
     def __init__(self, command, name=None, depends=None, gpus=None, cpus=None,
-                 mem=None, bookkeeper=0, info_dpath=None, log=True, **kwargs):
+                 mem=None, bookkeeper=0, info_dpath=None, log=True, tags=None,
+                 **kwargs):
         if depends is not None and not ub.iterable(depends):
             depends = [depends]
         self.name = name
@@ -78,6 +82,7 @@ class BashJob(base_queue.Job):
         self.fail_fpath = self.info_dpath / f'failed/{self.pathid}.fail'
         self.stat_fpath = self.info_dpath / f'status/{self.pathid}.stat'
         self.log_fpath = self.info_dpath / f'status/{self.pathid}.logs'
+        self.tags = util_tags.Tags.coerce(tags)
 
     def finalize_text(self, with_status=True, with_gaurds=True,
                       conditionals=None):
@@ -156,12 +161,16 @@ class BashJob(base_queue.Job):
         if with_status:
             # script.append('#     </before_command> ')
             # script.append('#     <command> ')
+            script.append('# ********')
             script.append('# command:')
         if self.log and with_status:
             logged_command = f'({self.command}) 2>&1 | tee {self.log_fpath}'
             script.append(logged_command)
         else:
             script.append(self.command)
+
+        if with_status:
+            script.append('# ********')
 
         if with_status:
             # script.append('#     </command> ')
@@ -229,12 +238,15 @@ class BashJob(base_queue.Job):
 
         Example:
             >>> from cmd_queue.serial_queue import *  # NOQA
-            >>> self = SerialQueue('test-serial-queue')
+            >>> self = SerialQueue('test-rprint-serial-queue')
             >>> self.submit('echo hi 1')
             >>> self.submit('echo hi 2')
-            >>> self.rprint(with_status=True)
             >>> print('\n\n---\n\n')
-            >>> self.rprint(with_status=0)
+            >>> self.rprint(with_status=1, with_gaurds=1, with_rich=1)
+            >>> print('\n\n---\n\n')
+            >>> self.rprint(with_status=0, with_gaurds=1, with_rich=1)
+            >>> print('\n\n---\n\n')
+            >>> self.rprint(with_status=0, with_gaurds=0, with_rich=1)
         """
         code = self.finalize_text(with_status=with_status,
                                   with_gaurds=with_gaurds, **kwargs)
@@ -320,7 +332,16 @@ class SerialQueue(base_queue.Queue):
         # TODO: get this working
         return True
 
-    def finalize_text(self, with_status=True, with_gaurds=True, with_locks=True):
+    def finalize_text(self, with_status=True, with_gaurds=True,
+                      with_locks=True, exclude_tags=None):
+        """
+        Create the bash script that will:
+
+            1. Run all of the jobs in this queue.
+            2. Track the results.
+            3. Prevent jobs with unmet dependencies from running.
+
+        """
         import cmd_queue
         script = [self.header]
         script += ['# Written by cmd_queue {}'.format(cmd_queue.__version__)]
@@ -414,8 +435,13 @@ class SerialQueue(base_queue.Queue):
             script.append('# ----')
             script.append('')
 
+            exclude_tags = util_tags.Tags.coerce(exclude_tags)
+
             num = 0
             for job in self.jobs:
+                if exclude_tags and exclude_tags.intersection(job.tags):
+                    continue
+
                 if job.bookkeeper:
                     if with_locks:
                         script.append(job.finalize_text(with_status, with_gaurds))
@@ -464,7 +490,7 @@ class SerialQueue(base_queue.Queue):
         self.header_commands.append(command)
 
     def rprint(self, with_status=False, with_gaurds=False, with_rich=0,
-               colors=1, with_locks=True):
+               colors=1, with_locks=True, exclude_tags=None):
         r"""
         Print info about the commands, optionally with rich
 
@@ -473,13 +499,16 @@ class SerialQueue(base_queue.Queue):
             >>> self = SerialQueue('test-serial-queue')
             >>> self.submit('echo hi 1')
             >>> self.submit('echo hi 2')
+            >>> self.submit('echo boilerplate', tags='boilerplate')
             >>> self.rprint(with_status=True)
             >>> print('\n\n---\n\n')
-            >>> self.rprint(with_status=0)
+            >>> self.rprint(with_status=0, exclude_tags='boilerplate')
         """
+        exclude_tags = util_tags.Tags.coerce(exclude_tags)
         code = self.finalize_text(with_status=with_status,
                                   with_gaurds=with_gaurds,
-                                  with_locks=with_locks)
+                                  with_locks=with_locks,
+                                  exclude_tags=exclude_tags)
         if with_rich:
             from rich.panel import Panel
             from rich.syntax import Syntax

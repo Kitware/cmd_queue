@@ -30,6 +30,7 @@ Example:
 import ubelt as ub
 
 from cmd_queue import base_queue  # NOQA
+from cmd_queue.util import util_tags
 
 
 def _coerce_mem(mem):
@@ -71,7 +72,7 @@ class SlurmJob(base_queue.Job):
     """
     def __init__(self, command, name=None, output_fpath=None, depends=None,
                  partition=None, cpus=None, gpus=None, mem=None, begin=None,
-                 shell=None, **kwargs):
+                 shell=None, tags=None, **kwargs):
         super().__init__()
         if name is None:
             import uuid
@@ -88,6 +89,7 @@ class SlurmJob(base_queue.Job):
         self.mem = mem
         self.begin = begin
         self.shell = shell
+        self.tags = util_tags.Tags.coerce(tags)
         # if shell not in {None, 'bash'}:
         #     raise NotImplementedError(shell)
 
@@ -307,13 +309,16 @@ class SlurmQueue(base_queue.Queue):
             new_order.append(job)
         return new_order
 
-    def finalize_text(self):
+    def finalize_text(self, exclude_tags=None):
+        exclude_tags = util_tags.Tags.coerce(exclude_tags)
         new_order = self.order_jobs()
         commands = []
         homevar = '$HOME'
         commands.append(f'mkdir -p "{self.log_dpath.shrinkuser(homevar)}"')
         jobname_to_varname = {}
         for job in new_order:
+            if exclude_tags and exclude_tags.intersection(job.tags):
+                continue
             args = job._build_sbatch_args(jobname_to_varname)
             command = ' '.join(args)
             if self.header_commands:
@@ -418,15 +423,27 @@ class SlurmQueue(base_queue.Queue):
         # this
         return {}
 
-    def rprint(self, with_status=False, with_rich=0, colors=0):
+    def rprint(self, with_status=False, with_rich=0, colors=0,
+               exclude_tags=None):
         """
         Print info about the commands, optionally with rich
+
+        Example:
+            >>> from cmd_queue.slurm_queue import *  # NOQA
+            >>> self = SlurmQueue('test-slurm-queue')
+            >>> self.submit('echo hi 1')
+            >>> self.submit('echo hi 2')
+            >>> self.submit('echo boilerplate', tags='boilerplate')
+            >>> self.rprint(with_status=True)
+            >>> print('\n\n---\n\n')
+            >>> self.rprint(with_status=0, exclude_tags='boilerplate')
         """
         # from rich.panel import Panel
         # from rich.syntax import Syntax
         # from rich.console import Console
         # console = Console()
-        code = self.finalize_text()
+        exclude_tags = util_tags.Tags.coerce(exclude_tags)
+        code = self.finalize_text(exclude_tags=exclude_tags)
         if colors:
             print(ub.highlight_code(f'# --- {str(self.fpath)}', 'bash'))
             print(ub.highlight_code(code, 'bash'))
