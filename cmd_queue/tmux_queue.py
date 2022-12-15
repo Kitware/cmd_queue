@@ -53,6 +53,7 @@ import uuid
 
 from cmd_queue import base_queue
 from cmd_queue import serial_queue
+from cmd_queue.util import util_tags
 
 
 class TMUXMultiQueue(base_queue.Queue):
@@ -800,29 +801,46 @@ class TMUXMultiQueue(base_queue.Queue):
         return table, finished, agg_state
 
     def rprint(self, with_status=False, with_gaurds=False, with_rich=0,
-               with_locks=1, colors=1):
+               with_locks=1, colors=1, exclude_tags=None):
         """
         Print info about the commands, optionally with rich
+
+        Example:
+            >>> from cmd_queue.tmux_queue import *  # NOQA
+            >>> self = TMUXMultiQueue(size=2, name='test-rprint-tmux-queue')
+            >>> self.submit('echo hi 1', name='job1')
+            >>> self.submit('echo boilerplate job1', depends='job1', tags='boilerplate')
+            >>> self.submit('echo hi 2', log=False)
+            >>> self.submit('echo hi 3')
+            >>> self.submit('echo hi 4')
+            >>> self.submit('echo hi 5', log=False, name='job5')
+            >>> self.submit('echo boilerplate job2', depends='job5', tags='boilerplate')
+            >>> self.submit('echo hi 6', name='job6', depends='job5')
+            >>> self.submit('echo hi 7', name='job7', depends='job5')
+            >>> self.submit('echo boilerplate job3', depends=['job6', 'job7'], tags='boilerplate')
+            >>> print('\n\n---\n\n')
+            >>> self.rprint(with_status=1, with_gaurds=1, with_locks=1, with_rich=1)
+            >>> print('\n\n---\n\n')
+            >>> self.rprint(with_status=0, with_gaurds=1, with_locks=1, with_rich=1)
+            >>> print('\n\n---\n\n')
+            >>> self.rprint(with_status=0, with_gaurds=0, with_locks=0, with_rich=1)
+            >>> print('\n\n---\n\n')
+            >>> self.rprint(with_status=0, with_gaurds=0, with_locks=0,
+            ...             with_rich=1, exclude_tags='boilerplate')
         """
         from rich.panel import Panel
         from rich.syntax import Syntax
         from rich.console import Console
         self.order_jobs()
         console = Console()
+
+        exclude_tags = util_tags.Tags.coerce(exclude_tags)
         for queue in self.workers:
             queue.rprint(with_status=with_status, with_gaurds=with_gaurds,
                          with_rich=with_rich, with_locks=with_locks,
-                         colors=colors)
-            # code = queue.finalize_text(with_status=with_status)
-            # if with_rich:
-            #     console.print(Panel(Syntax(code, 'bash'), title=str(queue.fpath)))
-            #     # console.print(Syntax(code, 'bash'))
-            # else:
-            #     print(ub.highlight_code(f'# --- {str(queue.fpath)}', 'bash'))
-            #     print(ub.highlight_code(code, 'bash'))
+                         colors=colors, exclude_tags=exclude_tags)
 
         code = self.finalize_text()
-
         if with_rich:
             console.print(Panel(Syntax(code, 'bash'), title=str(self.fpath)))
         else:

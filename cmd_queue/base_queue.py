@@ -14,6 +14,7 @@ class Job(ub.NiceRepr):
     Base class for a job
     """
     def __init__(self, command=None, name=None, depends=None, **kwargs):
+        # This is unused, should the slurm and bash job reuse this?
         if depends is not None and not ub.iterable(depends):
             depends = [depends]
         self.name = name

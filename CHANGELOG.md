@@ -9,6 +9,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 * UnknownBackendError and DuplicateJobError
+* Add `tags` property to Jobs and `exclude_tags` to `rprint`.
 
 
 ## Version 0.1.4 - Released 2022-10-31
@@ -53,3 +54,4 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 * Initial version
+
