@@ -7,6 +7,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version 0.1.6 - Unreleased
 
+### Fixed:
+* Textual monitor will now restart if you decide not to quit.
+
 
 ## Version 0.1.5 - Released 2022-12-15
 

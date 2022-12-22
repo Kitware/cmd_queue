@@ -307,6 +307,8 @@ class TMUXMultiQueue(base_queue.Queue):
 
     def order_jobs(self):
         """
+        TODO: ability to shuffle jobs subject to graph constraints
+
         Example:
             >>> from cmd_queue.tmux_queue import *  # NOQA
             >>> self = TMUXMultiQueue(5, 'foo')
@@ -375,6 +377,20 @@ class TMUXMultiQueue(base_queue.Queue):
                 └─╼  ...
             >>> self.rprint()
             >>> # self.run(block=True)
+
+        Example:
+            >>> from cmd_queue.tmux_queue import *  # NOQA
+            >>> self = TMUXMultiQueue(2, 'test-order-case')
+            >>> self.submit('echo slow1', name='slow1')
+            >>> self.submit('echo fast1', name='fast1')
+            >>> self.submit('echo slow2', name='slow2')
+            >>> self.submit('echo fast2', name='fast2')
+            >>> self.submit('echo slow3', name='slow3')
+            >>> self.submit('echo fast3', name='fast3')
+            >>> self.submit('echo slow4', name='slow4')
+            >>> self.submit('echo fast4', name='fast4')
+            >>> self.print_graph(reduced=False)
+            >>> self.rprint()
         """
         import networkx as nx
         from cmd_queue.util.util_networkx import graph_str
@@ -395,8 +411,6 @@ class TMUXMultiQueue(base_queue.Queue):
             print(nx.is_directed_acyclic_graph(graph))
             simple_cycles = list(nx.cycles.simple_cycles(graph))
             print('simple_cycles = {}'.format(ub.repr2(simple_cycles, nl=1)))
-            import xdev
-            xdev.embed()
             print(graph_str(graph))
             raise
 
@@ -421,6 +435,9 @@ class TMUXMultiQueue(base_queue.Queue):
 
         # Get all the node groups disconnected by the cuts
         condensed = nx.condensation(reduced_graph, nx.weakly_connected_components(cut_graph))
+
+        # TODO: can we use nx.topological_generations for a more ellegant
+        # solution here?
 
         # Rank each condensed group, which defines
         # what order it is allowed to be executed in
@@ -461,6 +478,7 @@ class TMUXMultiQueue(base_queue.Queue):
             # Ranked bins
             # Solve a bin packing problem to partition these into self.size groups
             from cmd_queue.util.util_algo import balanced_number_partitioning
+            # Weighting by job heaviness would help here.
             group_weights = list(map(len, parallel_groups))
             groupxs = balanced_number_partitioning(group_weights, num_parts=self.size)
             rank_groups = [list(ub.take(parallel_groups, gxs)) for gxs in groupxs]
@@ -702,19 +720,24 @@ class TMUXMultiQueue(base_queue.Queue):
         print('Kill commands:')
         for command in self._kill_commands():
             print(command)
-        table_fn = self._build_status_table
-        app = CmdQueueMonitorApp(table_fn, kill_fn=self.kill)
-        app.run()
 
-        table, finished, agg_state = self._build_status_table()
-        rprint(table)
+        is_running = True
+        while is_running:
+            table_fn = self._build_status_table
+            app = CmdQueueMonitorApp(table_fn, kill_fn=self.kill)
+            app.run()
 
-        if not app.graceful_exit:
-            from rich.prompt import Confirm
-            flag = Confirm.ask('do you to kill the procs?')
-            if flag:
-                self.kill()
-            raise Exception('User Stopped The Monitor')
+            table, finished, agg_state = self._build_status_table()
+            rprint(table)
+
+            if app.graceful_exit:
+                is_running = False
+            else:
+                from rich.prompt import Confirm
+                flag = Confirm.ask('do you to kill the procs?')
+                if flag:
+                    self.kill()
+                    is_running = False
 
     def _simple_rich_monitor(self, refresh_rate=0.4):
         import time
