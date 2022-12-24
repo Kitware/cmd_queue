@@ -496,6 +496,14 @@ class TMUXMultiQueue(base_queue.Queue):
                 rank_jobs.append(final_queue_jobs)
             ranked_job_groups.append(rank_jobs)
 
+        if self.size == 1:
+            # If we can only execute one command at a time we dont need to
+            # split up the ranks, which means we dont need semaphores.
+            serial_groups = []
+            for rank_jobs in ranked_job_groups:
+                serial_groups.extend(list(ub.flatten(rank_jobs)))
+            ranked_job_groups = [[serial_groups]]
+
         queue_workers = []
         flag_dpath = (self.dpath / 'semaphores')
         prev_rank_flag_fpaths = None
