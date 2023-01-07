@@ -610,12 +610,35 @@ class TMUXMultiQueue(base_queue.Queue):
                 for command in kill_commands:
                     ub.cmd(command, verbose=self.cmd_verbose)
 
+    def handle_other_sessions(self, other_session_handler):
+        if other_session_handler == 'auto':
+            from cmd_queue.tmux_queue import has_stdin
+            if has_stdin():
+                other_session_handler = 'ask'
+            else:
+                other_session_handler = 'kill'  # default headless behavior
+        if other_session_handler == 'ask':
+            self.kill_other_queues(ask_first=True)
+        elif other_session_handler == 'kill':
+            self.kill_other_queues(ask_first=False)
+        elif other_session_handler == 'ignore':
+            ...
+        else:
+            raise KeyError(other_session_handler)
+
     def run(self, block=True, onfail='kill', onexit='', system=False,
-            with_textual='auto', check_other_sessions='auto'):
+            with_textual='auto', check_other_sessions='auto',
+            other_session_handler='auto', **kw):
 
         if not self.is_available():
             raise Exception('tmux not found')
+
+        # TODO: need to port or generalize some of this logic to serial / slurm
+        # queues.
+        self.handle_other_sessions(other_session_handler)
+
         if check_other_sessions:
+            # DEPRECATE check_other_sessions
             if check_other_sessions == 'auto':
                 if not has_stdin():
                     check_other_sessions = False
