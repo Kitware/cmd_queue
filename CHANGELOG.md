@@ -7,8 +7,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version 0.1.6 - Unreleased
 
+### Added:
+* new `other_session_handler` arg to run, which can be ask, kill, ignore, or auto.
+
 ### Fixed:
 * Textual monitor will now restart if you decide not to quit.
+
+### Changed:
+* tmux queue is condensed when size=1
 
 
 ## Version 0.1.5 - Released 2022-12-15
