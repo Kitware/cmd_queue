@@ -224,6 +224,7 @@ class TMUXMultiQueue(base_queue.Queue):
         self.header_commands = []
 
         self._tmux_session_prefix = 'cmdq_'
+        self.job_info_dpath = self.dpath / 'job_info'
 
         self._new_workers()
 

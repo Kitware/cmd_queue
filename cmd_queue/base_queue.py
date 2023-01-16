@@ -128,6 +128,9 @@ class Queue(ub.NiceRepr):
         # hack
         from cmd_queue import serial_queue
 
+        if 'info_dpath' not in kwargs:
+            kwargs['info_dpath'] = self.job_info_dpath
+
         if isinstance(command, str):
             name = kwargs.get('name', None)
             if name is None:
