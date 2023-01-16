@@ -332,7 +332,7 @@ class SlurmQueue(base_queue.Queue):
         text = '\n'.join(commands)
         return text
 
-    def run(self, block=True, system=False):
+    def run(self, block=True, system=False, **kw):
         if not self.is_available():
             raise Exception('slurm backend is not available')
         self.log_dpath.ensuredir()

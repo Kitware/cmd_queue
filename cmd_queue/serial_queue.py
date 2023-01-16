@@ -48,6 +48,10 @@ class BashJob(base_queue.Job):
         tags (List[str] | str | None):
             a list of strings that can be used to group jobs or filter the
             queue or other custom purposes.
+        allow_indent (bool):
+            In some cases indentation matters for the shell command.
+            In that case ensure this is False at the cost of readability in the
+            result script.
 
     Example:
         >>> from cmd_queue.serial_queue import *  # NOQA
@@ -65,7 +69,7 @@ class BashJob(base_queue.Job):
     """
     def __init__(self, command, name=None, depends=None, gpus=None, cpus=None,
                  mem=None, bookkeeper=0, info_dpath=None, log=True, tags=None,
-                 **kwargs):
+                 allow_indent=True, **kwargs):
         if depends is not None and not ub.iterable(depends):
             depends = [depends]
         self.name = name
@@ -83,6 +87,7 @@ class BashJob(base_queue.Job):
         self.stat_fpath = self.info_dpath / f'status/{self.pathid}.stat'
         self.log_fpath = self.info_dpath / f'status/{self.pathid}.logs'
         self.tags = util_tags.Tags.coerce(tags)
+        self.allow_indent = allow_indent
 
     def finalize_text(self, with_status=True, with_gaurds=True,
                       conditionals=None):
@@ -196,7 +201,10 @@ class BashJob(base_queue.Job):
                 suffix_script.append(on_skip_part)
             suffix_script.append('    RETURN_CODE=126')
             suffix_script.append('fi')
-            script = prefix_script + [indent(script)] + suffix_script
+            if self.allow_indent:
+                script = prefix_script + [indent(script)] + suffix_script
+            else:
+                script = prefix_script + script + suffix_script
         else:
             script = prefix_script + script + suffix_script
 
