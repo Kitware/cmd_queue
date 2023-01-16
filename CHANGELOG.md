@@ -5,7 +5,10 @@ We are currently working on porting this changelog to the specifications in
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## Version 0.1.6 - Unreleased
+## Version 0.1.7 - Unreleased
+
+
+## Version 0.1.6 - Released 2023-01-16
 
 ### Added:
 * new `other_session_handler` arg to run, which can be ask, kill, ignore, or auto.
