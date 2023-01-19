@@ -55,6 +55,7 @@ import uuid
 from cmd_queue import base_queue
 from cmd_queue import serial_queue
 from cmd_queue.util import util_tags
+from cmd_queue.util.util_tmux import tmux
 
 
 class TMUXMultiQueue(base_queue.Queue):
@@ -911,18 +912,17 @@ class TMUXMultiQueue(base_queue.Queue):
         for queue in self.workers:
             print('\n\nqueue = {!r}'.format(queue))
             # First print out the contents for debug
-            ub.cmd(f'tmux capture-pane -p -t "{queue.pathid}:0.0"', verbose=self.cmd_verbose)
+            tmux.capture_pane(target_session=queue.pathid, verbose=self.cmd_verbose)
 
     def _print_commands(self):
         # First print out the contents for debug
         for queue in self.workers:
-            command1 = f'tmux capture-pane -p -t "{queue.pathid}:0.0"'
+            command1 = tmux._capture_pane_command(target_session=queue.pathid)
             yield command1
 
     def _kill_commands(self):
         for queue in self.workers:
-            # Then kill it
-            command2 = f'tmux kill-session -t {queue.pathid}'
+            command2 = tmux._kill_session_command(target_session=queue.pathid)
             yield command2
 
     def capture(self):
@@ -935,17 +935,7 @@ class TMUXMultiQueue(base_queue.Queue):
             ub.cmd(command, verbose=self.cmd_verbose)
 
     def _tmux_current_sessions(self):
-        # Kills all the tmux panes
-        info = ub.cmd('tmux list-sessions')
-        sessions = []
-        for line in info['out'].split('\n'):
-            line = line.strip()
-            if line:
-                session_id, rest = line.split(':', 1)
-                sessions.append({
-                    'id': session_id,
-                    'rest': rest
-                })
+        sessions = tmux.list_sessions()
         return sessions
 
 

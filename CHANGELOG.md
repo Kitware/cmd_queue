@@ -7,6 +7,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version 0.1.7 - Unreleased
 
+### Added:
+* Experimental CLI to help cleanup dangling tmux jobs
+
 
 ## Version 0.1.6 - Released 2023-01-16
 
