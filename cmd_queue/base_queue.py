@@ -108,8 +108,7 @@ class Queue(ub.NiceRepr):
         import stat
         text = self.finalize_text()
         self.fpath.parent.ensuredir()
-        with open(self.fpath, 'w') as file:
-            file.write(text)
+        self.fpath.write_text(text)
         os.chmod(self.fpath, (
             stat.S_IXUSR | stat.S_IXGRP | stat.S_IRUSR |
             stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP))
@@ -223,6 +222,7 @@ class Queue(ub.NiceRepr):
         return self
 
     def write_network_text(self, reduced=True, rich='auto'):
+        # TODO: change rich to style
         try:
             import rich as rich_mod
         except ImportError:
