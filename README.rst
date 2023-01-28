@@ -91,11 +91,12 @@ command templating is correct before the queue is executed with ``run``.
 
 The ``print_graph`` command will render the DAG to be executed using `network
 text <https://github.com/networkx/networkx/pull/5602>`_.
+And finally ``run`` is called with ``block=True``, which starts executing the
+DAG and displays progress and job status in rich or textual monitor.
+
 .. .. image:: https://i.imgur.com/RbyTvP9.png
 ..   :height: 300px
 ..   :align: left
-And finally ``run`` is called with ``block=True``, which starts executing the
-DAG and displays progress and job status in rich or textual monitor.
 
 .. .. Animated gif of the queue from dev/record_demo.sh
 .. image:: https://i.imgur.com/4mxFIMk.gif
