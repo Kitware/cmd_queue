@@ -4,6 +4,11 @@ import ubelt as ub
 
 
 class CmdQueueConfig(scfg.DataConfig):
+    """
+    The command queue CLI is experimental and needs development.
+    Currently ``cmd_queue cleanup`` is the only available command
+    which can be used to cleanup tmux session names that start with "cmdq_".
+    """
     command = scfg.Value(None, position=1, help='command', choices=['cleanup'])
     ...
 
