@@ -5,7 +5,10 @@ We are currently working on porting this changelog to the specifications in
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## Version 0.1.7 - Unreleased
+## Version 0.1.8 - Unreleased
+
+
+## Version 0.1.7 - Released 2023-01-28
 
 ### Added:
 * Experimental CLI to help cleanup dangling tmux jobs
