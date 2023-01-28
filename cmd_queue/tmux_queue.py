@@ -72,7 +72,7 @@ class TMUXMultiQueue(base_queue.Queue):
         >>> job1 = self.submit('echo hi 1 && false')
         >>> job2 = self.submit('echo hi 2 && true')
         >>> job3 = self.submit('echo hi 3 && true', depends=job1)
-        >>> self.rprint()
+        >>> self.print_commands()
         >>> self.print_graph()
         >>> if self.is_available():
         >>>     self.run(block=True, onexit='capture', check_other_sessions=0)
@@ -102,7 +102,7 @@ class TMUXMultiQueue(base_queue.Queue):
         >>>     add_edge(act_eval, [actclf])
         >>> for i in range(3):
         >>>     add_branch(str(i))
-        >>> self.rprint()
+        >>> self.print_commands()
         >>> self.print_graph()
         >>> if self.is_available():
         >>>     self.run(block=1, onexit='', check_other_sessions=0)
@@ -122,7 +122,7 @@ class TMUXMultiQueue(base_queue.Queue):
         >>> job9 = self.submit('echo eggs && sleep 0.5', depends=[job8])
         >>> job10 = self.submit('echo bazbiz && sleep 0.5', depends=[job9])
         >>> self.write()
-        >>> self.rprint()
+        >>> self.print_commands()
         >>> if self.is_available():
         >>>     self.run(check_other_sessions=0)
         >>>     self.monitor()
@@ -134,7 +134,7 @@ class TMUXMultiQueue(base_queue.Queue):
         >>> self = TMUXMultiQueue(2, 'foo', gres=[0, 1])
         >>> job1 = self.submit('echo hello && sleep 0.5')
         >>> job2 = self.submit('echo hello && sleep 0.5')
-        >>> self.rprint()
+        >>> self.print_commands()
         >>> # --
         >>> from cmd_queue.tmux_queue import *  # NOQA
         >>> self = TMUXMultiQueue(2, 'foo')
@@ -144,14 +144,14 @@ class TMUXMultiQueue(base_queue.Queue):
         >>> self.sync()
         >>> job3 = self.submit('echo hello && sleep 0.5')
         >>> self.sync()
-        >>> self.rprint()
+        >>> self.print_commands()
         >>> # --
         >>> from cmd_queue.tmux_queue import *  # NOQA
         >>> self = TMUXMultiQueue(2, 'foo')
         >>> job1 = self.submit('echo hello && sleep 0.5')
         >>> job2 = self.submit('echo hello && sleep 0.5')
         >>> job3 = self.submit('echo hello && sleep 0.5')
-        >>> self.rprint()
+        >>> self.print_commands()
 
     Example:
         >>> # Test complex failure case
@@ -190,7 +190,7 @@ class TMUXMultiQueue(base_queue.Queue):
         >>> # Submit 4 loose failing jobs
         >>> for _ in range(4):
         >>>     self.submit('false', name=f'loose_false{_}')
-        >>> self.rprint()
+        >>> self.print_commands()
         >>> self.print_graph()
         >>> if self.is_available():
         >>>     self.run(with_textual=False, check_other_sessions=0)
@@ -319,7 +319,7 @@ class TMUXMultiQueue(base_queue.Queue):
             >>> job2a = self.submit('echo hello && sleep 0.5', depends=[job1a])
             >>> job2b = self.submit('echo hello && sleep 0.5', depends=[job1b])
             >>> job3 = self.submit('echo hello && sleep 0.5', depends=[job2a, job2b])
-            >>> self.rprint()
+            >>> self.print_commands()
 
             self.run(block=True, check_other_sessions=0)
 
@@ -377,7 +377,7 @@ class TMUXMultiQueue(base_queue.Queue):
                 ├─╼ foo-job-3
                 │   └─╼  ...
                 └─╼  ...
-            >>> self.rprint()
+            >>> self.print_commands()
             >>> # self.run(block=True)
 
         Example:
@@ -392,7 +392,7 @@ class TMUXMultiQueue(base_queue.Queue):
             >>> self.submit('echo slow4', name='slow4')
             >>> self.submit('echo fast4', name='fast4')
             >>> self.print_graph(reduced=False)
-            >>> self.rprint()
+            >>> self.print_commands()
         """
         import networkx as nx
         from cmd_queue.util.util_networkx import graph_str
@@ -726,7 +726,7 @@ class TMUXMultiQueue(base_queue.Queue):
             >>> job = None
             >>> for i in range(5):
             >>>     job = self.submit('sleep 5 && echo "hello 2"', depends=job)
-            >>> self.rprint()
+            >>> self.print_commands()
             >>> if self.is_available():
             >>>     self.run(block=True, check_other_sessions=0)
 
@@ -746,7 +746,7 @@ class TMUXMultiQueue(base_queue.Queue):
             ...         first_job = first_job or job
             >>> command = f'sleep 1 && echo "this is the last job"'
             >>> job = self.submit(command, depends=[prev_job, first_job])
-            >>> self.rprint(style='rich')
+            >>> self.print_commands(style='rich')
             >>> self.print_graph()
             >>> if self.is_available():
             ...     self.run(block=True, other_session_handler='kill')
@@ -767,7 +767,7 @@ class TMUXMultiQueue(base_queue.Queue):
         return agg_state
 
     def _textual_monitor(self):
-        from rich import print as rprint
+        from rich import print as rich_print
 
         if 0:
             print('Kill commands:')
@@ -781,7 +781,7 @@ class TMUXMultiQueue(base_queue.Queue):
             app.run()
 
             table, finished, agg_state = self._build_status_table()
-            rprint(table)
+            rich_print(table)
 
             if app.graceful_exit:
                 is_running = False
@@ -878,14 +878,15 @@ class TMUXMultiQueue(base_queue.Queue):
             )
         return table, finished, agg_state
 
-    def rprint(self, with_status=False, with_gaurds=False, with_rich=None,
-               with_locks=1, colors=1, exclude_tags=None, style='auto'):
+    def print_commands(self, with_status=False, with_gaurds=False,
+                       with_rich=None, with_locks=1, colors=1,
+                       exclude_tags=None, style='auto'):
         r"""
         Print info about the commands, optionally with rich
 
         Example:
             >>> from cmd_queue.tmux_queue import *  # NOQA
-            >>> self = TMUXMultiQueue(size=2, name='test-rprint-tmux-queue')
+            >>> self = TMUXMultiQueue(size=2, name='test-print-commands-tmux-queue')
             >>> self.submit('echo hi 1', name='job1')
             >>> self.submit('echo boilerplate job1', depends='job1', tags='boilerplate')
             >>> self.submit('echo hi 2', log=False)
@@ -897,13 +898,13 @@ class TMUXMultiQueue(base_queue.Queue):
             >>> self.submit('echo hi 7', name='job7', depends='job5')
             >>> self.submit('echo boilerplate job3', depends=['job6', 'job7'], tags='boilerplate')
             >>> print('\n\n---\n\n')
-            >>> self.rprint(with_status=1, with_gaurds=1, with_locks=1, style='rich')
+            >>> self.print_commands(with_status=1, with_gaurds=1, with_locks=1, style='rich')
             >>> print('\n\n---\n\n')
-            >>> self.rprint(with_status=0, with_gaurds=1, with_locks=1, style='rich')
+            >>> self.print_commands(with_status=0, with_gaurds=1, with_locks=1, style='rich')
             >>> print('\n\n---\n\n')
-            >>> self.rprint(with_status=0, with_gaurds=0, with_locks=0, style='rich')
+            >>> self.print_commands(with_status=0, with_gaurds=0, with_locks=0, style='rich')
             >>> print('\n\n---\n\n')
-            >>> self.rprint(with_status=0, with_gaurds=0, with_locks=0,
+            >>> self.print_commands(with_status=0, with_gaurds=0, with_locks=0,
             ...             style='rich', exclude_tags='boilerplate')
         """
         from rich.panel import Panel
@@ -916,9 +917,10 @@ class TMUXMultiQueue(base_queue.Queue):
 
         exclude_tags = util_tags.Tags.coerce(exclude_tags)
         for queue in self.workers:
-            queue.rprint(with_status=with_status, with_gaurds=with_gaurds,
-                         with_locks=with_locks, style=style,
-                         exclude_tags=exclude_tags)
+            queue.print_commands(with_status=with_status,
+                                 with_gaurds=with_gaurds,
+                                 with_locks=with_locks, style=style,
+                                 exclude_tags=exclude_tags)
 
         code = self.finalize_text()
         if style == 'rich':
@@ -931,6 +933,8 @@ class TMUXMultiQueue(base_queue.Queue):
             print(code)
         else:
             raise KeyError(f'Unknown style={style}')
+
+    rprint = print_commands
 
     def current_output(self):
         for queue in self.workers:

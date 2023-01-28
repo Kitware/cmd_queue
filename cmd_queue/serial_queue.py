@@ -57,7 +57,7 @@ class BashJob(base_queue.Job):
         >>> from cmd_queue.serial_queue import *  # NOQA
         >>> # Demo full boilerplate for a job with no dependencies
         >>> self = BashJob('echo hi', 'myjob')
-        >>> self.rprint(1, 1)
+        >>> self.print_commands(1, 1)
 
     Example:
         >>> from cmd_queue.serial_queue import *  # NOQA
@@ -65,7 +65,7 @@ class BashJob(base_queue.Job):
         >>> dep = BashJob('echo hi', name='job1')
         >>> conditionals = {'on_skip': ['echo "CUSTOM MESSAGE FOR WHEN WE SKIP A JOB"']}
         >>> self = BashJob('echo hi', name='job2', depends=[dep])
-        >>> self.rprint(1, 1, conditionals=conditionals)
+        >>> self.print_commands(1, 1, conditionals=conditionals)
     """
     def __init__(self, command, name=None, depends=None, gpus=None, cpus=None,
                  mem=None, bookkeeper=0, info_dpath=None, log=True, tags=None,
@@ -239,22 +239,22 @@ class BashJob(base_queue.Job):
         text = '\n'.join(script)
         return text
 
-    def rprint(self, with_status=False, with_gaurds=False, with_rich=None,
+    def print_commands(self, with_status=False, with_gaurds=False, with_rich=None,
                colors=1, style='auto', **kwargs):
         r"""
         Print info about the commands, optionally with rich
 
         Example:
             >>> from cmd_queue.serial_queue import *  # NOQA
-            >>> self = SerialQueue('test-rprint-serial-queue')
+            >>> self = SerialQueue('test-print-commands-serial-queue')
             >>> self.submit('echo hi 1')
             >>> self.submit('echo hi 2')
             >>> print('\n\n---\n\n')
-            >>> self.rprint(with_status=1, with_gaurds=1, style='rich')
+            >>> self.print_commands(with_status=1, with_gaurds=1, style='rich')
             >>> print('\n\n---\n\n')
-            >>> self.rprint(with_status=0, with_gaurds=1, style='rich')
+            >>> self.print_commands(with_status=0, with_gaurds=1, style='rich')
             >>> print('\n\n---\n\n')
-            >>> self.rprint(with_status=0, with_gaurds=0, style='rich')
+            >>> self.print_commands(with_status=0, with_gaurds=0, style='rich')
         """
         style = base_queue.Queue._coerce_style(self, style, with_rich, colors)
 
@@ -272,6 +272,8 @@ class BashJob(base_queue.Job):
         else:
             raise KeyError(f'Unknown style={style}')
 
+    rprint = print_commands
+
 
 class SerialQueue(base_queue.Queue):
     r"""
@@ -283,7 +285,7 @@ class SerialQueue(base_queue.Queue):
         >>> job1 = self.submit('echo "this job fails" && false')
         >>> job2 = self.submit('echo "this job works" && true')
         >>> job3 = self.submit('echo "this job wont run" && true', depends=job1)
-        >>> self.rprint(1, 1)
+        >>> self.print_commands(1, 1)
         >>> self.run()
         >>> state = self.read_state()
         >>> print('state = {}'.format(ub.repr2(state, nl=1)))
@@ -300,7 +302,7 @@ class SerialQueue(base_queue.Queue):
         >>> job6 = self.submit('echo "job6 never runs"', depends=[job5])
         >>> job7 = self.submit('echo "job7 never runs"', depends=[job4, job2])
         >>> job8 = self.submit('echo "job8 never runs"', depends=[job4, job1])
-        >>> self.rprint(1, 1)
+        >>> self.print_commands(1, 1)
         >>> self.run()
         >>> self.read_state()
     """
@@ -500,8 +502,9 @@ class SerialQueue(base_queue.Queue):
     def add_header_command(self, command):
         self.header_commands.append(command)
 
-    def rprint(self, with_status=False, with_gaurds=False, with_rich=None,
-               colors=1, with_locks=True, exclude_tags=None, style='auto'):
+    def print_commands(self, with_status=False, with_gaurds=False,
+                       with_rich=None, colors=1, with_locks=True,
+                       exclude_tags=None, style='auto'):
         r"""
         Print info about the commands, optionally with rich
 
@@ -511,9 +514,9 @@ class SerialQueue(base_queue.Queue):
             >>> self.submit('echo hi 1')
             >>> self.submit('echo hi 2')
             >>> self.submit('echo boilerplate', tags='boilerplate')
-            >>> self.rprint(with_status=True)
+            >>> self.print_commands(with_status=True)
             >>> print('\n\n---\n\n')
-            >>> self.rprint(with_status=0, exclude_tags='boilerplate')
+            >>> self.print_commands(with_status=0, exclude_tags='boilerplate')
         """
         style = self._coerce_style(style, with_rich, colors)
 
@@ -540,6 +543,8 @@ class SerialQueue(base_queue.Queue):
             print(code)
         else:
             raise KeyError(f'Unknown style={style}')
+
+    rprint = print_commands
 
     def run(self, block=True, system=False, shell=1, **kw):
         self.write()

@@ -23,7 +23,7 @@ Example:
     >>> job1 = queue.submit(f'mkdir {dpath}', depends=[job0])
     >>> job2 = queue.submit(f'echo "result=42" > {dpath}/test.txt ', depends=[job1])
     >>> job3 = queue.submit(f'cat {dpath}/test.txt', depends=[job2])
-    >>> queue.rprint()
+    >>> queue.print_commands()
     >>> # xdoctest: +REQUIRES(--run)
     >>> queue.run()
 """
@@ -199,7 +199,7 @@ class SlurmQueue(base_queue.Queue):
         >>> job6 = self.submit('echo "hi from $SLURM_JOBID"', depends=[job0])
         >>> job7 = self.submit('echo "hi from $SLURM_JOBID"', depends=[job5, job6])
         >>> self.write()
-        >>> self.rprint()
+        >>> self.print_commands()
         >>> # xdoctest: +REQUIRES(--run)
         >>> if not self.is_available():
         >>>     self.run()
@@ -216,7 +216,7 @@ class SlurmQueue(base_queue.Queue):
         >>> job4 = self.submit('echo "$FOO"')
         >>> self.sync()
         >>> job5 = self.submit('echo "$FOO"')
-        >>> self.rprint()
+        >>> self.print_commands()
     """
     def __init__(self, name=None, shell=None, **kwargs):
         super().__init__()
@@ -423,8 +423,8 @@ class SlurmQueue(base_queue.Queue):
         # this
         return {}
 
-    def rprint(self, with_status=False, with_rich=None, colors=0,
-               exclude_tags=None, style='auto'):
+    def print_commands(self, with_status=False, with_rich=None, colors=0,
+                       exclude_tags=None, style='auto'):
         """
         Print info about the commands, optionally with rich
 
@@ -434,9 +434,9 @@ class SlurmQueue(base_queue.Queue):
             >>> self.submit('echo hi 1')
             >>> self.submit('echo hi 2')
             >>> self.submit('echo boilerplate', tags='boilerplate')
-            >>> self.rprint(with_status=True)
+            >>> self.print_commands(with_status=True)
             >>> print('\n\n---\n\n')
-            >>> self.rprint(with_status=0, exclude_tags='boilerplate')
+            >>> self.print_commands(with_status=0, exclude_tags='boilerplate')
         """
         # from rich.panel import Panel
         # from rich.syntax import Syntax
@@ -463,6 +463,8 @@ class SlurmQueue(base_queue.Queue):
             print(code)
         else:
             raise KeyError(f'Unknown style={style}')
+
+    rprint = print_commands
 
 
 SLURM_NOTES = r"""

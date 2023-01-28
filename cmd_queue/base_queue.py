@@ -61,10 +61,10 @@ class Queue(ub.NiceRepr):
             >>> tmux_backend = self.change_backend('tmux')
             >>> slurm_backend = self.change_backend('slurm')
             >>> airflow_backend = self.change_backend('airflow')
-            >>> serial_backend.rprint()
-            >>> tmux_backend.rprint()
-            >>> slurm_backend.rprint()
-            >>> airflow_backend.rprint()
+            >>> serial_backend.print_commands()
+            >>> tmux_backend.print_commands()
+            >>> slurm_backend.print_commands()
+            >>> airflow_backend.print_commands()
         """
         new = Queue.create(backend=backend, **kwargs)
         for job_name, job in self.named_jobs.items():

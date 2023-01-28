@@ -74,7 +74,7 @@ class AirflowQueue(base_queue.Queue):
         >>> job1 = self.submit('echo hi 1 && true')
         >>> job2 = self.submit('echo hi 2 && true')
         >>> job3 = self.submit('echo hi 3 && true', depends=job1)
-        >>> self.rprint()
+        >>> self.print_commands()
         >>> self.write()
         >>> self.run()
         >>> #self.run()
@@ -227,7 +227,7 @@ class AirflowQueue(base_queue.Queue):
         self.named_jobs[job.name] = job
         return job
 
-    def rprint(self, with_status=False, with_gaurds=False, with_rich=None, colors=1, style='auto'):
+    def print_commands(self, with_status=False, with_gaurds=False, with_rich=None, colors=1, style='auto'):
         r"""
         Print info about the commands, optionally with rich
 
@@ -236,7 +236,7 @@ class AirflowQueue(base_queue.Queue):
             >>> from cmd_queue.airflow_queue import *  # NOQA
             >>> self = AirflowQueue()
             >>> self.submit('date')
-            >>> self.rprint()
+            >>> self.print_commands()
             >>> self.run()
         """
         style = self._coerce_style(style, with_rich, colors)
@@ -260,6 +260,8 @@ class AirflowQueue(base_queue.Queue):
             print(code)
         else:
             raise KeyError(f'Unknown style={style}')
+
+    rprint = print_commands  # backwards compat
 
 
 def demo():

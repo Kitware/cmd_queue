@@ -44,9 +44,9 @@ Example:
             └─╼ jobZ
     >>> # The purpose of command queue is not to run the code, but to
     >>> # generate the code that would run the code.
-    >>> # The rprint command (rich print) gives you the gist of the code
+    >>> # The print_commands method gives you the gist of the code
     >>> # command queue would run. Flags can be given to modify conciseness.
-    >>> queue.rprint(style='plain')
+    >>> queue.print_commands(style='plain')
     # --- ...
     #!/bin/bash
     # Written by cmd_queue ...
@@ -87,7 +87,7 @@ Example:
     >>> # sessions that can run in parallel, and a bash script that submits
     >>> # them as different sessions (note: locks exist but are ommitted here)
     >>> tmux_queue = queue.change_backend('tmux', size=2)
-    >>> tmux_queue.rprint(style='plain', with_locks=0)
+    >>> tmux_queue.print_commands(style='plain', with_locks=0)
     # --- ...sh
     #!/bin/bash
     # Written by cmd_queue ...
@@ -155,7 +155,7 @@ Example:
     >>> # by slurm itself.
     >>> # xdoctest: +IGNORE_WANT
     >>> slurm_queue = queue.change_backend('slurm')
-    >>> slurm_queue.rprint(style='plain')
+    >>> slurm_queue.print_commands(style='plain')
     # --- ...sh
     mkdir -p ".../logs"
     JOB_000=$(sbatch --job-name="job1a" --output="/.../logs/job1a.sh" --wrap 'echo "Hello World" && sleep 0.1' --parsable)
@@ -171,7 +171,7 @@ Example:
     >>> # a bash file. NOTE: the process of actually executing the airflow
     >>> # DAG has not been finalized yet. (Help wanted)
     >>> airflow_queue = queue.change_backend('airflow')
-    >>> airflow_queue.rprint(style='plain')
+    >>> airflow_queue.print_commands(style='plain')
     # --- ...py
     from airflow import DAG
     from datetime import timezone

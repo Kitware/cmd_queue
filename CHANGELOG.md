@@ -11,7 +11,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 * Experimental CLI to help cleanup dangling tmux jobs
 
 ### Deprecated
-* Deprecate `use_rich` in `rprint` in favor of `style='rich'`.
+* Deprecate `rprint` in favor of `print_commands`.
+* Deprecate `use_rich` in `print_commands` in favor of `style='rich'`.
 
 ### Changed
 * Tweaked text output

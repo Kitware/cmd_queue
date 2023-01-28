@@ -71,19 +71,19 @@ submits several bash jobs with non-trivial dependencies.
             first_job = first_job or job
     command = f'sleep 1 && echo "this is the last job"'
     job = self.submit(command, depends=[prev_job, first_job])
-    self.rprint(style='rich')
+    self.print_commands(style='rich')
     self.print_graph()
     if self.is_available():
         self.run(block=True, other_session_handler='kill')
    
 
-When running the ``rprint`` command will first display all of the submitted
+When running the ``print_commands`` command will first display all of the submitted
 commands that will be distributed across multiple new tmux sessions. These are
 the commands will be executed. This is useful for spot checking that your bash
 command templating is correct before the queue is executed with ``run``.
 
 
-.. .. Screenshot of the rprint output
+.. .. Screenshot of the print_commands output
 .. image:: https://i.imgur.com/rVbyHzM.png
    :height: 300px
    :align: left
@@ -178,12 +178,12 @@ use cmd_queue to "transpile" these sequences of commands to pure bash.
    job10 = self.submit('echo bazbiz && sleep 0.5', depends=[job9])
 
    # Display the "user-friendly" pure bash
-   self.rprint()
+   self.print_commands()
 
    # Display the real bash that gets executed under the hood
    # that is independencly executable, tracks the success / failure of each job, 
    # and manages dependencies.
-   self.rprint(1, 1)
+   self.print_commands(1, 1)
 
    # Blocking will display a job monitor while it waits for everything to
    # complete
@@ -250,12 +250,12 @@ This prints the bash commands in an appropriate order to resolve dependencies.
    job10 = self.submit('echo bazbiz && sleep 0.5', depends=[job9])
 
    # Display the "user-friendly" pure bash
-   self.rprint()
+   self.print_commands()
 
    # Display the real bash that gets executed under the hood
    # that is independencly executable, tracks the success / failure of each job, 
    # and manages dependencies.
-   self.rprint(1, 1)
+   self.print_commands(1, 1)
 
    # Blocking will display a job monitor while it waits for everything to
    # complete
@@ -354,12 +354,12 @@ options here
    job10 = self.submit('echo bazbiz && sleep 0.5', depends=[job9])
 
    # Display the "user-friendly" pure bash
-   self.rprint()
+   self.print_commands()
 
    # Display the real bash that gets executed under the hood
    # that is independencly executable, tracks the success / failure of each job, 
    # and manages dependencies.
-   self.rprint(1, 1)
+   self.print_commands(1, 1)
 
    # Blocking will display a job monitor while it waits for everything to
    # complete
