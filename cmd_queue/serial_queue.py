@@ -239,8 +239,8 @@ class BashJob(base_queue.Job):
         text = '\n'.join(script)
         return text
 
-    def rprint(self, with_status=False, with_gaurds=False, with_rich=0,
-               colors=1, **kwargs):
+    def rprint(self, with_status=False, with_gaurds=False, with_rich=None,
+               colors=1, style='auto', **kwargs):
         r"""
         Print info about the commands, optionally with rich
 
@@ -250,24 +250,27 @@ class BashJob(base_queue.Job):
             >>> self.submit('echo hi 1')
             >>> self.submit('echo hi 2')
             >>> print('\n\n---\n\n')
-            >>> self.rprint(with_status=1, with_gaurds=1, with_rich=1)
+            >>> self.rprint(with_status=1, with_gaurds=1, style='rich')
             >>> print('\n\n---\n\n')
-            >>> self.rprint(with_status=0, with_gaurds=1, with_rich=1)
+            >>> self.rprint(with_status=0, with_gaurds=1, style='rich')
             >>> print('\n\n---\n\n')
-            >>> self.rprint(with_status=0, with_gaurds=0, with_rich=1)
+            >>> self.rprint(with_status=0, with_gaurds=0, style='rich')
         """
+        style = base_queue.Queue._coerce_style(self, style, with_rich, colors)
+
         code = self.finalize_text(with_status=with_status,
                                   with_gaurds=with_gaurds, **kwargs)
-        if with_rich:
+        if style == 'rich':
             from rich.syntax import Syntax
             from rich.console import Console
             console = Console()
             console.print(Syntax(code, 'bash'))
+        elif style == 'colors':
+            print(ub.highlight_code(code, 'bash'))
+        elif style == 'plain':
+            print(code)
         else:
-            if colors:
-                print(ub.highlight_code(code, 'bash'))
-            else:
-                print(code)
+            raise KeyError(f'Unknown style={style}')
 
 
 class SerialQueue(base_queue.Queue):
@@ -497,8 +500,8 @@ class SerialQueue(base_queue.Queue):
     def add_header_command(self, command):
         self.header_commands.append(command)
 
-    def rprint(self, with_status=False, with_gaurds=False, with_rich=0,
-               colors=1, with_locks=True, exclude_tags=None):
+    def rprint(self, with_status=False, with_gaurds=False, with_rich=None,
+               colors=1, with_locks=True, exclude_tags=None, style='auto'):
         r"""
         Print info about the commands, optionally with rich
 
@@ -512,26 +515,31 @@ class SerialQueue(base_queue.Queue):
             >>> print('\n\n---\n\n')
             >>> self.rprint(with_status=0, exclude_tags='boilerplate')
         """
+        style = self._coerce_style(style, with_rich, colors)
+
         exclude_tags = util_tags.Tags.coerce(exclude_tags)
         code = self.finalize_text(with_status=with_status,
                                   with_gaurds=with_gaurds,
                                   with_locks=with_locks,
                                   exclude_tags=exclude_tags)
-        if with_rich:
+
+        if style == 'rich':
             from rich.panel import Panel
             from rich.syntax import Syntax
             from rich.console import Console
             console = Console()
             console.print(Panel(Syntax(code, 'bash'), title=str(self.fpath)))
             # console.print(Syntax(code, 'bash'))
-        else:
+        elif style == 'colors':
             header = f'# --- {str(self.fpath)}'
-            if colors:
-                print(ub.highlight_code(header, 'bash'))
-                print(ub.highlight_code(code, 'bash'))
-            else:
-                print(header)
-                print(code)
+            print(ub.highlight_code(header, 'bash'))
+            print(ub.highlight_code(code, 'bash'))
+        elif style == 'plain':
+            header = f'# --- {str(self.fpath)}'
+            print(header)
+            print(code)
+        else:
+            raise KeyError(f'Unknown style={style}')
 
     def run(self, block=True, system=False, shell=1, **kw):
         self.write()

@@ -227,7 +227,7 @@ class AirflowQueue(base_queue.Queue):
         self.named_jobs[job.name] = job
         return job
 
-    def rprint(self, with_status=False, with_gaurds=False, with_rich=1, colors=1):
+    def rprint(self, with_status=False, with_gaurds=False, with_rich=None, colors=1, style='auto'):
         r"""
         Print info about the commands, optionally with rich
 
@@ -239,22 +239,27 @@ class AirflowQueue(base_queue.Queue):
             >>> self.rprint()
             >>> self.run()
         """
+        style = self._coerce_style(style, with_rich, colors)
+
         code = self.finalize_text()
-        if with_rich:
+
+        if style == 'rich':
             from rich.panel import Panel
             from rich.syntax import Syntax
             from rich.console import Console
             console = Console()
             console.print(Panel(Syntax(code, 'python'), title=str(self.fpath)))
             # console.print(Syntax(code, 'bash'))
-        else:
+        elif style == 'colors':
             header = f'# --- {str(self.fpath)}'
-            if colors:
-                print(ub.highlight_code(header, 'python'))
-                print(ub.highlight_code(code, 'python'))
-            else:
-                print(header)
-                print(code)
+            print(ub.highlight_code(header, 'python'))
+            print(ub.highlight_code(code, 'python'))
+        elif style == 'plain':
+            header = f'# --- {str(self.fpath)}'
+            print(header)
+            print(code)
+        else:
+            raise KeyError(f'Unknown style={style}')
 
 
 def demo():

@@ -556,11 +556,11 @@ class TMUXMultiQueue(base_queue.Queue):
         self.order_jobs()
         # Create a driver script
         driver_lines = [ub.codeblock(
-            '''
+            f'''
             #!/bin/bash
             # Driver script to start the tmux-queue
-            echo "submitting {} jobs"
-            ''').format(self.num_real_jobs)]
+            echo "Submitting {self.num_real_jobs} jobs to a tmux queue"
+            ''')]
         for queue in self.workers:
             # run_command_in_tmux_queue(command, name)
             # TODO: figure out how to forward environment variables from the
@@ -574,7 +574,7 @@ class TMUXMultiQueue(base_queue.Queue):
                     Enter
                 ''').format()
             driver_lines.append(part)
-        driver_lines += ['echo "jobs submitted"']
+        driver_lines += [f'echo "Spread jobs across {len(self.workers)} tmux workers"']
         driver_text = '\n\n'.join(driver_lines)
         return driver_text
 
@@ -598,9 +598,9 @@ class TMUXMultiQueue(base_queue.Queue):
             if matched is not None:
                 if self.name == matched['name']:
                     other_session_ids.append(info['id'])
-        print(f'other_session_ids={other_session_ids}')
+        # print(f'other_session_ids={other_session_ids}')
         if other_session_ids:
-            print('It looks like there are other running cmd-queue sessions')
+            print(f'Detected {len(other_session_ids)} other running cmd-queue sessions with the same name')
             print('Commands to kill them:')
             kill_commands = []
             for sess_id in other_session_ids:
@@ -629,8 +629,18 @@ class TMUXMultiQueue(base_queue.Queue):
             raise KeyError(other_session_handler)
 
     def run(self, block=True, onfail='kill', onexit='', system=False,
-            with_textual='auto', check_other_sessions='auto',
+            with_textual='auto', check_other_sessions=None,
             other_session_handler='auto', **kw):
+        """
+        Execute the queue.
+
+        Args:
+            other_session_handler (str):
+                How to handle potentially conflicting existing tmux runners
+                with the same queue name.  Can be 'kill', 'ask', or 'ignore',
+                or 'auto' - which defaults to 'ask' if stdin is available and
+                'kill' if it is not.
+        """
 
         if not self.is_available():
             raise Exception('tmux not found')
@@ -640,7 +650,8 @@ class TMUXMultiQueue(base_queue.Queue):
         self.handle_other_sessions(other_session_handler)
 
         if check_other_sessions:
-            # DEPRECATE check_other_sessions
+            ub.schedule_deprecation(
+                'tmux_queue', 'check_other_sessions', 'argument')
             if check_other_sessions == 'auto':
                 if not has_stdin():
                     check_other_sessions = False
@@ -720,20 +731,27 @@ class TMUXMultiQueue(base_queue.Queue):
             >>>     self.run(block=True, check_other_sessions=0)
 
         Example:
-            >>> # xdoctest: +REQUIRES(--interact)
+            >>> # xdoctest: +REQUIRES(env:INTERACTIVE_TEST)
             >>> from cmd_queue.tmux_queue import *  # NOQA
             >>> # Setup a lot of longer running jobs
-            >>> n = 128
-            >>> self = TMUXMultiQueue(size=n, name='test-giant-queue-monitor')
+            >>> n = 2
+            >>> self = TMUXMultiQueue(size=n, name='demo_cmd_queue')
+            >>> first_job = None
             >>> for i in range(n):
-            >>>     job = None
-            >>>     for i in range(4):
-            >>>         job = self.submit('sleep 1 && echo "hello 2"', depends=job)
-            >>> self.rprint()
+            ...     prev_job = None
+            ...     for j in range(4):
+            ...         command = f'sleep 1 && echo "This is job {i}.{j}"'
+            ...         job = self.submit(command, depends=prev_job)
+            ...         prev_job = job
+            ...         first_job = first_job or job
+            >>> command = f'sleep 1 && echo "this is the last job"'
+            >>> job = self.submit(command, depends=[prev_job, first_job])
+            >>> self.rprint(style='rich')
+            >>> self.print_graph()
             >>> if self.is_available():
-            >>>     self.run(block=True, check_other_sessions=0)
+            ...     self.run(block=True, other_session_handler='kill')
         """
-        print('Start monitor')
+        # print('Start monitor')
         if with_textual == 'auto':
             with_textual = CmdQueueMonitorApp is not None
             # If we dont have stdin (i.e. running in pytest) we cant use
@@ -750,9 +768,11 @@ class TMUXMultiQueue(base_queue.Queue):
 
     def _textual_monitor(self):
         from rich import print as rprint
-        print('Kill commands:')
-        for command in self._kill_commands():
-            print(command)
+
+        if 0:
+            print('Kill commands:')
+            for command in self._kill_commands():
+                print(command)
 
         is_running = True
         while is_running:
@@ -775,9 +795,10 @@ class TMUXMultiQueue(base_queue.Queue):
     def _simple_rich_monitor(self, refresh_rate=0.4):
         import time
         from rich.live import Live
-        print('Kill commands:')
-        for command in self._kill_commands():
-            print(command)
+        if 0:
+            print('Kill commands:')
+            for command in self._kill_commands():
+                print(command)
         try:
             table, finished, agg_state = self._build_status_table()
             with Live(table, refresh_per_second=4) as live:
@@ -857,9 +878,9 @@ class TMUXMultiQueue(base_queue.Queue):
             )
         return table, finished, agg_state
 
-    def rprint(self, with_status=False, with_gaurds=False, with_rich=0,
-               with_locks=1, colors=1, exclude_tags=None):
-        """
+    def rprint(self, with_status=False, with_gaurds=False, with_rich=None,
+               with_locks=1, colors=1, exclude_tags=None, style='auto'):
+        r"""
         Print info about the commands, optionally with rich
 
         Example:
@@ -876,14 +897,14 @@ class TMUXMultiQueue(base_queue.Queue):
             >>> self.submit('echo hi 7', name='job7', depends='job5')
             >>> self.submit('echo boilerplate job3', depends=['job6', 'job7'], tags='boilerplate')
             >>> print('\n\n---\n\n')
-            >>> self.rprint(with_status=1, with_gaurds=1, with_locks=1, with_rich=1)
+            >>> self.rprint(with_status=1, with_gaurds=1, with_locks=1, style='rich')
             >>> print('\n\n---\n\n')
-            >>> self.rprint(with_status=0, with_gaurds=1, with_locks=1, with_rich=1)
+            >>> self.rprint(with_status=0, with_gaurds=1, with_locks=1, style='rich')
             >>> print('\n\n---\n\n')
-            >>> self.rprint(with_status=0, with_gaurds=0, with_locks=0, with_rich=1)
+            >>> self.rprint(with_status=0, with_gaurds=0, with_locks=0, style='rich')
             >>> print('\n\n---\n\n')
             >>> self.rprint(with_status=0, with_gaurds=0, with_locks=0,
-            ...             with_rich=1, exclude_tags='boilerplate')
+            ...             style='rich', exclude_tags='boilerplate')
         """
         from rich.panel import Panel
         from rich.syntax import Syntax
@@ -891,22 +912,25 @@ class TMUXMultiQueue(base_queue.Queue):
         self.order_jobs()
         console = Console()
 
+        style = self._coerce_style(style, with_rich, colors)
+
         exclude_tags = util_tags.Tags.coerce(exclude_tags)
         for queue in self.workers:
             queue.rprint(with_status=with_status, with_gaurds=with_gaurds,
-                         with_rich=with_rich, with_locks=with_locks,
-                         colors=colors, exclude_tags=exclude_tags)
+                         with_locks=with_locks, style=style,
+                         exclude_tags=exclude_tags)
 
         code = self.finalize_text()
-        if with_rich:
+        if style == 'rich':
             console.print(Panel(Syntax(code, 'bash'), title=str(self.fpath)))
+        elif style == 'colors':
+            print(ub.highlight_code('# --- ' + str(self.fpath), 'bash'))
+            print(ub.highlight_code(code, 'bash'))
+        elif style == 'plain':
+            print('# --- ' + str(self.fpath))
+            print(code)
         else:
-            if colors:
-                print(ub.highlight_code('# --- ' + str(self.fpath), 'bash'))
-                print(ub.highlight_code(code, 'bash'))
-            else:
-                print('# --- ' + str(self.fpath))
-                print(code)
+            raise KeyError(f'Unknown style={style}')
 
     def current_output(self):
         for queue in self.workers:
@@ -952,6 +976,8 @@ def has_stdin():
 try:
     import textual  # NOQA
     from cmd_queue.monitor_app import CmdQueueMonitorApp
+    if not hasattr(CmdQueueMonitorApp, 'run'):
+        raise ImportError('Current textual monitor is broken on new versions')
 except ImportError:
     CmdQueueMonitorApp = None
 

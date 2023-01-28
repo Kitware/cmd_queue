@@ -10,6 +10,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Added:
 * Experimental CLI to help cleanup dangling tmux jobs
 
+### Deprecated
+* Deprecate `use_rich` in `rprint` in favor of `style='rich'`.
+
+### Changed
+* Tweaked text output
+* Demo in the readme with better record demo scripts
+
 
 ## Version 0.1.6 - Released 2023-01-16
 

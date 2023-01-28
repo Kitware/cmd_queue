@@ -295,3 +295,15 @@ class Queue(ub.NiceRepr):
 
     def monitor(self):
         print('monitor not implemented')
+
+    def _coerce_style(self, style='auto', with_rich=None, colors=1):
+        # Helper
+        if with_rich is not None:
+            ub.schedule_deprecation(
+                'cmd_queue', 'with_rich', 'arg',
+                migration='use style="rich" instead')
+            if with_rich:
+                style = 'rich'
+        if style == 'auto':
+            style = 'colors' if colors else 'plain'
+        return style

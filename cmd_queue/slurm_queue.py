@@ -423,8 +423,8 @@ class SlurmQueue(base_queue.Queue):
         # this
         return {}
 
-    def rprint(self, with_status=False, with_rich=0, colors=0,
-               exclude_tags=None):
+    def rprint(self, with_status=False, with_rich=None, colors=0,
+               exclude_tags=None, style='auto'):
         """
         Print info about the commands, optionally with rich
 
@@ -442,15 +442,27 @@ class SlurmQueue(base_queue.Queue):
         # from rich.syntax import Syntax
         # from rich.console import Console
         # console = Console()
+
+        if with_rich is not None:
+            ub.schedule_deprecation(
+                'cmd_queue', 'with_rich', 'arg',
+                migration='use style="rich" instead')
+            if with_rich:
+                style = 'rich'
+        if style == 'auto':
+            style = 'colors' if colors else 'plain'
+
         exclude_tags = util_tags.Tags.coerce(exclude_tags)
         code = self.finalize_text(exclude_tags=exclude_tags)
-        if colors:
+        if style in {'rich', 'colors'}:
+            # console.print(Panel(Syntax(code, 'bash'), title=str(self.fpath)))
             print(ub.highlight_code(f'# --- {str(self.fpath)}', 'bash'))
             print(ub.highlight_code(code, 'bash'))
-        else:
+        elif style == 'plain':
             print(f'# --- {str(self.fpath)}')
             print(code)
-        # console.print(Panel(Syntax(code, 'bash'), title=str(self.fpath)))
+        else:
+            raise KeyError(f'Unknown style={style}')
 
 
 SLURM_NOTES = r"""
