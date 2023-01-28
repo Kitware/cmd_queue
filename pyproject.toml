@@ -13,6 +13,14 @@ author_email = "kitware@kitware.com, jon.crall@kitware.com"
 description = "The cmd_queue module for a DAG of bash commands"
 min_python = "3.6"
 url = "https://gitlab.kitware.com/computer-vision/cmd_queue"
+license = "Apache 2"
+dev_status = "beta"
+
+[tool.xcookie.entry_points]
+# the console_scripts entry point creates the xdoctest executable
+console_scripts = [
+    "cmd_queue = cmd_queue.__main__:main",
+]
 
 [tool.pytest.ini_options]
 addopts = "-p no:doctest --xdoctest --xdoctest-style=google --ignore-glob=setup.py"

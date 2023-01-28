@@ -40,6 +40,86 @@ This gives the user fine-grained control if they only want to run a subset of a
 pipeline manually. But if asked to run, cmd_queue will execute the bash jobs.
 
 
+Tmux Queue Demo
+===============
+
+After installing, the following command runs a demo of the tmux queue:
+
+.. code:: bash 
+
+   # Reproduce the 
+   INTERACTIVE_TEST=1 xdoctest -m cmd_queue.tmux_queue TMUXMultiQueue.monitor:1
+
+
+This executes the following code, which creates two parallel tmux workers and
+submits several bash jobs with non-trivial dependencies.
+
+.. code:: python
+
+     # xdoctest: +REQUIRES(env:INTERACTIVE_TEST)
+     from cmd_queue.tmux_queue import *  # NOQA
+     # Setup a lot of longer running jobs
+     n = 2
+     self = TMUXMultiQueue(size=n, name='demo_cmd_queue')
+     first_job = None
+     for i in range(n):
+         prev_job = None
+         for j in range(4):
+            command = f'sleep 1 && echo "This is job {i}.{j}"'
+            job = self.submit(command, depends=prev_job)
+            prev_job = job
+            first_job = first_job or job
+    command = f'sleep 1 && echo "this is the last job"'
+    job = self.submit(command, depends=[prev_job, first_job])
+    self.print_commands(style='rich')
+    self.print_graph()
+    if self.is_available():
+        self.run(block=True, other_session_handler='kill')
+   
+
+When running the ``print_commands`` command will first display all of the submitted
+commands that will be distributed across multiple new tmux sessions. These are
+the commands will be executed. This is useful for spot checking that your bash
+command templating is correct before the queue is executed with ``run``.
+
+
+.. .. Screenshot of the print_commands output
+.. image:: https://i.imgur.com/rVbyHzM.png
+   :height: 300px
+   :align: left
+
+
+The ``print_graph`` command will render the DAG to be executed using `network
+text <https://github.com/networkx/networkx/pull/5602>`_.
+And finally ``run`` is called with ``block=True``, which starts executing the
+DAG and displays progress and job status in rich or textual monitor.
+
+.. .. image:: https://i.imgur.com/RbyTvP9.png
+..   :height: 300px
+..   :align: left
+
+.. .. Animated gif of the queue from dev/record_demo.sh
+.. image:: https://i.imgur.com/4mxFIMk.gif
+   :height: 300px
+   :align: left
+
+
+While this is running it is possible to simply attach to a tmux sessions (e.g.
+``tmux a``) and inspect a specific queue while it is running. (We recommend
+using ``<ctrl-b>s`` inside of a tmux session to view and navigate through the
+tmux sessions). Unlike the slurm backend, the entire execution of the DAG is
+entirely transparent to the developer! The following screenshot shows the tmux
+sessions spawned while running this demo. 
+
+.. .. Screenshot of the tmux sessions
+.. image:: https://i.imgur.com/46LRK8M.png
+   :height: 300px
+   :align: left
+
+By default, if there are no errors, these sessions will exit after execution
+completes, but this is configurable. Likewise if there are errors, the tmux
+sessions will persist to allow for debugging.
+
 
 Modivation
 ==========
@@ -98,12 +178,12 @@ use cmd_queue to "transpile" these sequences of commands to pure bash.
    job10 = self.submit('echo bazbiz && sleep 0.5', depends=[job9])
 
    # Display the "user-friendly" pure bash
-   self.rprint()
+   self.print_commands()
 
    # Display the real bash that gets executed under the hood
    # that is independencly executable, tracks the success / failure of each job, 
    # and manages dependencies.
-   self.rprint(1, 1)
+   self.print_commands(1, 1)
 
    # Blocking will display a job monitor while it waits for everything to
    # complete
@@ -170,12 +250,12 @@ This prints the bash commands in an appropriate order to resolve dependencies.
    job10 = self.submit('echo bazbiz && sleep 0.5', depends=[job9])
 
    # Display the "user-friendly" pure bash
-   self.rprint()
+   self.print_commands()
 
    # Display the real bash that gets executed under the hood
    # that is independencly executable, tracks the success / failure of each job, 
    # and manages dependencies.
-   self.rprint(1, 1)
+   self.print_commands(1, 1)
 
    # Blocking will display a job monitor while it waits for everything to
    # complete
@@ -274,12 +354,12 @@ options here
    job10 = self.submit('echo bazbiz && sleep 0.5', depends=[job9])
 
    # Display the "user-friendly" pure bash
-   self.rprint()
+   self.print_commands()
 
    # Display the real bash that gets executed under the hood
    # that is independencly executable, tracks the success / failure of each job, 
    # and manages dependencies.
-   self.rprint(1, 1)
+   self.print_commands(1, 1)
 
    # Blocking will display a job monitor while it waits for everything to
    # complete
@@ -308,11 +388,23 @@ This prints the very simple slurm submission script:
 
 Installation
 ============
-This will be on pypi once it is cleaned up, but for now:
 
-python -m pip install git+https://gitlab.kitware.com/computer-vision/cmd_queue.git@main
+The cmd_queue package is available on pypi. 
+ 
+.. code:: bash
 
+    pip install cmd_queue
 
+The serial queue backend will always work. To gain access other backends you
+must install their associated dependencies. The tmux backend is the easiest and
+simply requires that tmux is installed (e.g. ``sudo apt install tmux`` on
+Debian systems). 
+
+Other backends require more complex setups. The slurm backend will require that
+slurm is installed and the daemon is running. The slurm backend is functional
+and tested, but improvements can still be made (help wanted). The airflow
+backend similarly requires a configured airflow server, but is not fully
+functional or tested (contributions to make airflow work / easier are wanted!).
    
 
 

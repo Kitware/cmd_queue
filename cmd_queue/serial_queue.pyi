@@ -1,3 +1,6 @@
+from typing import Union
+from typing import List
+from os import PathLike
 from _typeshed import Incomplete
 from cmd_queue import base_queue
 
@@ -7,16 +10,20 @@ def indent(text: str, prefix: str = '    '):
 
 
 class BashJob(base_queue.Job):
-    name: Incomplete
-    pathid: Incomplete
+    name: str
+    pathid: str
+    command: str
+    depends: Union[List[BashJob], None]
+    bookkeeper: bool
+    info_dpath: Union[PathLike, None]
+    log: bool
+    tags: Union[List[str], str, None]
+    allow_indent: bool
     kwargs: Incomplete
-    command: Incomplete
-    depends: Incomplete
-    bookkeeper: Incomplete
-    info_dpath: Incomplete
     pass_fpath: Incomplete
     fail_fpath: Incomplete
     stat_fpath: Incomplete
+    log_fpath: Incomplete
 
     def __init__(self,
                  command,
@@ -27,6 +34,9 @@ class BashJob(base_queue.Job):
                  mem: Incomplete | None = ...,
                  bookkeeper: int = ...,
                  info_dpath: Incomplete | None = ...,
+                 log: bool = ...,
+                 tags: Incomplete | None = ...,
+                 allow_indent: bool = ...,
                  **kwargs) -> None:
         ...
 
@@ -36,11 +46,16 @@ class BashJob(base_queue.Job):
                       conditionals: Incomplete | None = ...):
         ...
 
-    def rprint(self,
-               with_status: bool = ...,
-               with_gaurds: bool = ...,
-               with_rich: int = ...) -> None:
+    def print_commands(self,
+                       with_status: bool = ...,
+                       with_gaurds: bool = ...,
+                       with_rich: Incomplete | None = ...,
+                       colors: int = ...,
+                       style: str = ...,
+                       **kwargs) -> None:
         ...
+
+    rprint: Incomplete
 
 
 class SerialQueue(base_queue.Queue):
@@ -73,22 +88,40 @@ class SerialQueue(base_queue.Queue):
     def __nice__(self):
         ...
 
-    def finalize_text(self, with_status: bool = ..., with_gaurds: bool = ...):
+    @classmethod
+    def is_available(cls):
+        ...
+
+    def finalize_text(self,
+                      with_status: bool = ...,
+                      with_gaurds: bool = ...,
+                      with_locks: bool = ...,
+                      exclude_tags: Incomplete | None = ...):
         ...
 
     def add_header_command(self, command) -> None:
         ...
 
-    def write(self):
+    def print_commands(self,
+                       with_status: bool = ...,
+                       with_gaurds: bool = ...,
+                       with_rich: Incomplete | None = ...,
+                       colors: int = ...,
+                       with_locks: bool = ...,
+                       exclude_tags: Incomplete | None = ...,
+                       style: str = ...) -> None:
         ...
 
-    def rprint(self,
-               with_status: bool = ...,
-               with_gaurds: bool = ...,
-               with_rich: int = ...) -> None:
+    rprint: Incomplete
+
+    def run(self,
+            block: bool = ...,
+            system: bool = ...,
+            shell: int = ...,
+            **kw) -> None:
         ...
 
-    def run(self, block: Incomplete | None = ...) -> None:
+    def job_details(self) -> None:
         ...
 
     def read_state(self):

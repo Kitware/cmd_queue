@@ -61,10 +61,10 @@ class Queue(ub.NiceRepr):
             >>> tmux_backend = self.change_backend('tmux')
             >>> slurm_backend = self.change_backend('slurm')
             >>> airflow_backend = self.change_backend('airflow')
-            >>> serial_backend.rprint()
-            >>> tmux_backend.rprint()
-            >>> slurm_backend.rprint()
-            >>> airflow_backend.rprint()
+            >>> serial_backend.print_commands()
+            >>> tmux_backend.print_commands()
+            >>> slurm_backend.print_commands()
+            >>> airflow_backend.print_commands()
         """
         new = Queue.create(backend=backend, **kwargs)
         for job_name, job in self.named_jobs.items():
@@ -108,8 +108,7 @@ class Queue(ub.NiceRepr):
         import stat
         text = self.finalize_text()
         self.fpath.parent.ensuredir()
-        with open(self.fpath, 'w') as file:
-            file.write(text)
+        self.fpath.write_text(text)
         os.chmod(self.fpath, (
             stat.S_IXUSR | stat.S_IXGRP | stat.S_IRUSR |
             stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP))
@@ -223,6 +222,7 @@ class Queue(ub.NiceRepr):
         return self
 
     def write_network_text(self, reduced=True, rich='auto'):
+        # TODO: change rich to style
         try:
             import rich as rich_mod
         except ImportError:
@@ -295,3 +295,15 @@ class Queue(ub.NiceRepr):
 
     def monitor(self):
         print('monitor not implemented')
+
+    def _coerce_style(self, style='auto', with_rich=None, colors=1):
+        # Helper
+        if with_rich is not None:
+            ub.schedule_deprecation(
+                'cmd_queue', 'with_rich', 'arg',
+                migration='use style="rich" instead')
+            if with_rich:
+                style = 'rich'
+        if style == 'auto':
+            style = 'colors' if colors else 'plain'
+        return style

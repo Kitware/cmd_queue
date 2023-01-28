@@ -5,7 +5,21 @@ We are currently working on porting this changelog to the specifications in
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## Version 0.1.6 - Unreleased
+## Version 0.1.7 - Unreleased
+
+### Added:
+* Experimental CLI to help cleanup dangling tmux jobs
+
+### Deprecated
+* Deprecate `rprint` in favor of `print_commands`.
+* Deprecate `use_rich` in `print_commands` in favor of `style='rich'`.
+
+### Changed
+* Tweaked text output
+* Demo in the readme with better record demo scripts
+
+
+## Version 0.1.6 - Released 2023-01-16
 
 ### Added:
 * new `other_session_handler` arg to run, which can be ask, kill, ignore, or auto.

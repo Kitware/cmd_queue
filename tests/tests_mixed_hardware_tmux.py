@@ -40,7 +40,7 @@ def test_mixed_hardware():
     submit_tree(queue, False)
     submit_tree(queue, False)
 
-    queue.rprint(with_rich=1)
-    queue.write_network_text()
+    queue.print_commands(style='rich')
+    queue.print_graph()
 
-    self = queue
+    self = queue  # NOQA

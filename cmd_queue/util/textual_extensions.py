@@ -1,3 +1,6 @@
+# from typing import Any
+
+
 try:
     from textual.app import App
     # from textual.driver import Driver
@@ -15,8 +18,8 @@ try:
     from rich.console import RenderableType
     from rich.repr import Result
 except ImportError:
-    App = object
-    Widget = object
+    App: type = object
+    Widget: type = object
 
 
 class class_or_instancemethod(classmethod):
@@ -34,13 +37,14 @@ class InstanceRunnableApp(App):
     Extension of App that allows for running an instance
 
     CommandLine:
-        xdoctest -m cmd_queue.textual_extensions InstanceRunnableApp:0 --interact
+        xdoctest -m cmd_queue.util.textual_extensions InstanceRunnableApp:0 --interact
 
     Example:
         >>> # xdoctest: +REQUIRES(module:textual)
         >>> # xdoctest: +REQUIRES(--interact)
         >>> from textual import events
-        >>> from textual.widgets import ScrollView
+        >>> #from textual.widgets import ScrollView
+        >>> from textual.scroll_view import ScrollView
         >>> class DemoApp(InstanceRunnableApp):
         >>>     def __init__(self, myvar, **kwargs):
         >>>         super().__init__(**kwargs)
