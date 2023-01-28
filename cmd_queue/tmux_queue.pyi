@@ -1,6 +1,5 @@
 from _typeshed import Incomplete
 from cmd_queue import base_queue
-from textual import App, events as events
 
 
 class TMUXMultiQueue(base_queue.Queue):
@@ -15,6 +14,7 @@ class TMUXMultiQueue(base_queue.Queue):
     cmd_verbose: int
     jobs: Incomplete
     header_commands: Incomplete
+    job_info_dpath: Incomplete
 
     def __init__(self,
                  size: int = ...,
@@ -23,6 +23,10 @@ class TMUXMultiQueue(base_queue.Queue):
                  rootid: Incomplete | None = ...,
                  environ: Incomplete | None = ...,
                  gres: Incomplete | None = ...) -> None:
+        ...
+
+    @classmethod
+    def is_available(cls):
         ...
 
     def __nice__(self):
@@ -39,23 +43,46 @@ class TMUXMultiQueue(base_queue.Queue):
     def finalize_text(self):
         ...
 
-    def write(self):
+    def write(self) -> None:
         ...
 
-    def run(self, block: bool = ..., onfail: str = ..., onexit: str = ...):
+    def kill_other_queues(self, ask_first: bool = ...) -> None:
+        ...
+
+    def handle_other_sessions(self, other_session_handler) -> None:
+        ...
+
+    def run(self,
+            block: bool = ...,
+            onfail: str = ...,
+            onexit: str = ...,
+            system: bool = ...,
+            with_textual: str = ...,
+            check_other_sessions: Incomplete | None = ...,
+            other_session_handler: str = 'auto',
+            **kw):
+        ...
+
+    def read_state(self):
         ...
 
     def serial_run(self) -> None:
         ...
 
-    def monitor(self, refresh_rate: float = ...):
+    def monitor(self, refresh_rate: float = ..., with_textual: str = ...):
         ...
 
-    def rprint(self,
-               with_status: bool = ...,
-               with_gaurds: bool = ...,
-               with_rich: int = ...) -> None:
+    def print_commands(self,
+                       with_status: bool = ...,
+                       with_gaurds: bool = ...,
+                       with_rich: Incomplete | None = ...,
+                       with_locks: int = ...,
+                       colors: int = ...,
+                       exclude_tags: Incomplete | None = ...,
+                       style: str = ...) -> None:
         ...
+
+    rprint: Incomplete
 
     def current_output(self) -> None:
         ...
@@ -67,21 +94,8 @@ class TMUXMultiQueue(base_queue.Queue):
         ...
 
 
-MonitorApp: Incomplete
-
-
-class MonitorApp(App):
-
-    def on_key(self) -> None:
-        ...
-
-    async def on_load(self, event: events.Load) -> None:
-        ...
-
-    body: Incomplete
-
-    async def on_mount(self, event: events.Mount) -> None:
-        ...
+def has_stdin():
+    ...
 
 
 __tmux_notes__: str

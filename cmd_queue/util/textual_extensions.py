@@ -1,3 +1,6 @@
+# from typing import Any
+
+
 try:
     from textual.app import App
     # from textual.driver import Driver
@@ -15,8 +18,8 @@ try:
     from rich.console import RenderableType
     from rich.repr import Result
 except ImportError:
-    App = object
-    Widget = object
+    App: type = object
+    Widget: type = object
 
 
 class class_or_instancemethod(classmethod):

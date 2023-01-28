@@ -2,6 +2,14 @@ import ubelt as ub
 from _typeshed import Incomplete
 
 
+class DuplicateJobError(KeyError):
+    ...
+
+
+class UnknownBackendError(KeyError):
+    ...
+
+
 class Job(ub.NiceRepr):
     name: Incomplete
     command: Incomplete
@@ -27,29 +35,34 @@ class Queue(ub.NiceRepr):
     def __init__(self) -> None:
         ...
 
+    def change_backend(self, backend, **kwargs):
+        ...
+
     def __len__(self):
         ...
 
-    def sync(self) -> None:
+    def sync(self) -> Queue:
+        ...
+
+    def write(self):
         ...
 
     def submit(self, command, **kwargs):
         ...
 
     @classmethod
+    def available_backends(cls):
+        ...
+
+    @classmethod
     def create(cls, backend: str = ..., **kwargs):
         ...
 
-    def print_graph(self) -> None:
+    def write_network_text(self, reduced: bool = ..., rich: str = ...) -> None:
+        ...
+
+    def print_graph(self, reduced: bool = True) -> None:
         ...
 
     def monitor(self) -> None:
         ...
-
-
-def graph_str(graph,
-              with_labels: bool = ...,
-              sources: Incomplete | None = ...,
-              write: Incomplete | None = ...,
-              ascii_only: bool = ...):
-    ...

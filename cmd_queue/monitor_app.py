@@ -1,4 +1,5 @@
 # from __future__ import annotations
+from types import ModuleType
 
 try:
     from textual import events
@@ -14,14 +15,14 @@ try:
     from cmd_queue.util import texter as textual
     # import ubelt as ub
 except ImportError:
-    rich = None
-    textual = None
-    events = None
-    ScrollView = object
-    Widget = object
-    DockView = object
-    InstanceRunnableApp = object
-    ExtHeader = object
+    rich: ModuleType = None
+    textual: ModuleType = None
+    events: ModuleType = None
+    ScrollView: type = object
+    Widget: type = object
+    DockView: type = object
+    InstanceRunnableApp: type = object
+    ExtHeader: type = object
 
 
 class JobTable(Widget):
