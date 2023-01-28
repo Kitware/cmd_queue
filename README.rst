@@ -40,13 +40,14 @@ This gives the user fine-grained control if they only want to run a subset of a
 pipeline manually. But if asked to run, cmd_queue will execute the bash jobs.
 
 
-Demo
-====
+Tmux Queue Demo
+===============
 
 After installing, the following command runs a demo of the tmux queue:
 
-.. code:: bash :: 
+.. code:: bash 
 
+   # Reproduce the 
    INTERACTIVE_TEST=1 xdoctest -m cmd_queue.tmux_queue TMUXMultiQueue.monitor:1
 
 
@@ -77,7 +78,9 @@ submits several bash jobs with non-trivial dependencies.
    
 
 When running the ``rprint`` command will first display all of the submitted
-commands that will be distributed across multiple new tmux sessions.
+commands that will be distributed across multiple new tmux sessions. These are
+the commands will be executed. This is useful for spot checking that your bash
+command templating is correct before the queue is executed with ``run``.
 
 
 .. .. Screenshot of the rprint output
@@ -88,13 +91,11 @@ commands that will be distributed across multiple new tmux sessions.
 
 The ``print_graph`` command will render the DAG to be executed using `network
 text <https://github.com/networkx/networkx/pull/5602>`_.
-
-.. image:: https://i.imgur.com/RbyTvP9.png
-   :height: 300px
-   :align: left
-
-
-And finally rich or textual monitor will show the status of the jobs.
+.. .. image:: https://i.imgur.com/RbyTvP9.png
+..   :height: 300px
+..   :align: left
+And finally ``run`` is called with ``block=True``, which starts executing the
+DAG and displays progress and job status in rich or textual monitor.
 
 .. .. Animated gif of the queue from dev/record_demo.sh
 .. image:: https://i.imgur.com/4mxFIMk.gif
