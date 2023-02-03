@@ -33,6 +33,8 @@ def main(cmdline=1, **kwargs):
         >>> main(cmdline=cmdline, **kwargs)
     """
     import json
+    import sys
+    print(f'sys.argv={sys.argv}')
     config = CmdQueueConfig.legacy(cmdline=cmdline, data=kwargs)
     print('config = ' + ub.urepr(dict(config), nl=1))
 
