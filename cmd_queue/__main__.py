@@ -19,7 +19,8 @@ class CmdQueueConfig(scfg.DataConfig):
     command = scfg.Value(None, position=1, help='command', choices=['cleanup', 'show', 'new', 'submit', 'run'])
     name = scfg.Value(None, position=2, help='name of the CLI queue')
     bash_text = scfg.Value(None, position=3, nargs='*')
-    ...
+    workers = scfg.Value(None)
+    backend = scfg.Value('tmux')
 
 
 def main(cmdline=1, **kwargs):
@@ -40,7 +41,9 @@ def main(cmdline=1, **kwargs):
 
     def build_queue():
         import cmd_queue
-        queue = cmd_queue.Queue.create(backend='tmux', size=1, name=config['name'])
+        queue = cmd_queue.Queue.create(size=config['workers'],
+                                       backend=config['backend'],
+                                       name=config['name'])
         # Run a new CLI queue
         data = json.loads(cli_queue_fpath.read_text())
         for row in data:
