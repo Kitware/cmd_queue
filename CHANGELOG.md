@@ -7,6 +7,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version 0.1.8 - Unreleased
 
+### Added:
+* New experimental CLI-queue feature. Create a pipeline in bash using the CLI.
+  Very basic atm.
 
 ## Version 0.1.7 - Released 2023-01-28
 
