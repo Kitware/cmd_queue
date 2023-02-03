@@ -50,7 +50,7 @@ def main(cmdline=1, **kwargs):
             bash = row['bash_text']
             if isinstance(bash, list):
                 bash = ' '.join(bash)
-            queue.submit(bash)
+            queue.submit(bash, log=False)
         return queue
 
     if config['command'] == 'new':
