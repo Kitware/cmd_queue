@@ -19,7 +19,7 @@ class CmdQueueConfig(scfg.DataConfig):
     command = scfg.Value(None, position=1, help='command', choices=['cleanup', 'show', 'new', 'submit', 'run'])
     name = scfg.Value(None, position=2, help='name of the CLI queue')
     bash_text = scfg.Value(None, position=3, nargs='*')
-    workers = scfg.Value(None)
+    workers = scfg.Value(0)
     backend = scfg.Value('tmux')
 
 
