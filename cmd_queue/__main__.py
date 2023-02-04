@@ -11,8 +11,8 @@ class CmdQueueConfig(scfg.DataConfig):
 
     Example:
         cmd_queue new "my_cli_queue"
-        cmd_queue submit "my_cli_queue" "echo hello"
-        cmd_queue submit "my_cli_queue" "echo world"
+        cmd_queue submit "my_cli_queue" echo hello
+        cmd_queue submit "my_cli_queue" echo world
         cmd_queue show "my_cli_queue"
         cmd_queue run "my_cli_queue"
     """
