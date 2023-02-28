@@ -140,6 +140,8 @@ def generate_network_text(
     else:
         label_attr = None
 
+    collapse_attr = "collapse"
+
     if max_depth == 0:
         yield glyphs.empty + " ..."
     elif len(graph.nodes) == 0:
@@ -224,6 +226,12 @@ def generate_network_text(
                 else:
                     label = str(node)
 
+                # Determine if we want to show the children of this node.
+                if collapse_attr is not None:
+                    collapse = graph.nodes[node].get(collapse_attr, False)
+                else:
+                    collapse = False
+
                 # Determine:
                 # (1) children to traverse into after showing this node.
                 # (2) parents to immediately show to the right of this node.
@@ -253,6 +261,12 @@ def generate_network_text(
                         children = [Ellipsis]
                     handled_parents = {parent}
 
+                if collapse:
+                    # Collapsing a node is the same as reaching maximum depth
+                    if children:
+                        children = [Ellipsis]
+                    handled_parents = {parent}
+
                 # The other parents are other predecessors of this node that
                 # are not handled elsewhere.
                 other_parents = [p for p in pred[node] if p not in handled_parents]
@@ -275,6 +289,21 @@ def generate_network_text(
             # Emit the line for this node, this will be called for each node
             # exactly once.
             yield "".join(this_prefix + [label, suffix])
+
+            """
+
+            >>> from cmd_queue.util.util_networkx import *  # NOQA
+            >>> graph = nx.balanced_tree(r=2, h=2, create_using=nx.DiGraph)
+            >>> write_network_text(graph)
+            >>> graph.nodes[1]['collapse'] = True
+            >>> write_network_text(graph)
+            >>> graph.add_edge(5, 1)
+            >>> write_network_text(graph)
+            >>> graph.nodes[2]['collapse'] = True
+            >>> write_network_text(graph)
+
+
+            """
 
             # Push children on the stack in reverse order so they are popped in
             # the original order.

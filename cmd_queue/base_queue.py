@@ -218,7 +218,7 @@ class Queue(ub.NiceRepr):
             kwargs.pop('size', None)
             self = airflow_queue.AirflowQueue(**kwargs)
         else:
-            raise UnknownBackendError
+            raise UnknownBackendError(backend)
         return self
 
     def write_network_text(self, reduced=True, rich='auto'):
