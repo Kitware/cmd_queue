@@ -591,7 +591,6 @@ def is_topological_order(graph, node_order):
 
     Example:
         >>> import networkx as nx
-        >>> import kwarray
         >>> raw = nx.erdos_renyi_graph(100, 0.5, directed=True, seed=3432)
         >>> graph = nx.DiGraph(nodes=raw.nodes())
         >>> graph.add_edges_from([(u, v) for u, v in raw.edges() if u < v])
