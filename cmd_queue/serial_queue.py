@@ -356,12 +356,17 @@ class SerialQueue(base_queue.Queue):
         import networkx as nx
         graph = self._dependency_graph()
         original_order = [j.name for j in self.jobs]
-        topo_generations = list(nx.topological_generations(graph))
-        new_order = []
-        original_order = ub.oset(original_order)
-        for gen in topo_generations:
-            new_order.extend(original_order & gen)
-        self.jobs = [self.named_jobs[n] for n in new_order]
+        from cmd_queue.util import util_networkx
+        if not util_networkx.is_topological_order(graph, original_order):
+            # If not already topologically sorted, try to make the minimal
+            # reordering to achieve it.
+            # FIXME: I think this is not a minimal reordering.
+            topo_generations = list(nx.topological_generations(graph))
+            new_order = []
+            original_order = ub.oset(original_order)
+            for gen in topo_generations:
+                new_order.extend(original_order & gen)
+            self.jobs = [self.named_jobs[n] for n in new_order]
 
     def finalize_text(self, with_status=True, with_gaurds=True,
                       with_locks=True, exclude_tags=None):
