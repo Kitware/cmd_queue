@@ -140,6 +140,8 @@ def generate_network_text(
     else:
         label_attr = None
 
+    collapse_attr = "collapse"
+
     if max_depth == 0:
         yield glyphs.empty + " ..."
     elif len(graph.nodes) == 0:
@@ -224,6 +226,12 @@ def generate_network_text(
                 else:
                     label = str(node)
 
+                # Determine if we want to show the children of this node.
+                if collapse_attr is not None:
+                    collapse = graph.nodes[node].get(collapse_attr, False)
+                else:
+                    collapse = False
+
                 # Determine:
                 # (1) children to traverse into after showing this node.
                 # (2) parents to immediately show to the right of this node.
@@ -253,6 +261,12 @@ def generate_network_text(
                         children = [Ellipsis]
                     handled_parents = {parent}
 
+                if collapse:
+                    # Collapsing a node is the same as reaching maximum depth
+                    if children:
+                        children = [Ellipsis]
+                    handled_parents = {parent}
+
                 # The other parents are other predecessors of this node that
                 # are not handled elsewhere.
                 other_parents = [p for p in pred[node] if p not in handled_parents]
@@ -275,6 +289,21 @@ def generate_network_text(
             # Emit the line for this node, this will be called for each node
             # exactly once.
             yield "".join(this_prefix + [label, suffix])
+
+            """
+
+            >>> from cmd_queue.util.util_networkx import *  # NOQA
+            >>> graph = nx.balanced_tree(r=2, h=2, create_using=nx.DiGraph)
+            >>> write_network_text(graph)
+            >>> graph.nodes[1]['collapse'] = True
+            >>> write_network_text(graph)
+            >>> graph.add_edge(5, 1)
+            >>> write_network_text(graph)
+            >>> graph.nodes[2]['collapse'] = True
+            >>> write_network_text(graph)
+
+
+            """
 
             # Push children on the stack in reverse order so they are popped in
             # the original order.
@@ -547,3 +576,40 @@ def graph_str(graph, with_labels=True, sources=None, write=None, ascii_only=Fals
     if write is None:
         # Only return a string if the custom write function was not specified
         return "\n".join(printbuf)
+
+
+def is_topological_order(graph, node_order):
+    """
+    A topological ordering of nodes is an ordering of the nodes such that for
+    every edge (u,v) in G, u appears earlier than v in the ordering
+
+    Runtime:
+        O(V * E)
+
+    References:
+        https://stackoverflow.com/questions/54174116/checking-validity-of-topological-sort
+
+    Example:
+        >>> import networkx as nx
+        >>> raw = nx.erdos_renyi_graph(100, 0.5, directed=True, seed=3432)
+        >>> graph = nx.DiGraph(nodes=raw.nodes())
+        >>> graph.add_edges_from([(u, v) for u, v in raw.edges() if u < v])
+        >>> node_order = list(nx.topological_sort(graph))
+        >>> assert is_topological_order(graph, node_order)
+        >>> assert not is_topological_order(graph, node_order[::-1])
+    """
+    # Iterate through the edges in G.
+    node_to_index = {n: idx for idx, n in enumerate(node_order)}
+    for u, v in graph.edges:
+        try:
+            # For each edge, retrieve the index of each of its vertices in the ordering.
+            ux = node_to_index[u]
+            vx = node_to_index[v]
+            # Compared the indices. If the origin vertex isn't earlier than
+            # the destination vertex, return false.
+            if ux >= vx:
+                return False
+        except KeyError:
+            # if the edge is not in or ordering, ignore it
+            ...
+    return True

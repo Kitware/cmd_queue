@@ -44,7 +44,9 @@ class BashJob(base_queue.Job):
         depends (List[BashJob] | None): the jobs that this job depends on
         bookkeeper (bool): flag indicating if this is a bookkeeping job or not
         info_dpath (PathLike | None): where information about this job will be stored
-        log (bool): if True, output of the job will be teed and saved to a file
+        log (bool):
+            if True, output of the job will be tee-d and saved to a file, this
+            can have interactions with normal stdout. Defaults to False.
         tags (List[str] | str | None):
             a list of strings that can be used to group jobs or filter the
             queue or other custom purposes.
@@ -68,7 +70,7 @@ class BashJob(base_queue.Job):
         >>> self.print_commands(1, 1, conditionals=conditionals)
     """
     def __init__(self, command, name=None, depends=None, gpus=None, cpus=None,
-                 mem=None, bookkeeper=0, info_dpath=None, log=True, tags=None,
+                 mem=None, bookkeeper=0, info_dpath=None, log=False, tags=None,
                  allow_indent=True, **kwargs):
         if depends is not None and not ub.iterable(depends):
             depends = [depends]
@@ -239,8 +241,8 @@ class BashJob(base_queue.Job):
         text = '\n'.join(script)
         return text
 
-    def print_commands(self, with_status=False, with_gaurds=False, with_rich=None,
-               colors=1, style='auto', **kwargs):
+    def print_commands(self, with_status=False, with_gaurds=False,
+                       with_rich=None, colors=1, style='auto', **kwargs):
         r"""
         Print info about the commands, optionally with rich
 
@@ -345,6 +347,27 @@ class SerialQueue(base_queue.Queue):
         # TODO: get this working
         return True
 
+    def order_jobs(self):
+        """
+        Ensure jobs within a serial queue are topologically ordered.
+        Attempts to preserve input ordering.
+        """
+        # We need to ensure the jobs are in a topologoical order here.
+        import networkx as nx
+        graph = self._dependency_graph()
+        original_order = [j.name for j in self.jobs]
+        from cmd_queue.util import util_networkx
+        if not util_networkx.is_topological_order(graph, original_order):
+            # If not already topologically sorted, try to make the minimal
+            # reordering to achieve it.
+            # FIXME: I think this is not a minimal reordering.
+            topo_generations = list(nx.topological_generations(graph))
+            new_order = []
+            original_order = ub.oset(original_order)
+            for gen in topo_generations:
+                new_order.extend(original_order & gen)
+            self.jobs = [self.named_jobs[n] for n in new_order]
+
     def finalize_text(self, with_status=True, with_gaurds=True,
                       with_locks=True, exclude_tags=None):
         """
@@ -356,6 +379,7 @@ class SerialQueue(base_queue.Queue):
 
         """
         import cmd_queue
+        self.order_jobs()
         script = [self.header]
         script += ['# Written by cmd_queue {}'.format(cmd_queue.__version__)]
 
@@ -546,12 +570,20 @@ class SerialQueue(base_queue.Queue):
 
     rprint = print_commands
 
-    def run(self, block=True, system=False, shell=1, **kw):
+    def run(self, block=True, system=False, shell=1, mode='bash', **kw):
         self.write()
         # TODO: can implement a monitor here for non-blocking mode
         detach = not block
-        ub.cmd(f'bash {self.fpath}', verbose=3, check=True, shell=shell,
-               system=system, detach=detach)
+        if mode == 'bash':
+            ub.cmd(f'bash {self.fpath}', verbose=3, check=True, shell=shell,
+                   system=system, detach=detach)
+        elif mode == 'source':
+            ub.cmd(f'source {self.fpath}', verbose=3, check=True, shell=shell,
+                   system=system, detach=detach)
+        else:
+            ub.cmd(f'{mode} {self.fpath}', verbose=3, check=True, shell=shell,
+                   system=system, detach=detach)
+            # raise KeyError
 
     def job_details(self):
         import json

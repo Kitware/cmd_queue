@@ -5,7 +5,19 @@ We are currently working on porting this changelog to the specifications in
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## Version 0.1.7 - Unreleased
+## Version 0.1.8 - Unreleased
+
+### Added:
+* New experimental CLI-queue feature. Create a pipeline in bash using the CLI.
+  Very basic atm.
+
+### Changed
+* The log option to submit now default to False (due to non-obvious tee issues)
+
+### Fixed:
+* The serial queue now correctly reorders jobs into a topological order when necessary.
+
+## Version 0.1.7 - Released 2023-01-28
 
 ### Added:
 * Experimental CLI to help cleanup dangling tmux jobs
