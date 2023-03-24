@@ -1,2 +1,2 @@
-# python ~/local/tools/supported_python_versions_pip.py textual
+# xdev availpkg textual
 textual>=0.1.18 ;    python_version >= '3.7'    # Python 3.7+

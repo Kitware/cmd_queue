@@ -7,6 +7,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version 0.1.9 - Unreleased
 
+### Added
+* Support for more sbatch options in slurm backend
+
+### Fixed
+* Bugs in slurm backend
+
 
 ## Version 0.1.8 - Released 2023-03-05
 

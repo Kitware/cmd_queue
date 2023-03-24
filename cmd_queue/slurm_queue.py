@@ -57,6 +57,126 @@ def _coerce_mem(mem):
     return mem
 
 
+# List of extra keys that can be specified as key/value pairs in sbatch args
+# These are acceptable kwargs for SlurmQueue.__init__ and SlurmQueue.submit
+__dev__ = r"""
+    # Script to build the modifier list
+
+    import ubelt as ub
+    import re
+    b = xdev.regex_builder.RegexBuilder.coerce('python')
+
+    blocklist = {'job_name', 'output', 'dependency', 'begin'}
+
+    keyval_pat = re.compile(r'--([\w-]+)=')
+    text = ub.cmd('sbatch --help')['out']
+    lines = ub.oset()
+    for key in keyval_pat.findall(text):
+        lines.append(key.replace('-', '_'))
+    print(ub.urepr(list(lines - blocklist)))
+
+
+    blocklist = {'mem', 'version', 'help', 'usage'}
+    flag_pat = re.compile(r'--([\w-]+) ')
+    lines = ub.oset()
+    for key in flag_pat.findall(text):
+        lines.append(key.replace('-', '_'))
+    print(ub.urepr(list(lines - blocklist)))
+"""
+
+SLURM_SBATCH_KVARGS = [
+    'array',
+    'account',
+    'bb',
+    'bbf',
+    # 'begin',
+    'comment',
+    'cpu_freq',
+    'cpus_per_task',
+    # 'dependency',
+    'deadline',
+    'delay_boot',
+    'chdir',
+    'error',
+    'export_file',
+    'gid',
+    'gres',
+    'gres_flags',
+    'input',
+    # 'job_name',
+    'licenses',
+    'clusters',
+    'distribution',
+    'mail_type',
+    'mail_user',
+    'mcs_label',
+    'ntasks',
+    'ntasks_per_node',
+    'nodes',
+    # 'output',
+    'partition',
+    'power',
+    'priority',
+    'profile',
+    'qos',
+    'core_spec',
+    'signal',
+    'switches',
+    'thread_spec',
+    'time',
+    'time_min',
+    'uid',
+    'wckey',
+    'cluster_constraint',
+    'constraint',
+    'nodefile',
+    'mem',
+    'mincpus',
+    'reservation',
+    'tmp',
+    'nodelist',
+    'exclude',
+    'mem_per_cpu',
+    'sockets_per_node',
+    'cores_per_socket',
+    'threads_per_core',
+    'extra_node_info',
+    'ntasks_per_core',
+    'ntasks_per_socket',
+    'hint',
+    'mem_bind',
+    'cpus_per_gpu',
+    'gpus',
+    'gpu_bind',
+    'gpu_freq',
+    'gpus_per_node',
+    'gpus_per_socket',
+    'gpus_per_task',
+    'mem_per_gpu',
+]
+
+SLURM_SBATCH_FLAGS = [
+    'get_user_env',
+    'hold',
+    'ignore_pbs',
+    'no_kill',
+    'container',
+    'no_requeue',
+    'overcommit',
+    'parsable',
+    'quiet',
+    'reboot',
+    'requeue',
+    'oversubscribe',
+    'spread_job',
+    'use_min_nodes',
+    'verbose',
+    'wait',
+    'contiguous',
+    'mem_per_cpu',
+]
+
+
 class SlurmJob(base_queue.Job):
     """
     Represents a slurm job that hasn't been submitted yet
@@ -71,8 +191,8 @@ class SlurmJob(base_queue.Job):
         >>> print(command)
     """
     def __init__(self, command, name=None, output_fpath=None, depends=None,
-                 partition=None, cpus=None, gpus=None, mem=None, begin=None,
-                 shell=None, tags=None, **kwargs):
+                 cpus=None, gpus=None, mem=None, begin=None, shell=None,
+                 tags=None, **kwargs):
         super().__init__()
         if name is None:
             import uuid
@@ -90,6 +210,9 @@ class SlurmJob(base_queue.Job):
         self.begin = begin
         self.shell = shell
         self.tags = util_tags.Tags.coerce(tags)
+        # Extra arguments for sbatch
+        self._sbatch_kvargs = ub.udict(kwargs) & SLURM_SBATCH_KVARGS
+        self._sbatch_flags = ub.udict(kwargs) & SLURM_SBATCH_FLAGS
         # if shell not in {None, 'bash'}:
         #     raise NotImplementedError(shell)
 
@@ -128,6 +251,15 @@ class SlurmJob(base_queue.Job):
             sbatch_args.append(f'--gres="{gres}"')
         if self.output_fpath:
             sbatch_args.append(f'--output="{self.output_fpath}"')
+
+        for key, value in self._sbatch_kvargs.items():
+            key = key.replace('_', '-')
+            sbatch_args.append(f'--{key}="{value}"')
+
+        for key, flag in self._sbatch_flags.items():
+            if flag:
+                key = key.replace('_', '-')
+                sbatch_args.append(f'--{key}"')
 
         import shlex
         wrp_command = shlex.quote(self.command)
@@ -234,6 +366,8 @@ class SlurmQueue(base_queue.Queue):
         self.shell = shell
         self.header_commands = []
         self.all_depends = None
+        self._sbatch_kvargs = ub.udict(kwargs) & SLURM_SBATCH_KVARGS
+        self._sbatch_flags = ub.udict(kwargs) & SLURM_SBATCH_FLAGS
 
     def __nice__(self):
         return self.queue_id
@@ -289,7 +423,8 @@ class SlurmQueue(base_queue.Queue):
                 self.named_jobs[dep] if isinstance(dep, str) else dep
                 for dep in depends]
 
-        job = SlurmJob(command, depends=depends, **kwargs)
+        _kwargs = self._sbatch_kvargs | kwargs
+        job = SlurmJob(command, depends=depends, **_kwargs)
         self.jobs.append(job)
         self.num_real_jobs += 1
         self.named_jobs[job.name] = job
@@ -424,7 +559,7 @@ class SlurmQueue(base_queue.Queue):
         return {}
 
     def print_commands(self, with_status=False, with_rich=None, colors=0,
-                       exclude_tags=None, style='auto'):
+                       exclude_tags=None, style='auto', **kw):
         """
         Print info about the commands, optionally with rich
 
