@@ -1,4 +1,4 @@
-# python ~/local/tools/supported_python_versions_pip.py numpy
+# xdev availpkg numpy
 numpy >= 1.23.3  ; python_version < '3.12' and python_version >= '3.11'  # Python 3.11 - 3.12
 numpy >= 1.21.6  ; python_version < '3.11' and python_version >= '3.10'  # Python 3.10 - 3.11
 numpy >= 1.19.3  ; python_version < '3.10' and python_version >= '3.6.0'  # Python 3.6 - 3.9
@@ -9,12 +9,12 @@ networkx>=2.7           ;                            python_version >= '3.8'    
 networkx>=2.6.2         ; python_version < '3.8' and python_version >= '3.7'     # Python 3.7
 networkx>=2.5.1,<=2.5.1 ; python_version < '3.7.0' and python_version >= '3.6.0' # Python 3.6
 
-# python ~/local/tools/supported_python_versions_pip.py rich
+# xdev availpkg rich
 rich>=12.5.1
 
 
 # TODO: lets make pandas an optional dependency
-# python ~/local/tools/supported_python_versions_pip.py pandas
+# xdev availpkg pandas
 pandas>=1.5.0    ; python_version < '4.0'  and python_version >= '3.11'    # Python 3.11+
 pandas>=1.4.0    ; python_version < '3.11' and python_version >= '3.10'    # Python 3.10
 pandas>=1.4.0    ; python_version < '3.10' and python_version >= '3.9'     # Python 3.9

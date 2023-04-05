@@ -39,21 +39,38 @@ class BashJob(base_queue.Job):
 
     Attributes:
         name (str): a name for this job
+
         pathid (str): a unique id based on the name and a hashed uuid
+
         command (str): the shell command to run
-        depends (List[BashJob] | None): the jobs that this job depends on
+
+        depends (List[BashJob] | None):
+            the jobs that this job depends on. This job will only run once all
+            the dependencies have succesfully run.
+
         bookkeeper (bool): flag indicating if this is a bookkeeping job or not
+
         info_dpath (PathLike | None): where information about this job will be stored
+
         log (bool):
             if True, output of the job will be tee-d and saved to a file, this
             can have interactions with normal stdout. Defaults to False.
+
         tags (List[str] | str | None):
             a list of strings that can be used to group jobs or filter the
             queue or other custom purposes.
+
         allow_indent (bool):
             In some cases indentation matters for the shell command.
             In that case ensure this is False at the cost of readability in the
             result script.
+
+    TODO:
+        - [ ] What is a good name for a a list of jobs that must fail
+              for this job to run. Our current depends in analogous to slurm's
+              afterok. What is a good variable name for afternotok? Do we
+              wrap the job with some sort of negation, so we depend on the
+              negation of the job?
 
     Example:
         >>> from cmd_queue.serial_queue import *  # NOQA
@@ -72,6 +89,7 @@ class BashJob(base_queue.Job):
     def __init__(self, command, name=None, depends=None, gpus=None, cpus=None,
                  mem=None, bookkeeper=0, info_dpath=None, log=False, tags=None,
                  allow_indent=True, **kwargs):
+
         if depends is not None and not ub.iterable(depends):
             depends = [depends]
         self.name = name
@@ -135,6 +153,8 @@ class BashJob(base_queue.Job):
                 for dep in self.depends:
                     if dep is not None:
                         conditions.append(f'[ -f {dep.pass_fpath} ]')
+                # TODO: if we add the ability to depend on jobs failing then
+                # add those conditions here.
                 if conditions:
                     had_conditions = True
                     condition = ' && '.join(conditions)

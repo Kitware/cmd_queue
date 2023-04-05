@@ -15,7 +15,27 @@ class CmdQueueConfig(scfg.DataConfig):
     killing session names that start with "cmdq_".
 
     Example:
+
+        #################################
+        # Step 1:  Initialize a new queue
+        #################################
+
         cmd_queue new "my_cli_queue"
+
+        # Note if you are working in a virtualenv you need to specify a header
+        # to activate it if you are going to use the tmux or slurm backend
+        # (serial will work without this)
+
+        # e.g. for conda
+        cmd_queue new "my_cli_queue" --header="conda activate myenv"
+
+        # e.g. for pyenv
+        cmd_queue new "my_cli_queue" --header="pyenv shell 3.11.0 && source $PYENV_ROOT/versions/3.11.0/envs/pyenv3.11.0/bin/activate"
+
+        #################################
+        # Step 2:  Initialize a new queue
+        #################################
+
         cmd_queue submit "my_cli_queue" --  echo hello world
         cmd_queue submit "my_cli_queue" --  echo "hello world"
         cmd_queue submit "my_cli_queue" -- cowsay hellow world
@@ -24,10 +44,32 @@ class CmdQueueConfig(scfg.DataConfig):
         cmd_queue submit "my_cli_queue" -- 'cowsay MOOOO && sleep 2'
         cmd_queue submit "my_cli_queue" -- 'cowsay MOOOOOO && sleep 3'
         cmd_queue submit "my_cli_queue" -- 'cowsay MOOOOOOOO && sleep 4'
+
+        #################################
+        # Step 3:  Inspect your commands before you run
+        #################################
         cmd_queue show "my_cli_queue"
+
+        #################################
+        # Step 4:  Run your commands
+        #################################
+
+        # Run using the serial backend
         cmd_queue run "my_cli_queue" --backend=serial
+
+        # Run using the tmux backend
         cmd_queue run "my_cli_queue" --backend=tmux --workers=2
+
+        #################################
+        # Extra: other features
+        #################################
+
+        # List all the known queues you've created
         cmd_queue list
+
+        # Cleanup tmux sessions (useful when jobs are failing)
+        cmd_queue cleanup
+
     """
     action = scfg.Value(None, position=1, help='action', choices=[
         'cleanup', 'show', 'new', 'submit', 'run', 'list'], required=True)
@@ -47,6 +89,9 @@ class CmdQueueConfig(scfg.DataConfig):
     workers = scfg.Value(1, help='number of concurrent queues for the tmux backend.')
 
     backend = scfg.Value('tmux', help='the execution backend to use', choices=['tmux', 'slurm', 'serial', 'airflow'])
+
+    # TODO: use a modal config to separate action behaviors
+    header = scfg.Value(None, help='a header command to execute in every session (e.g. activating a virtualenv). Only used when action is new')
 
     dpath = scfg.Value('auto', help=ub.paragraph(
         '''
@@ -83,12 +128,16 @@ def main(cmdline=1, **kwargs):
         # Start a new CLI queue
         data = []
         cli_queue_fpath.parent.ensuredir()
+
+        if config.header is not None:
+            data.append({'type': 'header', 'header': config.header})
+
         cli_queue_fpath.write_text(json.dumps(data))
 
     elif config['action'] == 'submit':
         # Run a new CLI queue
         data = json.loads(cli_queue_fpath.read_text())
-        data.append({'command': config['command']})
+        data.append({'type': 'command', 'command': config['command']})
         cli_queue_fpath.write_text(json.dumps(data))
 
     elif config['action'] == 'show':
@@ -129,10 +178,16 @@ def build_queue(cli_queue_fpath, config):
     # Run a new CLI queue
     data = json.loads(cli_queue_fpath.read_text())
     for row in data:
-        bash_command = row['command']
-        if isinstance(bash_command, list):
-            bash_command = ' '.join(bash_command)
-        queue.submit(bash_command, log=False)
+        if row['type'] == 'header':
+            bash_command = row['header']
+            if isinstance(bash_command, list):
+                bash_command = ' '.join(bash_command)
+            queue.add_header_command(bash_command)
+        elif row['type'] == 'command':
+            bash_command = row['command']
+            if isinstance(bash_command, list):
+                bash_command = ' '.join(bash_command)
+            queue.submit(bash_command, log=False)
     return queue
 
 if __name__ == '__main__':
