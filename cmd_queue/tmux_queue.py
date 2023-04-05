@@ -880,7 +880,7 @@ class TMUXMultiQueue(base_queue.Queue):
 
     def print_commands(self, with_status=False, with_gaurds=False,
                        with_rich=None, with_locks=1, colors=1,
-                       exclude_tags=None, style='auto'):
+                       exclude_tags=None, style='auto', **kw):
         r"""
         Print info about the commands, optionally with rich
 

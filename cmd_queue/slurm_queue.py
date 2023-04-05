@@ -1,4 +1,4 @@
-"""
+r"""
 Work in progress. The idea is to provide a TMUX queue and a SLURM queue that
 provide a common high level API, even though functionality might diverge, the
 core functionality of running processes asynchronously should be provided.
@@ -20,12 +20,20 @@ Example:
     >>> dpath = ub.Path.appdir('slurm_queue/tests')
     >>> queue = SlurmQueue()
     >>> job0 = queue.submit(f'echo "here we go"', name='root job')
-    >>> job1 = queue.submit(f'mkdir {dpath}', depends=[job0])
+    >>> job1 = queue.submit(f'mkdir -p {dpath}', depends=[job0])
     >>> job2 = queue.submit(f'echo "result=42" > {dpath}/test.txt ', depends=[job1])
     >>> job3 = queue.submit(f'cat {dpath}/test.txt', depends=[job2])
     >>> queue.print_commands()
     >>> # xdoctest: +REQUIRES(--run)
     >>> queue.run()
+    >>> # Can read the output of jobs after they are done.
+    >>> for job in queue.jobs:
+    >>>     print('-----------------')
+    >>>     print(f'job.name={job.name}')
+    >>>     if job.output_fpath.exists():
+    >>>         print(job.output_fpath.read_text())
+    >>>     else:
+    >>>         print('output does not exist')
 """
 import ubelt as ub
 
@@ -222,8 +230,9 @@ class SlurmJob(base_queue.Job):
     def __nice__(self):
         return repr(self.command)
 
-    def _build_command(self):
-        return ' '.join(self._build_sbatch_args())
+    def _build_command(self, jobname_to_varname=None):
+        args = self._build_sbatch_args(jobname_to_varname=jobname_to_varname)
+        return ' \\\n    '.join(args)
 
     def _build_sbatch_args(self, jobname_to_varname=None):
         # job_name = 'todo'
@@ -260,14 +269,6 @@ class SlurmJob(base_queue.Job):
             if flag:
                 key = key.replace('_', '-')
                 sbatch_args.append(f'--{key}"')
-
-        import shlex
-        wrp_command = shlex.quote(self.command)
-
-        if self.shell:
-            wrp_command = shlex.quote(self.shell + ' -c ' + wrp_command)
-
-        sbatch_args.append(f'--wrap {wrp_command}')
 
         if self.depends:
             # TODO: other depends parts
@@ -311,6 +312,14 @@ class SlurmJob(base_queue.Job):
                 sbatch_args.append(f'"--begin=now+{self.begin}"')
             else:
                 sbatch_args.append(f'"--begin={self.begin}"')
+
+        import shlex
+        wrp_command = shlex.quote(self.command)
+
+        if self.shell:
+            wrp_command = shlex.quote(self.shell + ' -c ' + wrp_command)
+
+        sbatch_args.append(f'--wrap {wrp_command}')
         return sbatch_args
 
 
@@ -454,8 +463,9 @@ class SlurmQueue(base_queue.Queue):
         for job in new_order:
             if exclude_tags and exclude_tags.intersection(job.tags):
                 continue
-            args = job._build_sbatch_args(jobname_to_varname)
-            command = ' '.join(args)
+            # args = job._build_sbatch_args(jobname_to_varname)
+            # command = ' '.join(args)
+            command = job._build_command(jobname_to_varname)
             if self.header_commands:
                 command = ' && '.join(self.header_commands + [command])
             if 1:
@@ -558,9 +568,9 @@ class SlurmQueue(base_queue.Queue):
         # this
         return {}
 
-    def print_commands(self, with_status=False, with_rich=None, colors=0,
+    def print_commands(self, with_status=False, with_rich=None, colors=1,
                        exclude_tags=None, style='auto', **kw):
-        """
+        r"""
         Print info about the commands, optionally with rich
 
         Example:
