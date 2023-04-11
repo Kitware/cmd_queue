@@ -5,7 +5,10 @@ We are currently working on porting this changelog to the specifications in
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## Version 0.1.10 - Unreleased
+## Version 0.1.11 - Unreleased
+
+
+## Version 0.1.10 - Released 2023-04-11
 
 ### Added
 * the `cli_boilerplate` submodule for help writing consistent scriptconfig + cmdqueue CLIs

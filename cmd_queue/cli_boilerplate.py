@@ -3,10 +3,8 @@ This file defines a helper scriptconfig base config that can be used to help
 make cmd_queue CLIs so cmd_queue options are standardized and present at the
 top level.
 
-
 CommandLine:
     xdoctest -m cmd_queue.cli_boilerplate __doc__:0
-
 
 Example:
     >>> from cmd_queue.cli_boilerplate import CMDQueueConfig
@@ -103,12 +101,16 @@ import ubelt as ub
 
 class CMDQueueConfig(scfg.DataConfig):
     """
-    A helper to carry around the common boilerplate for cmd-queue CLI's.
-    The __default__ attribute should be used to update another config's
-    __default__ attribute, and the static methods can be used to create /
-    execute the queue.
+    A helper to carry around the common boilerplate for cmd-queue CLI's.  The
+    general usage is that you will inherit from this class and define config
+    options your CLI cares about, however they must not overload any of the
+    options specified here.
 
-    This or something like it may eventually be ported to cmdqueue itself.
+    Usage will be to call :func:`CMDQueueConfig.create_queue` to initialize a
+    queue based on these options, and then execute it with
+    :func:`CMDQueueConfig.run_queue`. In this way you do not need to worry
+    about this specific boilerplate when writing your application. See
+    ``cmd_queue.cli_boilerplate __doc__:0`` for example usage.
     """
     run = scfg.Value(False, isflag=True, help='if False, only prints the commands, otherwise executes them', group='cmd-queue')
 
@@ -138,6 +140,15 @@ class CMDQueueConfig(scfg.DataConfig):
         self.slurm_options = Yaml.coerce(self.slurm_options)
 
     def create_queue(config, **kwargs):
+        """
+        Create an empty queue based on options specified in this config
+
+        Args:
+            **kwargs: extra args passed to cmd_queue.Queue.create
+
+        Returns:
+            cmd_queue.Queue
+        """
         import cmd_queue
         queuekw = {}
         if config.backend == 'slurm':
@@ -146,7 +157,6 @@ class CMDQueueConfig(scfg.DataConfig):
             queuekw.update({
                 'size': config.tmux_workers,
             })
-            ...
         queuekw.update(kwargs)
         if 'name' not in queuekw:
             queuekw['name'] = config.queue_name
@@ -158,6 +168,12 @@ class CMDQueueConfig(scfg.DataConfig):
         return queue
 
     def run_queue(config, queue):
+        """
+        Execute a queue with options based on this config.
+
+        Args:
+            cmd_queue.Queue
+        """
         print_thresh = 30
         if config['print_commands'] == 'auto':
             if len(queue) < print_thresh:
