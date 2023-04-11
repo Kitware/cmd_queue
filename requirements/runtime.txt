@@ -28,3 +28,6 @@ pint>=0.18      ;                            python_version >= '3.7'    # Python
 pint>=0.10      ; python_version < '3.7' and python_version >= '3.6'    # Python 3.6
 
 psutil>=5.9.1
+
+
+ruamel.yaml>=0.17.21
