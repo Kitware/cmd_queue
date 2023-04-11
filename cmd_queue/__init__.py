@@ -1,14 +1,13 @@
 r"""
 Simplify chaining of multiple shell commands
 
-
 Serves as a frontend for several DAG backends, including our own custom tmux
 queue. We also support slurm and will soon support airflow.
 
 Example:
     >>> # The available backends classmethod lets you know which backends
     >>> # your system has access to. The "serial" backend should always be
-    >>> # available. Everthing else requires some degree of setup (tmux
+    >>> # available. Everything else requires some degree of setup (tmux
     >>> # is the easiest, just install it, no configuration needed).
     >>> import cmd_queue
     >>> print(cmd_queue.Queue.available_backends())  # xdoctest: +IGNORE_WANT
@@ -85,7 +84,7 @@ Example:
     >>> #
     >>> # For the TMUX queue it boils down to writing a bash script for
     >>> # sessions that can run in parallel, and a bash script that submits
-    >>> # them as different sessions (note: locks exist but are ommitted here)
+    >>> # them as different sessions (note: locks exist but are omitted here)
     >>> tmux_queue = queue.change_backend('tmux', size=2)
     >>> tmux_queue.print_commands(style='plain', with_locks=0)
     # --- ...sh
