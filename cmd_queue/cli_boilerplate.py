@@ -137,7 +137,7 @@ class CMDQueueConfig(scfg.DataConfig):
         from cmd_queue.util.util_yaml import Yaml
         self.slurm_options = Yaml.coerce(self.slurm_options)
 
-    def create_queue(config):
+    def create_queue(config, **kwargs):
         import cmd_queue
         queuekw = {}
         if config.backend == 'slurm':
@@ -147,9 +147,11 @@ class CMDQueueConfig(scfg.DataConfig):
                 'size': config.tmux_workers,
             })
             ...
+        queuekw.update(kwargs)
+        if 'name' not in queuekw:
+            queuekw['name'] = config.queue_name
         queue = cmd_queue.Queue.create(
             backend=config.backend,
-            name=config.queue_name,
             **queuekw)
         if config.virtualenv_cmd:
             queue.add_header_command(config.virtualenv_cmd)
