@@ -137,7 +137,7 @@ class CMDQueueConfig(scfg.DataConfig):
 
     def __post_init__(self):
         from cmd_queue.util.util_yaml import Yaml
-        self.slurm_options = Yaml.coerce(self.slurm_options)
+        self.slurm_options = Yaml.coerce(self.slurm_options) or {}
 
     def create_queue(config, **kwargs):
         """
