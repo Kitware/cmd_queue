@@ -7,6 +7,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version 0.1.11 - Unreleased
 
+### Fixed
+* Issue with `slurm_options`
 
 ## Version 0.1.10 - Released 2023-04-11
 
