@@ -13,7 +13,7 @@ def test_failures_on_each_backend():
         job6 = self.submit('echo "job6 never runs"', depends=[job5])
         job7 = self.submit('echo "job7 never runs"', depends=[job4, job2])
         job8 = self.submit('echo "job8 never runs"', depends=[job4, job1])
-        self.rprint()
+        self.print_commands()
         self.run()
         self.read_state()
 

@@ -247,12 +247,26 @@ class SlurmJob(base_queue.Job):
         if self.mem:
             mem = _coerce_mem(self.mem)
             sbatch_args.append(f'--mem={mem}')
-        if self.gpus:
+        if self.gpus and 'gres' not in self._sbatch_kvargs:
+            ub.schedule_deprecation(
+                'cmd_queue', name='gres', type='argument',
+                migration=ub.paragraph(
+                    '''
+                    the handling of gres here is broken and will be changed in
+                    the future. For now specify gres explicitly in
+                    slurm_options or the kwargs for the queue.
+                    '''),
+                deprecate='now'
+            )
+            # NOTE: the handling of gres here is broken and will be changed in
+            # the future. For now specify gres explicitly in slurm_options
             def _coerce_gres(gpus):
                 if isinstance(gpus, str):
                     gres = gpus
                 elif isinstance(gpus, int):
                     gres = f'gpu:{gpus}'
+                elif isinstance(gpus, list):
+                    gres = 'gpu:0'  # hack
                 else:
                     raise TypeError(type(self.gpus))
                 return gres
@@ -453,7 +467,7 @@ class SlurmQueue(base_queue.Queue):
             new_order.append(job)
         return new_order
 
-    def finalize_text(self, exclude_tags=None):
+    def finalize_text(self, exclude_tags=None, **kwargs):
         exclude_tags = util_tags.Tags.coerce(exclude_tags)
         new_order = self.order_jobs()
         commands = []
@@ -568,10 +582,12 @@ class SlurmQueue(base_queue.Queue):
         # this
         return {}
 
-    def print_commands(self, with_status=False, with_rich=None, colors=1,
-                       exclude_tags=None, style='auto', **kw):
+    def print_commands(self, *args, **kwargs):
         r"""
         Print info about the commands, optionally with rich
+
+        CommandLine:
+            xdoctest -m cmd_queue.slurm_queue SlurmQueue.print_commands
 
         Example:
             >>> from cmd_queue.slurm_queue import *  # NOQA
@@ -583,31 +599,7 @@ class SlurmQueue(base_queue.Queue):
             >>> print('\n\n---\n\n')
             >>> self.print_commands(with_status=0, exclude_tags='boilerplate')
         """
-        # from rich.panel import Panel
-        # from rich.syntax import Syntax
-        # from rich.console import Console
-        # console = Console()
-
-        if with_rich is not None:
-            ub.schedule_deprecation(
-                'cmd_queue', 'with_rich', 'arg',
-                migration='use style="rich" instead')
-            if with_rich:
-                style = 'rich'
-        if style == 'auto':
-            style = 'colors' if colors else 'plain'
-
-        exclude_tags = util_tags.Tags.coerce(exclude_tags)
-        code = self.finalize_text(exclude_tags=exclude_tags)
-        if style in {'rich', 'colors'}:
-            # console.print(Panel(Syntax(code, 'bash'), title=str(self.fpath)))
-            print(ub.highlight_code(f'# --- {str(self.fpath)}', 'bash'))
-            print(ub.highlight_code(code, 'bash'))
-        elif style == 'plain':
-            print(f'# --- {str(self.fpath)}')
-            print(code)
-        else:
-            raise KeyError(f'Unknown style={style}')
+        return super().print_commands(*args, **kwargs)
 
     rprint = print_commands
 

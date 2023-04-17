@@ -81,7 +81,7 @@ class TMUXMultiQueue(base_queue.Queue):
         >>> from cmd_queue.tmux_queue import *  # NOQA
         >>> import random
         >>> rng = random.Random(54425367001)
-        >>> self = TMUXMultiQueue(1, 'real-world-usecase', gres=[0, 1])
+        >>> self = TMUXMultiQueue(1, 'real-world-usecase', gpus=[0, 1])
         >>> def add_edge(name, depends):
         >>>     if name is not None:
         >>>         _depends = [self.named_jobs[n] for n in depends if n is not None]
@@ -131,7 +131,7 @@ class TMUXMultiQueue(base_queue.Queue):
 
     Ignore:
         >>> from cmd_queue.tmux_queue import *  # NOQA
-        >>> self = TMUXMultiQueue(2, 'foo', gres=[0, 1])
+        >>> self = TMUXMultiQueue(2, 'foo', gpus=[0, 1])
         >>> job1 = self.submit('echo hello && sleep 0.5')
         >>> job2 = self.submit('echo hello && sleep 0.5')
         >>> self.print_commands()
@@ -196,7 +196,7 @@ class TMUXMultiQueue(base_queue.Queue):
         >>>     self.run(with_textual=False, check_other_sessions=0)
     """
     def __init__(self, size=1, name=None, dpath=None, rootid=None, environ=None,
-                 gres=None):
+                 gpus=None, gres=None):
         super().__init__()
 
         if rootid is None:
@@ -218,7 +218,12 @@ class TMUXMultiQueue(base_queue.Queue):
         self.size = size
         self.environ = environ
         self.fpath = self.dpath / f'run_queues_{self.name}.sh'
-        self.gres = gres
+
+        if gpus is None and gres is not None:
+            gpus = gres
+
+        self.gpus = gpus
+
         self.cmd_verbose = 2
 
         self.jobs = []
@@ -239,13 +244,13 @@ class TMUXMultiQueue(base_queue.Queue):
     def _new_workers(self, start=0):
         import itertools as it
         per_worker_environs = [self.environ] * self.size
-        if self.gres:
+        if self.gpus:
             # TODO: more sophisticated GPU policy?
             per_worker_environs = [
                 ub.dict_union(e, {
                     'CUDA_VISIBLE_DEVICES': str(cvd),
                 })
-                for cvd, e in zip(it.cycle(self.gres), per_worker_environs)
+                for cvd, e in zip(it.cycle(self.gpus), per_worker_environs)
             ]
 
         workers = [
@@ -552,7 +557,7 @@ class TMUXMultiQueue(base_queue.Queue):
         """
         self.header_commands.append(command)
 
-    def finalize_text(self):
+    def finalize_text(self, **kwargs):
         self.order_jobs()
         # Create a driver script
         driver_lines = [ub.codeblock(
@@ -878,11 +883,12 @@ class TMUXMultiQueue(base_queue.Queue):
             )
         return table, finished, agg_state
 
-    def print_commands(self, with_status=False, with_gaurds=False,
-                       with_rich=None, with_locks=1, colors=1,
-                       exclude_tags=None, style='auto', **kw):
+    def print_commands(self, *args, **kwargs):
         r"""
         Print info about the commands, optionally with rich
+
+        CommandLine:
+            xdoctest -m cmd_queue.tmux_queue TMUXMultiQueue.print_commands
 
         Example:
             >>> from cmd_queue.tmux_queue import *  # NOQA
@@ -905,36 +911,12 @@ class TMUXMultiQueue(base_queue.Queue):
             >>> self.print_commands(with_status=0, with_gaurds=0, with_locks=0, style='rich')
             >>> print('\n\n---\n\n')
             >>> self.print_commands(with_status=0, with_gaurds=0, with_locks=0,
-            ...             style='rich', exclude_tags='boilerplate')
+            ...             style='auto', exclude_tags='boilerplate')
         """
-        from rich.panel import Panel
-        from rich.syntax import Syntax
-        from rich.console import Console
         self.order_jobs()
-        console = Console()
-
-        style = self._coerce_style(style, with_rich, colors)
-
-        exclude_tags = util_tags.Tags.coerce(exclude_tags)
         for queue in self.workers:
-            queue.print_commands(with_status=with_status,
-                                 with_gaurds=with_gaurds,
-                                 with_locks=with_locks, style=style,
-                                 exclude_tags=exclude_tags)
-
-        code = self.finalize_text()
-        if style == 'rich':
-            console.print(Panel(Syntax(code, 'bash'), title=str(self.fpath)))
-        elif style == 'colors':
-            print(ub.highlight_code('# --- ' + str(self.fpath), 'bash'))
-            print(ub.highlight_code(code, 'bash'))
-        elif style == 'plain':
-            print('# --- ' + str(self.fpath))
-            print(code)
-        else:
-            raise KeyError(f'Unknown style={style}')
-
-    rprint = print_commands
+            queue.print_commands(*args, **kwargs)
+        super().print_commands(*args, **kwargs)
 
     def current_output(self):
         for queue in self.workers:

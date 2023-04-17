@@ -72,6 +72,9 @@ class BashJob(base_queue.Job):
               wrap the job with some sort of negation, so we depend on the
               negation of the job?
 
+    CommandLine:
+        xdoctest -m cmd_queue.serial_queue BashJob
+
     Example:
         >>> from cmd_queue.serial_queue import *  # NOQA
         >>> # Demo full boilerplate for a job with no dependencies
@@ -110,7 +113,7 @@ class BashJob(base_queue.Job):
         self.allow_indent = allow_indent
 
     def finalize_text(self, with_status=True, with_gaurds=True,
-                      conditionals=None):
+                      conditionals=None, **kwargs):
         script = []
         prefix_script = []
         suffix_script = []
@@ -262,9 +265,12 @@ class BashJob(base_queue.Job):
         return text
 
     def print_commands(self, with_status=False, with_gaurds=False,
-                       with_rich=None, colors=1, style='auto', **kwargs):
+                       with_rich=None, style='colors', **kwargs):
         r"""
         Print info about the commands, optionally with rich
+
+        CommandLine:
+            xdoctest -m cmd_queue.serial_queue BashJob.print_commands
 
         Example:
             >>> from cmd_queue.serial_queue import *  # NOQA
@@ -278,7 +284,7 @@ class BashJob(base_queue.Job):
             >>> print('\n\n---\n\n')
             >>> self.print_commands(with_status=0, with_gaurds=0, style='rich')
         """
-        style = base_queue.Queue._coerce_style(self, style, with_rich, colors)
+        style = base_queue.Queue._coerce_style(self, style, with_rich)
 
         code = self.finalize_text(with_status=with_status,
                                   with_gaurds=with_gaurds, **kwargs)
@@ -293,8 +299,6 @@ class BashJob(base_queue.Job):
             print(code)
         else:
             raise KeyError(f'Unknown style={style}')
-
-    rprint = print_commands
 
 
 class SerialQueue(base_queue.Queue):
@@ -546,11 +550,12 @@ class SerialQueue(base_queue.Queue):
     def add_header_command(self, command):
         self.header_commands.append(command)
 
-    def print_commands(self, with_status=False, with_gaurds=False,
-                       with_rich=None, colors=1, with_locks=True,
-                       exclude_tags=None, style='auto'):
+    def print_commands(self, *args, **kwargs):
         r"""
         Print info about the commands, optionally with rich
+
+        CommandLine:
+            xdoctest -m cmd_queue.serial_queue SerialQueue.print_commands
 
         Example:
             >>> from cmd_queue.serial_queue import *  # NOQA
@@ -562,31 +567,35 @@ class SerialQueue(base_queue.Queue):
             >>> print('\n\n---\n\n')
             >>> self.print_commands(with_status=0, exclude_tags='boilerplate')
         """
-        style = self._coerce_style(style, with_rich, colors)
+        return super().print_commands(*args, **kwargs)
+        # (self, with_status=False, with_gaurds=False,
+        #                with_rich=None, colors=1, with_locks=True,
+        #                exclude_tags=None, style='auto'):
+        # style = self._coerce_style(style, with_rich, colors)
 
-        exclude_tags = util_tags.Tags.coerce(exclude_tags)
-        code = self.finalize_text(with_status=with_status,
-                                  with_gaurds=with_gaurds,
-                                  with_locks=with_locks,
-                                  exclude_tags=exclude_tags)
+        # exclude_tags = util_tags.Tags.coerce(exclude_tags)
+        # code = self.finalize_text(with_status=with_status,
+        #                           with_gaurds=with_gaurds,
+        #                           with_locks=with_locks,
+        #                           exclude_tags=exclude_tags)
 
-        if style == 'rich':
-            from rich.panel import Panel
-            from rich.syntax import Syntax
-            from rich.console import Console
-            console = Console()
-            console.print(Panel(Syntax(code, 'bash'), title=str(self.fpath)))
-            # console.print(Syntax(code, 'bash'))
-        elif style == 'colors':
-            header = f'# --- {str(self.fpath)}'
-            print(ub.highlight_code(header, 'bash'))
-            print(ub.highlight_code(code, 'bash'))
-        elif style == 'plain':
-            header = f'# --- {str(self.fpath)}'
-            print(header)
-            print(code)
-        else:
-            raise KeyError(f'Unknown style={style}')
+        # if style == 'rich':
+        #     from rich.panel import Panel
+        #     from rich.syntax import Syntax
+        #     from rich.console import Console
+        #     console = Console()
+        #     console.print(Panel(Syntax(code, 'bash'), title=str(self.fpath)))
+        #     # console.print(Syntax(code, 'bash'))
+        # elif style == 'colors':
+        #     header = f'# --- {str(self.fpath)}'
+        #     print(ub.highlight_code(header, 'bash'))
+        #     print(ub.highlight_code(code, 'bash'))
+        # elif style == 'plain':
+        #     header = f'# --- {str(self.fpath)}'
+        #     print(header)
+        #     print(code)
+        # else:
+        #     raise KeyError(f'Unknown style={style}')
 
     rprint = print_commands
 

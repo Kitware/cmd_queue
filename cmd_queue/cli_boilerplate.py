@@ -167,13 +167,16 @@ class CMDQueueConfig(scfg.DataConfig):
             queue.add_header_command(config.virtualenv_cmd)
         return queue
 
-    def run_queue(config, queue):
+    def run_queue(config, queue, print_kwargs=None):
         """
         Execute a queue with options based on this config.
 
         Args:
-            cmd_queue.Queue
+            queue (cmd_queue.Queue): queue to run / report
+            print_kwargs (None | Dict):
         """
+        import cmd_queue
+        queue: cmd_queue.Queue
         print_thresh = 30
         if config['print_commands'] == 'auto':
             if len(queue) < print_thresh:
@@ -192,7 +195,9 @@ class CMDQueueConfig(scfg.DataConfig):
                 config['print_queue'] = 0
 
         if config.print_commands:
-            queue.print_commands()
+            if print_kwargs is None:
+                print_kwargs = {}
+            queue.print_commands(**print_kwargs)
 
         if config.print_queue:
             queue.print_graph()

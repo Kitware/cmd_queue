@@ -142,7 +142,7 @@ def main(cmdline=1, **kwargs):
 
     elif config['action'] == 'show':
         queue = build_queue(cli_queue_fpath, config)
-        queue.rprint()
+        queue.print_commands()
         queue.print_graph()
 
     elif config['action'] == 'run':
