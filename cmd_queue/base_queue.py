@@ -199,7 +199,7 @@ class Queue(ub.NiceRepr):
                 environ (dict | None): environment variables
                 name (str): queue name
                 dpath (str): queue work directory
-                gres (int): number of gpus
+                gpus (int): number of gpus
                 size (int): only for tmux queue, number of parallel queues
         """
         if backend == 'serial':
@@ -249,6 +249,85 @@ class Queue(ub.NiceRepr):
         else:
             print_('\nGraph:')
             write_network_text(graph, path=print_, end='')
+
+    def print_commands(self,
+                       with_status=False,
+                       with_gaurds=False,
+                       with_locks=1,
+                       exclude_tags=None,
+                       style='colors',
+                       **kwargs):
+        """
+        Args:
+            with_status (bool):
+                tmux / serial only, show bash status boilerplate
+
+            with_gaurds (bool):
+                tmux / serial only, show bash guards boilerplate
+
+            with_locks (bool):
+                tmux, show tmux lock boilerplate
+
+            exclude_tags (List[str] | None):
+                if specified exclude jobs submitted with these tags.
+
+            style (str):
+                can be 'colors', 'rich', or 'plain'
+
+            **kwargs: extra backend-specific args passed to finalize_text
+
+        CommandLine:
+            xdoctest -m cmd_queue.slurm_queue SlurmQueue.print_commands
+            xdoctest -m cmd_queue.serial_queue SerialQueue.print_commands
+            xdoctest -m cmd_queue.tmux_queue TMUXMultiQueue.print_commands
+        """
+        colors = kwargs.get('colors', None)
+        if colors is not None:
+            ub.schedule_deprecation(
+                'cmd_queue', 'colors', 'arg',
+                migration='use style="plain" | "rich" | "colors" instead',
+                deprecate='now')
+            if not colors:
+                style = 'plain'
+        with_rich = kwargs.get('with_rich', None)
+        if with_rich is not None:
+            ub.schedule_deprecation(
+                'cmd_queue', 'with_rich', 'arg',
+                migration='use style="rich" instead', deprecate='now')
+            if with_rich:
+                style = 'rich'
+        if style == 'auto':
+            style = 'colors' if colors else 'plain'
+            # style = 'rich' if colors else 'plain'
+
+        from cmd_queue.util import util_tags
+        exclude_tags = util_tags.Tags.coerce(exclude_tags)
+        code = self.finalize_text(
+            with_status=with_status,
+            with_gaurds=with_gaurds,
+            with_locks=with_locks,
+            exclude_tags=exclude_tags)
+        if style == 'rich':
+            from rich.syntax import Syntax
+            from rich.panel import Panel
+            from rich.console import Console
+            console = Console()
+            console.print(Panel(Syntax(code, 'bash'), title=str(self.fpath)))
+        elif style == 'colors':
+            print(ub.highlight_code(f'# --- {str(self.fpath)}', 'bash'))
+            print(ub.highlight_code(code, 'bash'))
+        elif style == 'plain':
+            print(f'# --- {str(self.fpath)}')
+            print(code)
+        else:
+            raise KeyError(f'Unknown style={style}')
+
+    def rprint(self, **kwargs):
+        ub.schedule_deprecation(
+            'cmd_queue', name='rprint', type='arg',
+            migration='print_commands',
+        )
+        self.print_commands(**kwargs)
 
     def print_graph(self, reduced=True):
         """
