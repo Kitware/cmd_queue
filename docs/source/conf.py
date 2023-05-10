@@ -45,7 +45,7 @@ Notes:
         For gitlab you also need to setup an integrations and add gitlab
         incoming webhook
 
-            https://readthedocs.org/dashboard/cmd_queue/integrations/create/
+            https://readthedocs.org/dashboard/cmd-queue/integrations/create/
 
         Then go to
 
@@ -58,7 +58,7 @@ Notes:
         See Docs for more details https://docs.readthedocs.io/en/stable/integrations.html
 
         Will also need to activate the main branch:
-            https://readthedocs.org/projects/cmd_queue/versions/
+            https://readthedocs.org/projects/cmd-queue/versions/
 """
 #
 # Configuration file for the Sphinx documentation builder.

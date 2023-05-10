@@ -431,8 +431,8 @@ functional or tested (contributions to make airflow work / easier are wanted!).
 .. |Downloads| image:: https://img.shields.io/pypi/dm/cmd_queue.svg
    :target: https://pypistats.org/packages/cmd_queue
 
-.. |ReadTheDocs| image:: https://readthedocs.org/projects/cmd_queue/badge/?version=release
-    :target: https://cmd_queue.readthedocs.io/en/release/
+.. |ReadTheDocs| image:: https://readthedocs.org/projects/cmd-queue/badge/?version=release
+    :target: https://cmd-queue.readthedocs.io/en/release/
 
 .. # See: https://ci.appveyor.com/project/jon.crall/cmd_queue/settings/badges
 .. |Appveyor| image:: https://ci.appveyor.com/api/projects/status/py3s2d6tyfjc8lm3/branch/master?svg=true
