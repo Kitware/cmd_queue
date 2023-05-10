@@ -1,7 +1,7 @@
 Command Queue - cmd_queue
 =========================
 
-.. .. |GitlabCIPipeline| |GitlabCICoverage| |Appveyor| |Codecov| 
+.. .. |GitlabCIPipeline| |GitlabCICoverage| |Appveyor| |Codecov|
 
 |Pypi| |Downloads| |ReadTheDocs|
 
@@ -24,13 +24,13 @@ jobs (in parallel if possible) on a single machine. There are 3 backends with
 increasing levels of complexity: serial, tmux, and slurm.
 
 In serial mode, a single bash script gets written that executes your jobs in
-sequence. There are no external dependencies 
+sequence. There are no external dependencies
 
 In tmux mode, multiple tmux sessions get opened and each of them executes your
 independent parts of your jobs. Dependencies are handled.
 
 In slurm mode, a real heavy-weight scheduling algorithm is used. In this mode
-we simply convert your jobs to slurm commands and execute them. 
+we simply convert your jobs to slurm commands and execute them.
 
 Under the hood we build a DAG based on your specified dependencies and use this
 to appropriately order jobs.
@@ -39,15 +39,32 @@ By default, bash scripts that would execute your jobs print to the console.
 This gives the user fine-grained control if they only want to run a subset of a
 pipeline manually. But if asked to run, cmd_queue will execute the bash jobs.
 
+Features
+~~~~~~~~
+
+* Bash command scheduling
+
+* Execution is optional, can just print commands instead
+
+* No-parallelism always-available serial backend
+
+* Tmux based lightweight backend
+
+* Slurm based heavyweight backend
+
+* Python and Bash interface
+
+* Rich monitoring / live-control
+
 
 Tmux Queue Demo
 ===============
 
 After installing, the following command runs a demo of the tmux queue:
 
-.. code:: bash 
+.. code:: bash
 
-   # Reproduce the 
+   # Reproduce the
    INTERACTIVE_TEST=1 xdoctest -m cmd_queue.tmux_queue TMUXMultiQueue.monitor:1
 
 
@@ -75,7 +92,7 @@ submits several bash jobs with non-trivial dependencies.
     self.print_graph()
     if self.is_available():
         self.run(block=True, other_session_handler='kill')
-   
+
 
 When running the ``print_commands`` command will first display all of the submitted
 commands that will be distributed across multiple new tmux sessions. These are
@@ -109,7 +126,7 @@ While this is running it is possible to simply attach to a tmux sessions (e.g.
 using ``<ctrl-b>s`` inside of a tmux session to view and navigate through the
 tmux sessions). Unlike the slurm backend, the entire execution of the DAG is
 entirely transparent to the developer! The following screenshot shows the tmux
-sessions spawned while running this demo. 
+sessions spawned while running this demo.
 
 .. .. Screenshot of the tmux sessions
 .. image:: https://i.imgur.com/46LRK8M.png
@@ -181,7 +198,7 @@ use cmd_queue to "transpile" these sequences of commands to pure bash.
    self.print_commands()
 
    # Display the real bash that gets executed under the hood
-   # that is independencly executable, tracks the success / failure of each job, 
+   # that is independencly executable, tracks the success / failure of each job,
    # and manages dependencies.
    self.print_commands(1, 1)
 
@@ -190,7 +207,7 @@ use cmd_queue to "transpile" these sequences of commands to pure bash.
    self.run(block=True)
 
 
-This prints the bash commands in an appropriate order to resolve dependencies. 
+This prints the bash commands in an appropriate order to resolve dependencies.
 
 
 .. code:: bash
@@ -230,7 +247,7 @@ This prints the bash commands in an appropriate order to resolve dependencies.
     #
     ### Command 10 / 10 - demo_queue-job-9
     echo bazbiz && sleep 0.5
-       
+
 
 
 .. code:: python
@@ -253,7 +270,7 @@ This prints the bash commands in an appropriate order to resolve dependencies.
    self.print_commands()
 
    # Display the real bash that gets executed under the hood
-   # that is independencly executable, tracks the success / failure of each job, 
+   # that is independencly executable, tracks the success / failure of each job,
    # and manages dependencies.
    self.print_commands(1, 1)
 
@@ -262,8 +279,8 @@ This prints the bash commands in an appropriate order to resolve dependencies.
    self.run(block=True)
 
 
-This prints the sequence of bash commands that will be executed in each tmux session. 
- 
+This prints the sequence of bash commands that will be executed in each tmux session.
+
 .. code:: bash
 
     # --- /home/joncrall/.cache/base_queue/demo_queue_2022-04-08_a1ef7600/queue_demo_queue_0_2022-04-08_a1ef7600.sh
@@ -357,7 +374,7 @@ options here
    self.print_commands()
 
    # Display the real bash that gets executed under the hood
-   # that is independencly executable, tracks the success / failure of each job, 
+   # that is independencly executable, tracks the success / failure of each job,
    # and manages dependencies.
    self.print_commands(1, 1)
 
@@ -367,7 +384,7 @@ options here
 
 
 This prints the very simple slurm submission script:
- 
+
 .. code:: bash
 
     # --- /home/joncrall/.cache/slurm_queue/demo_queue-20220408T170615-a9e238b5/demo_queue-20220408T170615-a9e238b5.sh
@@ -389,8 +406,8 @@ This prints the very simple slurm submission script:
 Installation
 ============
 
-The cmd_queue package is available on pypi. 
- 
+The cmd_queue package is available on pypi.
+
 .. code:: bash
 
     pip install cmd_queue
@@ -398,14 +415,14 @@ The cmd_queue package is available on pypi.
 The serial queue backend will always work. To gain access other backends you
 must install their associated dependencies. The tmux backend is the easiest and
 simply requires that tmux is installed (e.g. ``sudo apt install tmux`` on
-Debian systems). 
+Debian systems).
 
 Other backends require more complex setups. The slurm backend will require that
 slurm is installed and the daemon is running. The slurm backend is functional
 and tested, but improvements can still be made (help wanted). The airflow
 backend similarly requires a configured airflow server, but is not fully
 functional or tested (contributions to make airflow work / easier are wanted!).
-   
+
 
 
 .. |Pypi| image:: https://img.shields.io/pypi/v/cmd_queue.svg
