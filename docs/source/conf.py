@@ -105,8 +105,8 @@ def parse_version(fpath):
     return visitor.version
 
 project = 'cmd_queue'
-copyright = '2023, ['Kitware Inc.', 'Jon Crall']'
-author = '['Kitware Inc.', 'Jon Crall']'
+copyright = '2023, Kitware Inc. Jon Crall'
+author = 'Kitware Inc. Jon Crall'
 modname = 'cmd_queue'
 
 modpath = join(dirname(dirname(dirname(__file__))), modname, '__init__.py')
@@ -267,7 +267,7 @@ latex_elements = {
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
     (master_doc, 'cmd_queue.tex', 'cmd_queue Documentation',
-     '['Kitware Inc.', 'Jon Crall']', 'manual'),
+     'Kitware Inc. Jon Crall', 'manual'),
 ]
 
 
