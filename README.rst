@@ -6,8 +6,6 @@ Command Queue - cmd_queue
 |Pypi| |Downloads| |ReadTheDocs|
 
 
-.. The ``cmd_queue`` module.
-
 +------------------+-------------------------------------------------------------------------------------+
 | Read the docs    | https://cmd_queue.readthedocs.io                                                    |
 +------------------+-------------------------------------------------------------------------------------+
@@ -128,8 +126,8 @@ command templating is correct before the queue is executed with ``run``.
    :align: left
 
 
-The ``print_graph`` command will render the DAG to be executed using `network
-text <https://github.com/networkx/networkx/pull/5602>`_.
+The ``print_graph`` command will render the DAG to be executed using
+`network text <https://networkx.org/documentation/stable/reference/readwrite/generated/networkx.readwrite.text.write_network_text.html#networkx.readwrite.text.write_network_text>`_.
 And finally ``run`` is called with ``block=True``, which starts executing the
 DAG and displays progress and job status in rich or textual monitor.
 
