@@ -131,7 +131,7 @@ class CMDQueueConfig(scfg.DataConfig):
         Command to start the appropriate virtual environment if your bashrc
         does not start it by default.'''), group='cmd-queue')
 
-    tmux_workers = scfg.Value(4, help='number of tmux workers in the queue for the tmux backend', group='cmd-queue')
+    tmux_workers = scfg.Value(8, help='number of tmux workers in the queue for the tmux backend', group='cmd-queue')
 
     slurm_options = scfg.Value(None, help='if the backend is slurm, provide a YAML dictionary for things like partition / etc...', group='cmd-queue')
 

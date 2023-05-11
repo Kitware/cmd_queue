@@ -54,7 +54,6 @@ import uuid
 
 from cmd_queue import base_queue
 from cmd_queue import serial_queue
-from cmd_queue.util import util_tags
 from cmd_queue.util.util_tmux import tmux
 
 
