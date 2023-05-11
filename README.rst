@@ -6,12 +6,10 @@ Command Queue - cmd_queue
 |Pypi| |Downloads| |ReadTheDocs|
 
 
-.. The ``cmd_queue`` module.
-
 +------------------+-------------------------------------------------------------------------------------+
 | Read the docs    | https://cmd_queue.readthedocs.io                                                    |
 +------------------+-------------------------------------------------------------------------------------+
-| Github           | https://github.com/Erotemic/cmd_queue                                               |
+| Gitlab           | https://gitlab.kitware.com/computer-vision/cmd_queue                                |
 +------------------+-------------------------------------------------------------------------------------+
 | Pypi             | https://pypi.org/project/cmd_queue                                                  |
 +------------------+-------------------------------------------------------------------------------------+
@@ -55,6 +53,28 @@ Features
 * Python and Bash interface
 
 * Rich monitoring / live-control
+
+
+Installation
+============
+
+The cmd_queue package is available on pypi.
+
+.. code:: bash
+
+    pip install cmd_queue
+
+The serial queue backend will always work. To gain access other backends you
+must install their associated dependencies. The tmux backend is the easiest and
+simply requires that tmux is installed (e.g. ``sudo apt install tmux`` on
+Debian systems).
+
+Other backends require more complex setups. The slurm backend will require that
+`slurm is installed <https://slurm.schedmd.com/quickstart_admin.html>`_ and the
+daemon is running. The slurm backend is functional and tested, but improvements
+can still be made (help wanted). The airflow backend similarly requires a
+configured airflow server, but is not fully functional or tested (contributions
+to make airflow work / easier are wanted!).
 
 
 Tmux Queue Demo
@@ -106,8 +126,8 @@ command templating is correct before the queue is executed with ``run``.
    :align: left
 
 
-The ``print_graph`` command will render the DAG to be executed using `network
-text <https://github.com/networkx/networkx/pull/5602>`_.
+The ``print_graph`` command will render the DAG to be executed using
+`network text <https://networkx.org/documentation/stable/reference/readwrite/generated/networkx.readwrite.text.write_network_text.html#networkx.readwrite.text.write_network_text>`_.
 And finally ``run`` is called with ``block=True``, which starts executing the
 DAG and displays progress and job status in rich or textual monitor.
 
@@ -400,28 +420,6 @@ This prints the very simple slurm submission script:
     JOB_007=$(sbatch --job-name="J0004-demo_queue-20220408T170615-a9e238b5" --output="/home/joncrall/.cache/slurm_queue/demo_queue-20220408T170615-a9e238b5/logs/J0004-demo_queue-20220408T170615-a9e238b5.sh" --wrap 'echo spam && sleep 0.5' "--dependency=afterok:${JOB_000}" --parsable)
     JOB_008=$(sbatch --job-name="J0008-demo_queue-20220408T170615-a9e238b5" --output="/home/joncrall/.cache/slurm_queue/demo_queue-20220408T170615-a9e238b5/logs/J0008-demo_queue-20220408T170615-a9e238b5.sh" --wrap 'echo eggs && sleep 0.5' "--dependency=afterok:${JOB_005}" --parsable)
     JOB_009=$(sbatch --job-name="J0009-demo_queue-20220408T170615-a9e238b5" --output="/home/joncrall/.cache/slurm_queue/demo_queue-20220408T170615-a9e238b5/logs/J0009-demo_queue-20220408T170615-a9e238b5.sh" --wrap 'echo bazbiz && sleep 0.5' "--dependency=afterok:${JOB_008}" --parsable)
-
-
-
-Installation
-============
-
-The cmd_queue package is available on pypi.
-
-.. code:: bash
-
-    pip install cmd_queue
-
-The serial queue backend will always work. To gain access other backends you
-must install their associated dependencies. The tmux backend is the easiest and
-simply requires that tmux is installed (e.g. ``sudo apt install tmux`` on
-Debian systems).
-
-Other backends require more complex setups. The slurm backend will require that
-slurm is installed and the daemon is running. The slurm backend is functional
-and tested, but improvements can still be made (help wanted). The airflow
-backend similarly requires a configured airflow server, but is not fully
-functional or tested (contributions to make airflow work / easier are wanted!).
 
 
 
