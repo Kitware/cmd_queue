@@ -5,3 +5,4 @@ cmd\_queue.airflow\_queue module
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:

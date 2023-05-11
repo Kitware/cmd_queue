@@ -1,8 +1,16 @@
 r"""
-Simplify chaining of multiple shell commands
+The cmd_queue module is a tool that lets users define a DAG of bash commands.
+This DAG can be executed in a lightweight tmux backend, or a heavyweight slurm
+backend, or in simple serial mode that runs in the foreground thread. Rich
+provides monitoring / live control. For more information see the gitlab
+`README <https://gitlab.kitware.com/computer-vision/cmd_queue>`_.
+There is also a
+`Google slides presentation <https://docs.google.com/presentation/d/1BjJkjMx6bxu1uek-hAGpwj760u9rraVn7st8J5OsZME>`_
+that gives a high level overview.
 
-Serves as a frontend for several DAG backends, including our own custom tmux
-queue. We also support slurm and will soon support airflow.
+The following examples show how to use the cmd_queue API in Python. For
+examples of the Bash API see: :mod:`cmd_queue.__main__`.
+
 
 Example:
     >>> # The available backends classmethod lets you know which backends

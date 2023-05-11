@@ -5,3 +5,4 @@ cmd\_queue.util.util\_networkx module
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:

@@ -5,3 +5,4 @@ cmd\_queue.util.texter module
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:

@@ -16,7 +16,7 @@ Notes:
 
     # need to edit the conf.py
     cd ~/code/cmd_queue/docs
-    sphinx-apidoc -f -o ~/code/cmd_queue/docs/source ~/code/cmd_queue/cmd_queue --separate
+    sphinx-apidoc --private -f -o ~/code/cmd_queue/docs/source ~/code/cmd_queue/cmd_queue --separate
     make html
 
     Also:

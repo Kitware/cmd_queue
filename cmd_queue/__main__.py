@@ -1,5 +1,15 @@
 #!/usr/bin/env python3
 # PYTHON_ARGCOMPLETE_OK
+"""
+This is the main script for the cmd_queue CLI. The :class:`CmdQueueConfig`
+defines the available options and its docstring provides a quick tutorial.
+For help run:
+
+.. code:: bash
+
+    cmd_queue --help
+
+"""
 import scriptconfig as scfg
 import ubelt as ub
 
@@ -12,13 +22,12 @@ class CmdQueueConfig(scfg.DataConfig):
     Most behaviors are related to creating and submitting custom queues.
 
     The ``cleanup`` action is for helping to manage the tmux backend, maingly
-    killing session names that start with "cmdq_".
+    killing session names that start with ``"cmdq_"``.
 
-    Example:
+    Step 1:  Initialize a new queue
+    ###############################
 
-        #################################
-        # Step 1:  Initialize a new queue
-        #################################
+    .. code:: bash
 
         cmd_queue new "my_cli_queue"
 
@@ -32,9 +41,10 @@ class CmdQueueConfig(scfg.DataConfig):
         # e.g. for pyenv
         cmd_queue new "my_cli_queue" --header="pyenv shell 3.11.0 && source $PYENV_ROOT/versions/3.11.0/envs/pyenv3.11.0/bin/activate"
 
-        #################################
-        # Step 2:  Initialize a new queue
-        #################################
+    Step 2:  Initialize a new queue
+    ###############################
+
+    .. code:: bash
 
         cmd_queue submit "my_cli_queue" --  echo hello world
         cmd_queue submit "my_cli_queue" --  echo "hello world"
@@ -45,14 +55,17 @@ class CmdQueueConfig(scfg.DataConfig):
         cmd_queue submit "my_cli_queue" -- 'cowsay MOOOOOO && sleep 3'
         cmd_queue submit "my_cli_queue" -- 'cowsay MOOOOOOOO && sleep 4'
 
-        #################################
-        # Step 3:  Inspect your commands before you run
-        #################################
+    Step 3:  Inspect your commands before you run
+    #############################################
+
+    .. code:: bash
+
         cmd_queue show "my_cli_queue"
 
-        #################################
-        # Step 4:  Run your commands
-        #################################
+    Step 4:  Run your commands
+    ##########################
+
+    .. code:: bash
 
         # Run using the serial backend
         cmd_queue run "my_cli_queue" --backend=serial
@@ -60,9 +73,10 @@ class CmdQueueConfig(scfg.DataConfig):
         # Run using the tmux backend
         cmd_queue run "my_cli_queue" --backend=tmux --workers=2
 
-        #################################
-        # Extra: other features
-        #################################
+    Extra: other features
+    #####################
+
+    .. code:: bash
 
         # List all the known queues you've created
         cmd_queue list
@@ -99,7 +113,7 @@ class CmdQueueConfig(scfg.DataConfig):
         '''
     ))
 
-    def normalize(config):
+    def __post_init__(config):
         if config['dpath'] == 'auto':
             config['dpath'] = str(ub.Path.appdir('cmd_queue/cli'))
 
@@ -109,8 +123,7 @@ def main(cmdline=1, **kwargs):
     Example:
         >>> # xdoctest: +SKIP
         >>> cmdline = 0
-        >>> kwargs = dict(
-        >>> )
+        >>> kwargs = dict()
         >>> main(cmdline=cmdline, **kwargs)
     """
     import json

@@ -5,3 +5,4 @@ cmd\_queue.monitor\_app module
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:

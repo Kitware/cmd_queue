@@ -1,7 +1,7 @@
-cmd\_queue.slurm\_queue module
+cmd\_queue.\_\_main\_\_ module
 ==============================
 
-.. automodule:: cmd_queue.slurm_queue
+.. automodule:: cmd_queue.__main__
    :members:
    :undoc-members:
    :show-inheritance:

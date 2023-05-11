@@ -15,6 +15,7 @@ Submodules
 .. toctree::
    :maxdepth: 4
 
+   cmd_queue.__main__
    cmd_queue.airflow_queue
    cmd_queue.base_queue
    cmd_queue.cli_boilerplate
@@ -30,3 +31,4 @@ Module contents
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:

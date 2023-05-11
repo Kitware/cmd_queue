@@ -5,3 +5,4 @@ cmd\_queue.util.richer module
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:

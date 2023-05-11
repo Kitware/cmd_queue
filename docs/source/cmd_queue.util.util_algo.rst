@@ -5,3 +5,4 @@ cmd\_queue.util.util\_algo module
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:

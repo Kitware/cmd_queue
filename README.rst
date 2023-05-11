@@ -57,6 +57,28 @@ Features
 * Rich monitoring / live-control
 
 
+Installation
+============
+
+The cmd_queue package is available on pypi.
+
+.. code:: bash
+
+    pip install cmd_queue
+
+The serial queue backend will always work. To gain access other backends you
+must install their associated dependencies. The tmux backend is the easiest and
+simply requires that tmux is installed (e.g. ``sudo apt install tmux`` on
+Debian systems).
+
+Other backends require more complex setups. The slurm backend will require that
+`slurm is installed <https://slurm.schedmd.com/quickstart_admin.html>`_ and the
+daemon is running. The slurm backend is functional and tested, but improvements
+can still be made (help wanted). The airflow backend similarly requires a
+configured airflow server, but is not fully functional or tested (contributions
+to make airflow work / easier are wanted!).
+
+
 Tmux Queue Demo
 ===============
 
@@ -400,28 +422,6 @@ This prints the very simple slurm submission script:
     JOB_007=$(sbatch --job-name="J0004-demo_queue-20220408T170615-a9e238b5" --output="/home/joncrall/.cache/slurm_queue/demo_queue-20220408T170615-a9e238b5/logs/J0004-demo_queue-20220408T170615-a9e238b5.sh" --wrap 'echo spam && sleep 0.5' "--dependency=afterok:${JOB_000}" --parsable)
     JOB_008=$(sbatch --job-name="J0008-demo_queue-20220408T170615-a9e238b5" --output="/home/joncrall/.cache/slurm_queue/demo_queue-20220408T170615-a9e238b5/logs/J0008-demo_queue-20220408T170615-a9e238b5.sh" --wrap 'echo eggs && sleep 0.5' "--dependency=afterok:${JOB_005}" --parsable)
     JOB_009=$(sbatch --job-name="J0009-demo_queue-20220408T170615-a9e238b5" --output="/home/joncrall/.cache/slurm_queue/demo_queue-20220408T170615-a9e238b5/logs/J0009-demo_queue-20220408T170615-a9e238b5.sh" --wrap 'echo bazbiz && sleep 0.5' "--dependency=afterok:${JOB_008}" --parsable)
-
-
-
-Installation
-============
-
-The cmd_queue package is available on pypi.
-
-.. code:: bash
-
-    pip install cmd_queue
-
-The serial queue backend will always work. To gain access other backends you
-must install their associated dependencies. The tmux backend is the easiest and
-simply requires that tmux is installed (e.g. ``sudo apt install tmux`` on
-Debian systems).
-
-Other backends require more complex setups. The slurm backend will require that
-slurm is installed and the daemon is running. The slurm backend is functional
-and tested, but improvements can still be made (help wanted). The airflow
-backend similarly requires a configured airflow server, but is not fully
-functional or tested (contributions to make airflow work / easier are wanted!).
 
 
 

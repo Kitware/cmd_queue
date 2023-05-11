@@ -5,3 +5,4 @@ cmd\_queue.util.textual\_extensions module
    :members:
    :undoc-members:
    :show-inheritance:
+   :private-members:
