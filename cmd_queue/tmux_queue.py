@@ -214,6 +214,8 @@ class TMUXMultiQueue(base_queue.Queue):
 
         # Note: size can be changed as long as it happens before the queue is
         # written and run.
+        if size <= 0:
+            raise ValueError(f'tmux queue size must be positive got {size=}')
         self.size = size
         self.environ = environ
         self.fpath = self.dpath / f'run_queues_{self.name}.sh'

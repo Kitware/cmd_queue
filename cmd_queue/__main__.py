@@ -107,6 +107,8 @@ class CmdQueueConfig(scfg.DataConfig):
     # TODO: use a modal config to separate action behaviors
     header = scfg.Value(None, help='a header command to execute in every session (e.g. activating a virtualenv). Only used when action is new')
 
+    yes = scfg.Value(False, help='if True say yes to prompts')
+
     dpath = scfg.Value('auto', help=ub.paragraph(
         '''
         The path the CLI will use to store intermediate files. Defaults to $XDG_CACHE/.cache/cmd_queue/cli
@@ -174,7 +176,7 @@ def main(cmdline=1, **kwargs):
                 sessions_ids.append(session['id'])
         print('sessions_ids = {}'.format(ub.urepr(sessions_ids, nl=1)))
         from rich import prompt
-        if prompt.Confirm.ask('Do you want to kill these?'):
+        if config.yes or prompt.Confirm.ask('Do you want to kill these?'):
             for session_id in sessions_ids:
                 tmux.kill_session(session_id)
 
