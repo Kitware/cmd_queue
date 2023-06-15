@@ -269,6 +269,24 @@ class BashJob(base_queue.Job):
         r"""
         Print info about the commands, optionally with rich
 
+        Args:
+            with_status (bool):
+                tmux / serial only, show bash status boilerplate
+
+            with_gaurds (bool):
+                tmux / serial only, show bash guards boilerplate
+
+            with_locks (bool):
+                tmux, show tmux lock boilerplate
+
+            exclude_tags (List[str] | None):
+                if specified exclude jobs submitted with these tags.
+
+            style (str):
+                can be 'colors', 'rich', or 'plain'
+
+            **kwargs: extra backend-specific args passed to finalize_text
+
         CommandLine:
             xdoctest -m cmd_queue.serial_queue BashJob.print_commands
 
@@ -599,19 +617,19 @@ class SerialQueue(base_queue.Queue):
 
     rprint = print_commands
 
-    def run(self, block=True, system=False, shell=1, mode='bash', **kw):
+    def run(self, block=True, system=False, shell=1, capture=True, mode='bash', verbose=3, **kw):
         self.write()
         # TODO: can implement a monitor here for non-blocking mode
         detach = not block
         if mode == 'bash':
-            ub.cmd(f'bash {self.fpath}', verbose=3, check=True, shell=shell,
-                   system=system, detach=detach)
+            ub.cmd(f'bash {self.fpath}', verbose=verbose, check=True,
+                   capture=capture, shell=shell, system=system, detach=detach)
         elif mode == 'source':
-            ub.cmd(f'source {self.fpath}', verbose=3, check=True, shell=shell,
-                   system=system, detach=detach)
+            ub.cmd(f'source {self.fpath}', verbose=verbose, check=True,
+                   capture=capture, shell=shell, system=system, detach=detach)
         else:
-            ub.cmd(f'{mode} {self.fpath}', verbose=3, check=True, shell=shell,
-                   system=system, detach=detach)
+            ub.cmd(f'{mode} {self.fpath}', verbose=verbose, check=True,
+                   capture=capture, shell=shell, system=system, detach=detach)
             # raise KeyError
 
     def job_details(self):

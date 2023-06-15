@@ -586,6 +586,13 @@ class SlurmQueue(base_queue.Queue):
         r"""
         Print info about the commands, optionally with rich
 
+        Args:
+            exclude_tags (List[str] | None):
+                if specified exclude jobs submitted with these tags.
+
+            style (str):
+                can be 'colors', 'rich', or 'plain'
+
         CommandLine:
             xdoctest -m cmd_queue.slurm_queue SlurmQueue.print_commands
 
