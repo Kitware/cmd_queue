@@ -215,7 +215,7 @@ class TMUXMultiQueue(base_queue.Queue):
         # Note: size can be changed as long as it happens before the queue is
         # written and run.
         if size <= 0:
-            raise ValueError(f'tmux queue size must be positive got {size=}')
+            raise ValueError(f'tmux queue size must be positive got size={size}')
         self.size = size
         self.environ = environ
         self.fpath = self.dpath / f'run_queues_{self.name}.sh'
@@ -887,6 +887,24 @@ class TMUXMultiQueue(base_queue.Queue):
     def print_commands(self, *args, **kwargs):
         r"""
         Print info about the commands, optionally with rich
+
+        Args:
+            with_status (bool):
+                tmux / serial only, show bash status boilerplate
+
+            with_gaurds (bool):
+                tmux / serial only, show bash guards boilerplate
+
+            with_locks (bool):
+                tmux, show tmux lock boilerplate
+
+            exclude_tags (List[str] | None):
+                if specified exclude jobs submitted with these tags.
+
+            style (str):
+                can be 'colors', 'rich', or 'plain'
+
+            **kwargs: extra backend-specific args passed to finalize_text
 
         CommandLine:
             xdoctest -m cmd_queue.tmux_queue TMUXMultiQueue.print_commands

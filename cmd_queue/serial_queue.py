@@ -269,6 +269,24 @@ class BashJob(base_queue.Job):
         r"""
         Print info about the commands, optionally with rich
 
+        Args:
+            with_status (bool):
+                tmux / serial only, show bash status boilerplate
+
+            with_gaurds (bool):
+                tmux / serial only, show bash guards boilerplate
+
+            with_locks (bool):
+                tmux, show tmux lock boilerplate
+
+            exclude_tags (List[str] | None):
+                if specified exclude jobs submitted with these tags.
+
+            style (str):
+                can be 'colors', 'rich', or 'plain'
+
+            **kwargs: extra backend-specific args passed to finalize_text
+
         CommandLine:
             xdoctest -m cmd_queue.serial_queue BashJob.print_commands
 

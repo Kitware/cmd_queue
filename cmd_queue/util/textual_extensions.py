@@ -24,8 +24,23 @@ except ImportError:
 
 class class_or_instancemethod(classmethod):
     """
+    Allows a method to behave as a class or instance method
+
     References:
         https://stackoverflow.com/questions/28237955/same-name-for-classmethod-and-instancemethod
+
+    Example:
+        >>> class X:
+        ...     @class_or_instancemethod
+        ...     def foo(self_or_cls):
+        ...         if isinstance(self_or_cls, type):
+        ...             return f"bound to the class"
+        ...         else:
+        ...             return f"bound to the instance"
+        >>> print(X.foo())
+        bound to the class
+        >>> print(X().foo())
+        bound to the instance
     """
     def __get__(self, instance, type_):
         descr_get = super().__get__ if instance is None else self.__func__.__get__
