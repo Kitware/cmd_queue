@@ -10,6 +10,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Added
 * Add yes argument to CLI
 
+### Changed
+* Added more options to the serial queue `run` method.
+
 
 ## Version 0.1.14 - Released 2023-05-11
 
