@@ -221,7 +221,7 @@ class Queue(ub.NiceRepr):
             raise UnknownBackendError(backend)
         return self
 
-    def write_network_text(self, reduced=True, rich='auto'):
+    def write_network_text(self, reduced=True, rich='auto', vertical_chains=False):
         # TODO: change rich to style
         try:
             import rich as rich_mod
@@ -242,13 +242,15 @@ class Queue(ub.NiceRepr):
             print_('\nGraph (reduced):')
             try:
                 reduced_graph = nx.transitive_reduction(graph)
-                write_network_text(reduced_graph, path=print_, end='')
+                write_network_text(reduced_graph, path=print_, end='',
+                                   vertical_chains=vertical_chains)
             except Exception as ex:
                 print_(f'ex={ex}')
             print_('\n')
         else:
             print_('\nGraph:')
-            write_network_text(graph, path=print_, end='')
+            write_network_text(graph, path=print_, end='',
+                               vertical_chains=vertical_chains)
 
     def print_commands(self,
                        with_status=False,
@@ -329,14 +331,14 @@ class Queue(ub.NiceRepr):
         )
         self.print_commands(**kwargs)
 
-    def print_graph(self, reduced=True):
+    def print_graph(self, reduced=True, vertical_chains=False):
         """
         Renders the dependency graph to an "network text"
 
         Args:
             reduced (bool): if True only show the implicit dependency forest
         """
-        self.write_network_text(reduced=reduced)
+        self.write_network_text(reduced=reduced, vertical_chains=vertical_chains)
 
     def _dependency_graph(self):
         """

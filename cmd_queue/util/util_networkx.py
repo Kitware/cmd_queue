@@ -20,12 +20,14 @@ class AsciiDirectedGlyphs(_AsciiBaseGlyphs):
     last = "L-> "
     mid = "|-> "
     backedge = "<-"
+    vertical_edge = 'v'
 
 
 class AsciiUndirectedGlyphs(_AsciiBaseGlyphs):
     last = "L-- "
     mid = "|-- "
     backedge = "-"
+    vertical_edge = '|'
 
 
 class _UtfBaseGlyphs:
@@ -44,16 +46,19 @@ class UtfDirectedGlyphs(_UtfBaseGlyphs):
     last = "└─╼ "
     mid = "├─╼ "
     backedge = "╾"
+    vertical_edge = '╽'
 
 
 class UtfUndirectedGlyphs(_UtfBaseGlyphs):
     last = "└── "
     mid = "├── "
     backedge = "─"
+    vertical_edge = '│'
 
 
 def generate_network_text(
-    graph, with_labels=True, sources=None, max_depth=None, ascii_only=False
+    graph, with_labels=True, sources=None, max_depth=None, ascii_only=False,
+    vertical_chains=False,
 ):
     """Generate lines in the "network text" format
 
@@ -118,10 +123,81 @@ def generate_network_text(
     ascii_only : Boolean
         If True only ASCII characters are used to construct the visualization
 
+    vertical_chains : Boolean
+        If True, chains of nodes will be drawn vertically when possible.
+
     Yields
     ------
     str : a line of generated text
+
+    Example:
+        >>> graph = nx.path_graph(10)
+        >>> graph.add_node('A')
+        >>> graph.add_node('B')
+        >>> graph.add_node('C')
+        >>> graph.add_node('D')
+        >>> graph.add_edge(9, 'A')
+        >>> graph.add_edge(9, 'B')
+        >>> graph.add_edge(9, 'C')
+        >>> graph.add_edge('C', 'D')
+        >>> graph.add_edge('C', 'E')
+        >>> graph.add_edge('C', 'F')
+        >>> write_network_text(graph)
+        ╙── 0
+            └── 1
+                └── 2
+                    └── 3
+                        └── 4
+                            └── 5
+                                └── 6
+                                    └── 7
+                                        └── 8
+                                            └── 9
+                                                ├── A
+                                                ├── B
+                                                └── C
+                                                    ├── D
+                                                    ├── E
+                                                    └── F
+        >>> write_network_text(graph, vertical_chains=True)
+        ╙── 0
+            │
+            1
+            │
+            2
+            │
+            3
+            │
+            4
+            │
+            5
+            │
+            6
+            │
+            7
+            │
+            8
+            │
+            9
+            ├── A
+            ├── B
+            └── C
+                ├── D
+                ├── E
+                └── F
     """
+    from typing import NamedTuple
+    from typing import Any
+
+    class StackFrame(NamedTuple):
+        parent: Any
+        node: Any
+        indents: list
+        this_islast: bool
+        this_vertical: bool
+
+    collapse_attr = "collapse"
+
     is_directed = graph.is_directed()
 
     if is_directed:
@@ -139,8 +215,6 @@ def generate_network_text(
         label_attr = "label"
     else:
         label_attr = None
-
-    collapse_attr = "collapse"
 
     if max_depth == 0:
         yield glyphs.empty + " ..."
@@ -161,13 +235,14 @@ def generate_network_text(
         # Reverse the stack so sources are popped in the correct order.
         last_idx = len(sources) - 1
         stack = [
-            (None, node, [], (idx == last_idx)) for idx, node in enumerate(sources)
+            StackFrame(None, node, [], (idx == last_idx), False)
+            for idx, node in enumerate(sources)
         ][::-1]
 
         num_skipped_children = defaultdict(lambda: 0)
         seen_nodes = set()
         while stack:
-            parent, node, indents, this_islast = stack.pop()
+            parent, node, indents, this_islast, this_vertical = stack.pop()
 
             if node is not Ellipsis:
                 skip = node in seen_nodes
@@ -183,12 +258,12 @@ def generate_network_text(
 
                         # Append the ellipsis to be emitted last
                         next_islast = True
-                        try_frame = (node, Ellipsis, indents, next_islast)
+                        try_frame = StackFrame(node, Ellipsis, indents, next_islast, False)
                         stack.append(try_frame)
 
                         # Redo this frame, but not as a last object
                         next_islast = False
-                        try_frame = (parent, node, indents, next_islast)
+                        try_frame = StackFrame(parent, node, indents, next_islast, this_vertical)
                         stack.append(try_frame)
                         continue
 
@@ -200,6 +275,7 @@ def generate_network_text(
                 # Top level items (i.e. trees in the forest) get different
                 # glyphs to indicate they are not actually connected
                 if this_islast:
+                    this_vertical = False
                     this_prefix = indents + [glyphs.newtree_last]
                     next_prefix = indents + [glyphs.endof_forest]
                 else:
@@ -207,14 +283,17 @@ def generate_network_text(
                     next_prefix = indents + [glyphs.within_forest]
 
             else:
-                # For individual tree edges distinguish between directed and
-                # undirected cases
-                if this_islast:
-                    this_prefix = indents + [glyphs.last]
-                    next_prefix = indents + [glyphs.endof_forest]
+                # Non-top-level items
+                if this_vertical:
+                    this_prefix = indents
+                    next_prefix = indents
                 else:
-                    this_prefix = indents + [glyphs.mid]
-                    next_prefix = indents + [glyphs.within_tree]
+                    if this_islast:
+                        this_prefix = indents + [glyphs.last]
+                        next_prefix = indents + [glyphs.endof_forest]
+                    else:
+                        this_prefix = indents + [glyphs.mid]
+                        next_prefix = indents + [glyphs.within_tree]
 
             if node is Ellipsis:
                 label = " ..."
@@ -288,28 +367,30 @@ def generate_network_text(
 
             # Emit the line for this node, this will be called for each node
             # exactly once.
+            # print(f'this_prefix={this_prefix}')
+            # print(f'this_islast={this_islast}')
+            if this_vertical:
+                yield "".join(this_prefix + [glyphs.vertical_edge])
+
             yield "".join(this_prefix + [label, suffix])
 
-            """
-
-            >>> from cmd_queue.util.util_networkx import *  # NOQA
-            >>> graph = nx.balanced_tree(r=2, h=2, create_using=nx.DiGraph)
-            >>> write_network_text(graph)
-            >>> graph.nodes[1]['collapse'] = True
-            >>> write_network_text(graph)
-            >>> graph.add_edge(5, 1)
-            >>> write_network_text(graph)
-            >>> graph.nodes[2]['collapse'] = True
-            >>> write_network_text(graph)
-
-
-            """
+            # TODO: Can we determine if we are an only child?
+            if vertical_chains:
+                if is_directed:
+                    num_children = len(set(children))
+                else:
+                    num_children = len(set(children) - {parent})
+                # Only can draw the next node vertically if it is the only
+                # remaining child of this node.
+                next_is_vertical = num_children == 1
+            else:
+                next_is_vertical = False
 
             # Push children on the stack in reverse order so they are popped in
             # the original order.
             for idx, child in enumerate(children[::-1]):
                 next_islast = idx == 0
-                try_frame = (node, child, next_prefix, next_islast)
+                try_frame = StackFrame(node, child, next_prefix, next_islast, next_is_vertical)
                 stack.append(try_frame)
 
 
@@ -322,6 +403,7 @@ def write_network_text(
     max_depth=None,
     ascii_only=False,
     end="\n",
+    vertical_chains=False
 ):
     """Creates a nice text representation of a graph
 
@@ -361,10 +443,13 @@ def write_network_text(
     end : string
         The line ending characater
 
+    vertical_chains : Boolean
+        If True, chains of nodes will be drawn vertically when possible.
+
     Example
     -------
     >>> graph = nx.balanced_tree(r=2, h=2, create_using=nx.DiGraph)
-    >>> nx.write_network_text(graph)
+    >>> write_network_text(graph)
     ╙── 0
         ├─╼ 1
         │   ├─╼ 3
@@ -375,7 +460,7 @@ def write_network_text(
 
     >>> # A near tree with one non-tree edge
     >>> graph.add_edge(5, 1)
-    >>> nx.write_network_text(graph)
+    >>> write_network_text(graph)
     ╙── 0
         ├─╼ 1 ╾ 5
         │   ├─╼ 3
@@ -386,7 +471,7 @@ def write_network_text(
             └─╼ 6
 
     >>> graph = nx.cycle_graph(5)
-    >>> nx.write_network_text(graph)
+    >>> write_network_text(graph)
     ╙── 0
         ├── 1
         │   └── 2
@@ -394,8 +479,33 @@ def write_network_text(
         │           └── 4 ─ 0
         └──  ...
 
+    >>> graph = nx.cycle_graph(5, nx.DiGraph)
+    >>> write_network_text(graph, vertical_chains=True)
+    ╙── 0 ╾ 4
+        ╽
+        1
+        ╽
+        2
+        ╽
+        3
+        ╽
+        4
+        └─╼  ...
+
+    >>> write_network_text(graph, vertical_chains=True, ascii_only=True)
+    +-- 0 <- 4
+        v
+        1
+        v
+        2
+        v
+        3
+        v
+        4
+        L->  ...
+
     >>> graph = nx.generators.barbell_graph(4, 2)
-    >>> nx.write_network_text(graph)
+    >>> write_network_text(graph, vertical_chains=False)
     ╙── 4
         ├── 5
         │   └── 6
@@ -410,9 +520,27 @@ def write_network_text(
             │   │   └── 2 ─ 0, 3
             │   └──  ...
             └──  ...
+    >>> write_network_text(graph, vertical_chains=True)
+    ╙── 4
+        ├── 5
+        │   │
+        │   6
+        │   ├── 7
+        │   │   ├── 8 ─ 6
+        │   │   │   │
+        │   │   │   9 ─ 6, 7
+        │   │   └──  ...
+        │   └──  ...
+        └── 3
+            ├── 0
+            │   ├── 1 ─ 3
+            │   │   │
+            │   │   2 ─ 0, 3
+            │   └──  ...
+            └──  ...
 
     >>> graph = nx.complete_graph(5, create_using=nx.Graph)
-    >>> nx.write_network_text(graph)
+    >>> write_network_text(graph)
     ╙── 0
         ├── 1
         │   ├── 2 ─ 0
@@ -423,7 +551,7 @@ def write_network_text(
         └──  ...
 
     >>> graph = nx.complete_graph(3, create_using=nx.DiGraph)
-    >>> nx.write_network_text(graph)
+    >>> write_network_text(graph)
     ╙── 0 ╾ 1, 2
         ├─╼ 1 ╾ 2
         │   ├─╼ 2 ╾ 0
@@ -449,6 +577,7 @@ def write_network_text(
         sources=sources,
         max_depth=max_depth,
         ascii_only=ascii_only,
+        vertical_chains=vertical_chains,
     ):
         _write(line + end)
 
@@ -529,7 +658,7 @@ def graph_str(graph, with_labels=True, sources=None, write=None, ascii_only=Fals
     Example
     -------
     >>> graph = nx.balanced_tree(r=2, h=3, create_using=nx.DiGraph)
-    >>> print(nx.graph_str(graph))
+    >>> print(graph_str(graph))
     ╙── 0
         ├─╼ 1
         │   ├─╼ 3
@@ -548,12 +677,12 @@ def graph_str(graph, with_labels=True, sources=None, write=None, ascii_only=Fals
 
 
     >>> graph = nx.balanced_tree(r=1, h=2, create_using=nx.Graph)
-    >>> print(nx.graph_str(graph))
+    >>> print(graph_str(graph))
     ╙── 0
         └── 1
             └── 2
 
-    >>> print(nx.graph_str(graph, ascii_only=True))
+    >>> print(graph_str(graph, ascii_only=True))
     +-- 0
         L-- 1
             L-- 2
