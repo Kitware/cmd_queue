@@ -200,7 +200,7 @@ class CMDQueueConfig(scfg.DataConfig):
             queue.print_commands(**print_kwargs)
 
         if config.print_queue:
-            queue.print_graph()
+            queue.print_graph(vertical_chains=True)
 
         if config.run:
             queue.run(with_textual=config.with_textual,
