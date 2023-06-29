@@ -27,6 +27,8 @@ class CmdQueueConfig(scfg.DataConfig):
     Quickstart
     ##########
 
+    .. code:: bash
+
         # Create a new queue
         cmd_queue new "my_queue"
 
@@ -38,15 +40,14 @@ class CmdQueueConfig(scfg.DataConfig):
         for item in "${items[@]}"; do
 
             # For each item, we create a job to be run in the queue
-            cmd_queue submit "my_queue" --  echo \"process $item\"
+            cmd_queue submit "my_queue" --  echo \"process output for --item=$item\"
 
         done
 
-        # It is a good idea to look at what you queued up before you execute it
+        # Show the generated script
         cmd_queue show "my_queue"
 
-        # This actually executes your queue. The serial backend is the most
-        # compatable, but the least powerful.
+        # Execute your queue.
         cmd_queue run "my_queue" --backend=serial
 
 
