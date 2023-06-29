@@ -295,7 +295,8 @@ class Queue(ub.NiceRepr):
         if with_rich is not None:
             ub.schedule_deprecation(
                 'cmd_queue', 'with_rich', 'arg',
-                migration='use style="rich" instead', deprecate='now')
+                migration='use use style="plain" | "rich" | "colors" instead',
+                deprecate='now')
             if with_rich:
                 style = 'rich'
         if style == 'auto':

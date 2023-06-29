@@ -24,6 +24,32 @@ class CmdQueueConfig(scfg.DataConfig):
     The ``cleanup`` action is for helping to manage the tmux backend, maingly
     killing session names that start with ``"cmdq_"``.
 
+    Quickstart
+    ##########
+
+        # Create a new queue
+        cmd_queue new "my_queue"
+
+        # Create multiple items in a bash array, and loop over that array
+        items=(
+            "item1" "item2" "item3" "item4" "item5" "item6"
+            "item7" "item8" "item9" "item10" "item11" "item12"
+        )
+        for item in "${items[@]}"; do
+
+            # For each item, we create a job to be run in the queue
+            cmd_queue submit "my_queue" --  echo \"process $item\"
+
+        done
+
+        # It is a good idea to look at what you queued up before you execute it
+        cmd_queue show "my_queue"
+
+        # This actually executes your queue. The serial backend is the most
+        # compatable, but the least powerful.
+        cmd_queue run "my_queue" --backend=serial
+
+
     Step 1:  Initialize a new queue
     ###############################
 
