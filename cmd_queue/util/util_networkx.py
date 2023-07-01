@@ -187,8 +187,8 @@ def generate_network_text(
                 ├── E
                 └── F
     """
-    from typing import NamedTuple
     from typing import Any
+    from typing import NamedTuple
 
     class StackFrame(NamedTuple):
         parent: Any
@@ -743,3 +743,136 @@ def is_topological_order(graph, node_order):
             # if the edge is not in or ordering, ignore it
             ...
     return True
+
+
+def parse_network_text(lines):
+    """
+    Simple tool to reconstruct a graph from a network text representation.
+    This is mainly used for testing. Network text is for display, not
+    serialization... but if you're in a pinch...
+
+    Example:
+        >>> import sys, ubelt
+        >>> sys.path.append(ubelt.expandpath('~/code/cmd_queue'))
+        >>> from cmd_queue.util.util_networkx import *  # NOQA
+        >>> import networkx as nx
+        >>> graph = nx.erdos_renyi_graph(10, 0.3, directed=True, seed=3433)
+        >>> graph = nx.relabel_nodes(graph, {n: str(n) for n in graph.nodes})
+        >>> lines = list(generate_network_text(graph, vertical_chains=False))
+        >>> print(chr(10).join(lines))
+        >>> #print(graph_str(graph))
+        >>> new = parse_network_text(lines)
+        >>> write_network_text(new, vertical_chains=False)
+        >>> assert new.nodes == graph.nodes
+        >>> assert new.edges == graph.edges
+    """
+    glyphs1 = UtfUndirectedGlyphs
+    glyphs2 = UtfDirectedGlyphs
+    lut1 = {k: v for k, v in glyphs1.__dict__.items() if not k.startswith('_')}
+    lut2 = {k: v for k, v in glyphs2.__dict__.items() if not k.startswith('_')}
+    possibglyphs = {k: (lut1[k], lut2[k]) for k in lut1.keys()}
+
+    # backedge_delimiters = [f' {c} ' for c in possibglyphs['backedge']]
+
+    edges = []
+    nodes = []
+
+    from collections import deque
+
+    is_directed = None
+
+    # Do some quick checks to determine the type of graph this is.
+    lines = list(lines)
+    score1 = 0
+    score2 = 0
+    import ubelt as ub
+    print = ub.identity
+    lut1_ = ub.udict(lut1) - {'vertical_edge', 'backedge'}
+    lut2_ = ub.udict(lut2) - {'vertical_edge', 'backedge'}
+    for line in lines:
+        for k, v in lut1_.items():
+            score1 += line.find(v) + 1
+        for k, v in lut2_.items():
+            score2 += line.find(v) + 1
+
+    is_directed = score2 > score1
+    is_ascii = False
+    # glyphs = glyphs1 if not is_directed else glyphs2
+
+    if is_ascii:
+        backedge_delim = lut1['backedge']
+    else:
+        backedge_delim = lut2['backedge']
+
+    # TODO: keep a stack of the parents to parse things out
+    noparent = object()
+
+    stack = deque([{'node': noparent, 'indent': -1}])
+
+    for line in lines:
+        print('------------')
+        print(f'line={line!r}')
+
+        # Determine if there is a backedge
+        has_backedge = backedge_delim in line
+
+        # Parse which node this line is referring to.
+        if has_backedge:
+            lhs, rhs = line.split(backedge_delim)
+            rhs_incoming = rhs.split(', ')
+            lhs = lhs.rstrip()
+            prenode, node = lhs.rsplit(' ', 1)
+            node = node.strip()
+            edges.extend([(u.strip(), node) for u in rhs_incoming])
+        else:
+            prenode, node = line.rsplit(' ', 1)
+            node = node.strip()
+        prenode = prenode.rstrip()
+
+        indent = len(prenode.rstrip())
+        # prenode.count(glyphs.within_tree.strip()) + prenode.count(glyphs.mid.strip()) + prenode.count(glyphs.last.strip())
+
+        prev = stack.pop()
+        while indent <= prev['indent']:
+            print('popping')
+            prev = stack.pop()
+
+        curr = {
+            'node': node,
+            'indent': indent,
+        }
+        print(f'node={node!r}')
+        print('prenode = {}'.format(ub.urepr(prenode, nl=1)))
+        print(f'prev={prev!r}')
+        print(f'curr={curr!r}')
+
+        if node in possibglyphs['vertical_edge']:
+            # Previous node is still the previous node, just skip this line
+            # TODO: change indent state
+            stack.append(prev)
+        elif node == '...':
+            # The current previous node is no longer a valid parent,
+            # keep it popped from the stack.
+            stack.append(prev)
+        else:
+            stack.append(prev)
+            stack.append(curr)
+
+            # New node
+            nodes.append(node)
+
+            if prev['node'] is not noparent:
+                edges.append((prev['node'], curr['node']))
+        print('------------')
+
+    if is_directed:
+        cls = nx.DiGraph
+    else:
+        cls = nx.Graph
+
+    print('nodes = {}'.format(ub.urepr(nodes, nl=1)))
+    print('edges = {}'.format(ub.urepr(edges, nl=1)))
+    new = cls()
+    new.add_nodes_from(nodes)
+    new.add_edges_from(edges)
+    return new
