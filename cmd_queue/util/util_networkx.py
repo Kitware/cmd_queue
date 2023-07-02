@@ -7,54 +7,61 @@ from networkx.utils import open_file
 ### See: https://github.com/networkx/networkx/pull/5602
 
 
-class AsciiBaseGlyphs:
-    empty = "+"
-    newtree_last = "+-- "
-    newtree_mid = "+-- "
-    endof_forest = "    "
-    within_forest = ":   "
-    within_tree = "|   "
+class BaseGlyphs:
+    @classmethod
+    def as_dict(cls):
+        return {a: getattr(cls, a) for a in dir(cls)
+                if not a.startswith('_') and a != 'as_dict'}
+
+
+class AsciiBaseGlyphs(BaseGlyphs):
+    empty: str = "+"
+    newtree_last: str = "+-- "
+    newtree_mid: str = "+-- "
+    endof_forest: str = "    "
+    within_forest: str = ":   "
+    within_tree: str = "|   "
 
 
 class AsciiDirectedGlyphs(AsciiBaseGlyphs):
-    last = "L-> "
-    mid = "|-> "
-    backedge = "<-"
-    # vertical_edge = 'v'
-    vertical_edge = '!'
+    last: str = "L-> "
+    mid: str = "|-> "
+    backedge: str = "<-"
+    # vertical_edge: str = 'v'
+    vertical_edge: str = '!'
 
 
 class AsciiUndirectedGlyphs(AsciiBaseGlyphs):
-    last = "L-- "
-    mid = "|-- "
-    backedge = "-"
-    vertical_edge = '|'
+    last: str = "L-- "
+    mid: str = "|-- "
+    backedge: str = "-"
+    vertical_edge: str = '|'
 
 
-class UtfBaseGlyphs:
+class UtfBaseGlyphs(BaseGlyphs):
     # Notes on available box and arrow characters
     # https://en.wikipedia.org/wiki/Box-drawing_character
     # https://stackoverflow.com/questions/2701192/triangle-arrow
-    empty = "╙"
-    newtree_last = "╙── "
-    newtree_mid = "╟── "
-    endof_forest = "    "
-    within_forest = "╎   "
-    within_tree = "│   "
+    empty: str = "╙"
+    newtree_last: str = "╙── "
+    newtree_mid: str = "╟── "
+    endof_forest: str = "    "
+    within_forest: str = "╎   "
+    within_tree: str = "│   "
 
 
 class UtfDirectedGlyphs(UtfBaseGlyphs):
-    last = "└─╼ "
-    mid = "├─╼ "
-    backedge = "╾"
-    vertical_edge = '╽'
+    last: str = "└─╼ "
+    mid: str = "├─╼ "
+    backedge: str = "╾"
+    vertical_edge: str = '╽'
 
 
 class UtfUndirectedGlyphs(UtfBaseGlyphs):
-    last = "└── "
-    mid = "├── "
-    backedge = "─"
-    vertical_edge = '│'
+    last: str = "└── "
+    mid: str = "├── "
+    backedge: str = "─"
+    vertical_edge: str = '│'
 
 
 def generate_network_text(
@@ -756,47 +763,49 @@ def parse_network_text(lines):
         >>> sys.path.append(ubelt.expandpath('~/code/cmd_queue'))
         >>> from cmd_queue.util.util_networkx import *  # NOQA
         >>> import networkx as nx
-        >>> graph = nx.erdos_renyi_graph(10, 0.3, directed=0, seed=3433)
+        >>> directed = 1
+        >>> vertical_chains = 1
+        >>> ascii_only = 0
+        >>> graph = nx.erdos_renyi_graph(10, 0.3, directed=directed, seed=3433)
+        >>> graph = nx.generators.barbell_graph(3, 2)
         >>> graph = nx.relabel_nodes(graph, {n: str(n) for n in graph.nodes})
-        >>> lines = list(generate_network_text(graph, vertical_chains=False))
+        >>> lines = list(generate_network_text(graph, vertical_chains=vertical_chains, ascii_only=ascii_only))
         >>> print(chr(10).join(lines))
-        >>> write_network_text(graph)
         >>> new = parse_network_text(lines)
-        >>> write_network_text(new)
-        >>> #write_network_text(new, vertical_chains=False)
+        >>> write_network_text(new, vertical_chains=vertical_chains, ascii_only=ascii_only)
         >>> assert new.nodes == graph.nodes
         >>> assert new.edges == graph.edges
-        graph = nx.erdos_renyi_graph(10, 0.3, directed=True, seed=3433)
 
     Ignore:
 
-        def test_round_trip(graph):
+        def test_round_trip(graph, ascii_only, vertical_chains):
             graph = nx.relabel_nodes(graph, {n: str(n) for n in graph.nodes})
-            lines = list(generate_network_text(graph, vertical_chains=False))
+            lines = list(generate_network_text(
+                graph, vertical_chains=vertical_chains, ascii_only=ascii_only))
             print(chr(10).join(lines))
             new = parse_network_text(lines)
             assert new.nodes == graph.nodes
             assert new.edges == graph.edges
 
-        for directed in [0, 1]:
-            cls = nx.DiGraph if directed else nx.Graph
+        for vertical_chains in [0, 1]:
+            for ascii_only in [0, 1]:
+                for directed in [0, 1]:
+                    cls = nx.DiGraph if directed else nx.Graph
+                    num_randomized = 3
+                    # Disconnected graphs
+                    for num_nodes in range(0, 20):
+                        # 1-Node
+                        graph = cls()
+                        graph.add_nodes_from(range(1, num_nodes + 1))
+                        test_round_trip(graph, ascii_only=ascii_only, vertical_chains=vertical_chains)
 
-            num_randomized = 3
+                        for p in [0.1, 0.2, 0.3, 0.6, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]:
 
-            # Disconnected graphs
-            for num_nodes in range(0, 20):
-                # 1-Node
-                graph = cls()
-                graph.add_nodes_from(range(1, num_nodes + 1))
-                test_round_trip(graph)
-
-                for p in [0.1, 0.2, 0.3, 0.6, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]:
-
-                    for seed in range(num_randomized):
-                        graph = nx.erdos_renyi_graph(num_nodes, p, directed=directed, seed=seed + int(1000 * p))
-                        test_round_trip(graph)
+                            for seed in range(num_randomized):
+                                graph = nx.erdos_renyi_graph(num_nodes, p, directed=directed, seed=seed + int(1000 * p))
+                                test_round_trip(graph, ascii_only=ascii_only, vertical_chains=vertical_chains)
     """
-    from collections import deque
+    # from collections import deque
     from itertools import chain
     import ubelt as ub
     lines = list(lines)
@@ -818,8 +827,8 @@ def parse_network_text(lines):
     except StopIteration:
         ...
     else:
-        # The first character indicates if it is an ASCII or UTF graph
         initial_lines.append(first_line)
+        # The first character indicates if it is an ASCII or UTF graph
         first_char = first_line[0]
         if first_char in {UtfBaseGlyphs.empty, UtfBaseGlyphs.newtree_mid[0], UtfBaseGlyphs.newtree_last[0]}:
             is_ascii = False
@@ -835,109 +844,153 @@ def parse_network_text(lines):
         directed_glyphs = UtfDirectedGlyphs
         undirected_glyphs = UtfUndirectedGlyphs
 
-    directed_glphys_lut = {a: getattr(directed_glyphs, a) for a in dir(directed_glyphs) if not a.startswith('_')}
-    undirected_glphys_lut = {a: getattr(undirected_glyphs, a) for a in dir(undirected_glyphs) if not a.startswith('_')}
+    directed_glphys_lut = directed_glyphs.as_dict()
+    undirected_glphys_lut = undirected_glyphs.as_dict()
 
-    directed_symbols = set.union(*map(set, directed_glphys_lut.values()))
-    undirected_symbols = set.union(*map(set, undirected_glphys_lut.values()))
-    directed_only_symbols = directed_symbols - undirected_symbols
-    undirected_only_symbols = undirected_symbols - directed_symbols
+    # For both directed / undirected glyphs, determine which glphys never
+    # appear as substrings in the other undirected / directed glyphs.  Glyphs
+    # with this property unambiguously indicates if a graph is directed /
+    # undirected.
+    directed_items = {v for v in directed_glphys_lut.values()}
+    undirected_items = {v for v in undirected_glphys_lut.values()}
+    unambiguous_directed_items = []
+    for item in directed_items:
+        other_items = undirected_items
+        other_supersets = [other for other in other_items if item in other]
+        if not other_supersets:
+            unambiguous_directed_items.append(item)
+    unambiguous_undirected_items = []
+    for item in undirected_items:
+        other_items = directed_items
+        other_supersets = [other for other in other_items if item in other]
+        if not other_supersets:
+            unambiguous_undirected_items.append(item)
 
     for line in initial_line_iter:
         initial_lines.append(line)
-        if set(line) & directed_only_symbols:
-            is_directed = True
-            break
-        elif set(line) & undirected_only_symbols:
+        if any(item in line for item in unambiguous_undirected_items):
             is_directed = False
+            break
+        elif any(item in line for item in unambiguous_directed_items):
+            is_directed = True
             break
 
     if is_directed is None:
         # Not enough information to determine, choose undirected by default
+        print('warning: Not enough information to determine, '
+              'choose undirected by default')
         is_directed = False
 
-    if is_directed:
-        glyphs_lut = directed_glphys_lut
-    else:
-        glyphs_lut = undirected_glphys_lut
+    glyphs_lut = directed_glphys_lut if is_directed else undirected_glphys_lut
 
-    # backedge_delimiters = [f' {c} ' for c in possibglyphs['backedge']]
-    edges = []
-    nodes = []
-
-    print_ = ub.identity
-
-    # TODO: keep a stack of the parents to parse things out
-    noparent = object()
-    stack = deque([{'node': noparent, 'indent': -1}])
+    # Reconstruct an iterator over all of the lines.
+    parsing_line_iter = chain(initial_lines, initial_line_iter)
 
     ##############
     # Parsing Pass
     ##############
 
-    parsing_line_iter = chain(initial_lines, initial_line_iter)
+    from typing import Any, Union
+    from typing import NamedTuple
 
-    backedge = ' ' + glyphs_lut['backedge'] + ' '
+    class ParseStackFrame(NamedTuple):
+        node: Any
+        indent: int
+        has_vertical_child: Union[int, None]
 
+    edges = []
+    nodes = []
     is_empty = None
 
+    noparent = object()
+
+    # keep a stack of previous nodes that could be parents of subsequent nodes
+    stack = [ParseStackFrame(noparent, -1, None)]
+
+    backedge_symbol = ' ' + glyphs_lut['backedge'] + ' '
+
+    print_ = ub.identity
+    # print_ = print
+    # import rich
+    # rprint_ = rich.print
+    rprint_ = ub.identity
+
+    print_(f'{is_directed=}')
+    print_(f'{is_ascii=}')
     for line in parsing_line_iter:
         print_('------------')
         print_(f'line={line!r}')
 
-        # Determine if there is a backedge
-        has_backedge = backedge in line
-
         if line == glyphs_lut['empty']:
             is_empty = True
             continue
+
         # Parse which node this line is referring to.
-        elif has_backedge:
-            lhs, rhs = line.split(backedge)
+        if backedge_symbol in line:
+            lhs, rhs = line.split(backedge_symbol)
             rhs_incoming = rhs.split(', ')
             lhs = lhs.rstrip()
             prenode, node = lhs.rsplit(' ', 1)
             node = node.strip()
+            # Add the backedges to the edge list
             edges.extend([(u.strip(), node) for u in rhs_incoming])
         else:
             prenode, node = line.rsplit(' ', 1)
             node = node.strip()
-        prenode = prenode.rstrip()
+        # prenode = prenode.rstrip()
 
-        indent = len(prenode.rstrip())
-        # prenode.count(glyphs.within_tree.strip()) + prenode.count(glyphs.mid.strip()) + prenode.count(glyphs.last.strip())
+        # Note: based on the current glphys the (indent - 3) should always be a
+        # multiple of 4. However, this breaks if the label has any leading
+        # spaces.
+        indent = len(prenode)
 
+        curr = ParseStackFrame(node, indent, None)
+        # print('stack = {}'.format(ub.urepr(stack, nl=1)))
         prev = stack.pop()
-        while indent <= prev['indent']:
-            print_('popping')
-            prev = stack.pop()
-
-        curr = {
-            'node': node,
-            'indent': indent,
-        }
-        print_(f'node={node!r}')
-        print_('prenode = {}'.format(ub.urepr(prenode, nl=1)))
-        print_(f'prev={prev!r}')
-        print_(f'curr={curr!r}')
 
         if node in glyphs_lut['vertical_edge']:
-            # Previous node is still the previous node, just skip this line
-            # TODO: change indent state
-            stack.append(prev)
-        elif node == '...':
+            # Previous node is still the previous node, but we know it will
+            # have exactly one child, which will need to have its nesting level
+            # adjusted.
+            modified_prev = ParseStackFrame(
+                prev.node,
+                prev.indent,
+                True,
+            )
+            stack.append(modified_prev)
+            print_('Found vertical edge, modifying prev node')
+            continue
+        elif prev.has_vertical_child:
+            # In this case we know we don't have to search the stack.
+            ...
+        else:
+            # If the previous node nesting-level is greater than the curret nodes
+            # nesting-level than the previous node was the end of a path, and is
+            # not our parent. We can safely pop nodes off the stack until we find
+            # one with a comparable nesting-level, which is our parent.
+            while curr.indent <= (prev.indent + bool(prev.has_vertical_child)):
+                print_('popping')
+                prev = stack.pop()
+
+        rprint_(f'node={node!r}')
+        print_('prenode = {}'.format(ub.urepr(prenode, nl=1)))
+        rprint_(f'prev={prev!r}')
+        rprint_(f'curr={curr!r}')
+
+        if node == '...':
             # The current previous node is no longer a valid parent,
             # keep it popped from the stack.
             stack.append(prev)
+            print_('Found ..., continuing on')
         else:
+            print_('Found a regular node, adding it')
             stack.append(prev)
             stack.append(curr)
 
-            # New node
-            nodes.append(node)
-
-            if prev['node'] is not noparent:
-                edges.append((prev['node'], curr['node']))
+            # Add the node and the edge to its parent to the node / edge lists.
+            nodes.append(curr.node)
+            if prev.node is not noparent:
+                edges.append((prev.node, curr.node))
         print_('------------')
 
     if is_empty:
