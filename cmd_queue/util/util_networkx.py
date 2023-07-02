@@ -767,6 +767,34 @@ def parse_network_text(lines):
         >>> assert new.nodes == graph.nodes
         >>> assert new.edges == graph.edges
         graph = nx.erdos_renyi_graph(10, 0.3, directed=True, seed=3433)
+
+    Ignore:
+
+        def test_round_trip(graph):
+            graph = nx.relabel_nodes(graph, {n: str(n) for n in graph.nodes})
+            lines = list(generate_network_text(graph, vertical_chains=False))
+            print(chr(10).join(lines))
+            new = parse_network_text(lines)
+            assert new.nodes == graph.nodes
+            assert new.edges == graph.edges
+
+        for directed in [0, 1]:
+            cls = nx.DiGraph if directed else nx.Graph
+
+            num_randomized = 3
+
+            # Disconnected graphs
+            for num_nodes in range(0, 20):
+                # 1-Node
+                graph = cls()
+                graph.add_nodes_from(range(1, num_nodes + 1))
+                test_round_trip(graph)
+
+                for p in [0.1, 0.2, 0.3, 0.6, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]:
+
+                    for seed in range(num_randomized):
+                        graph = nx.erdos_renyi_graph(num_nodes, p, directed=directed, seed=seed + int(1000 * p))
+                        test_round_trip(graph)
     """
     from collections import deque
     from itertools import chain
@@ -793,9 +821,9 @@ def parse_network_text(lines):
         # The first character indicates if it is an ASCII or UTF graph
         initial_lines.append(first_line)
         first_char = first_line[0]
-        if first_char == UtfBaseGlyphs.empty:
+        if first_char in {UtfBaseGlyphs.empty, UtfBaseGlyphs.newtree_mid[0], UtfBaseGlyphs.newtree_last[0]}:
             is_ascii = False
-        elif first_char == AsciiBaseGlyphs.empty:
+        elif first_char in {AsciiBaseGlyphs.empty, AsciiBaseGlyphs.newtree_mid[0], AsciiBaseGlyphs.newtree_last[0]}:
             is_ascii = True
         else:
             raise AssertionError(f'Unexpected first character: {first_char}')
@@ -825,8 +853,8 @@ def parse_network_text(lines):
             break
 
     if is_directed is None:
+        # Not enough information to determine, choose undirected by default
         is_directed = False
-        # raise Exception('did not determine if directed or not')
 
     if is_directed:
         glyphs_lut = directed_glphys_lut
@@ -837,7 +865,7 @@ def parse_network_text(lines):
     edges = []
     nodes = []
 
-    print = ub.identity
+    print_ = ub.identity
 
     # TODO: keep a stack of the parents to parse things out
     noparent = object()
@@ -851,15 +879,20 @@ def parse_network_text(lines):
 
     backedge = ' ' + glyphs_lut['backedge'] + ' '
 
+    is_empty = None
+
     for line in parsing_line_iter:
-        print('------------')
-        print(f'line={line!r}')
+        print_('------------')
+        print_(f'line={line!r}')
 
         # Determine if there is a backedge
         has_backedge = backedge in line
 
+        if line == glyphs_lut['empty']:
+            is_empty = True
+            continue
         # Parse which node this line is referring to.
-        if has_backedge:
+        elif has_backedge:
             lhs, rhs = line.split(backedge)
             rhs_incoming = rhs.split(', ')
             lhs = lhs.rstrip()
@@ -876,17 +909,17 @@ def parse_network_text(lines):
 
         prev = stack.pop()
         while indent <= prev['indent']:
-            print('popping')
+            print_('popping')
             prev = stack.pop()
 
         curr = {
             'node': node,
             'indent': indent,
         }
-        print(f'node={node!r}')
-        print('prenode = {}'.format(ub.urepr(prenode, nl=1)))
-        print(f'prev={prev!r}')
-        print(f'curr={curr!r}')
+        print_(f'node={node!r}')
+        print_('prenode = {}'.format(ub.urepr(prenode, nl=1)))
+        print_(f'prev={prev!r}')
+        print_(f'curr={curr!r}')
 
         if node in glyphs_lut['vertical_edge']:
             # Previous node is still the previous node, just skip this line
@@ -905,15 +938,17 @@ def parse_network_text(lines):
 
             if prev['node'] is not noparent:
                 edges.append((prev['node'], curr['node']))
-        print('------------')
+        print_('------------')
 
-    if is_directed:
-        cls = nx.DiGraph
-    else:
-        cls = nx.Graph
+    if is_empty:
+        # Double check that if we parsed the empty symbol
+        # we are actually empty.
+        assert len(nodes) == 0
 
-    print('nodes = {}'.format(ub.urepr(nodes, nl=1)))
-    print('edges = {}'.format(ub.urepr(edges, nl=1)))
+    cls = nx.DiGraph if is_directed else nx.Graph
+
+    print_('nodes = {}'.format(ub.urepr(nodes, nl=1)))
+    print_('edges = {}'.format(ub.urepr(edges, nl=1)))
     new = cls()
     new.add_nodes_from(nodes)
     new.add_edges_from(edges)
