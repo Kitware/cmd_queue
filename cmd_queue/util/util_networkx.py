@@ -900,13 +900,14 @@ def parse_network_text(lines):
 
     edges = []
     nodes = []
-    is_empty = None
 
-    noparent = object()
+    noparent = object()  # sentinal value
 
     # keep a stack of previous nodes that could be parents of subsequent nodes
     stack = [ParseStackFrame(noparent, -1, None)]
 
+    # the backedge symbol by itself can be ambiguous, but with spaces around it
+    # becomes unambiguous.
     backedge_symbol = ' ' + glyphs_lut['backedge'] + ' '
 
     print_ = ub.identity
@@ -922,7 +923,6 @@ def parse_network_text(lines):
         print_(f'line={line!r}')
 
         if line == glyphs_lut['empty']:
-            is_empty = True
             continue
 
         # Parse which node this line is referring to.
@@ -937,15 +937,7 @@ def parse_network_text(lines):
         else:
             prenode, node = line.rsplit(' ', 1)
             node = node.strip()
-        # prenode = prenode.rstrip()
 
-        # Note: based on the current glphys the (indent - 3) should always be a
-        # multiple of 4. However, this breaks if the label has any leading
-        # spaces.
-        indent = len(prenode)
-
-        curr = ParseStackFrame(node, indent, None)
-        # print('stack = {}'.format(ub.urepr(stack, nl=1)))
         prev = stack.pop()
 
         if node in glyphs_lut['vertical_edge']:
@@ -960,14 +952,28 @@ def parse_network_text(lines):
             stack.append(modified_prev)
             print_('Found vertical edge, modifying prev node')
             continue
-        elif prev.has_vertical_child:
-            # In this case we know we don't have to search the stack.
+
+        # Note: based on the current glphys the (indent - 3) should always be a
+        # multiple of 4. However, this breaks if the label has any leading
+        # spaces.
+
+        # The length of the string before the node characters give us a hint
+        # about our nesting level. The only case where this doesn't work is
+        # when there are vertical chains, which is handled explictly.
+        indent = len(prenode)
+        curr = ParseStackFrame(node, indent, None)
+
+        if prev.has_vertical_child:
+            # In this case we know prev must be the parent of our current line,
+            # so we don't have to search the stack. (which is good because the
+            # indentation check wouldn't work in this case).
             ...
         else:
-            # If the previous node nesting-level is greater than the curret nodes
-            # nesting-level than the previous node was the end of a path, and is
-            # not our parent. We can safely pop nodes off the stack until we find
-            # one with a comparable nesting-level, which is our parent.
+            # If the previous node nesting-level is greater than the curret
+            # nodes nesting-level than the previous node was the end of a path,
+            # and is not our parent. We can safely pop nodes off the stack
+            # until we find one with a comparable nesting-level, which is our
+            # parent.
             while curr.indent <= (prev.indent + bool(prev.has_vertical_child)):
                 print_('popping')
                 prev = stack.pop()
@@ -992,11 +998,6 @@ def parse_network_text(lines):
             if prev.node is not noparent:
                 edges.append((prev.node, curr.node))
         print_('------------')
-
-    if is_empty:
-        # Double check that if we parsed the empty symbol
-        # we are actually empty.
-        assert len(nodes) == 0
 
     cls = nx.DiGraph if is_directed else nx.Graph
 
