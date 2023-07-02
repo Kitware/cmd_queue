@@ -805,10 +805,15 @@ def parse_network_text(lines):
                                 graph = nx.erdos_renyi_graph(num_nodes, p, directed=directed, seed=seed + int(1000 * p))
                                 test_round_trip(graph, ascii_only=ascii_only, vertical_chains=vertical_chains)
     """
-    # from collections import deque
     from itertools import chain
-    import ubelt as ub
-    lines = list(lines)
+    from typing import Any, Union
+    from typing import NamedTuple
+
+    class ParseStackFrame(NamedTuple):
+        node: Any
+        indent: int
+        has_vertical_child: Union[int, None]
+
     initial_line_iter = iter(lines)
 
     is_ascii = None
@@ -883,6 +888,10 @@ def parse_network_text(lines):
 
     glyphs_lut = directed_glphys_lut if is_directed else undirected_glphys_lut
 
+    # the backedge symbol by itself can be ambiguous, but with spaces around it
+    # becomes unambiguous.
+    backedge_symbol = ' ' + glyphs_lut['backedge'] + ' '
+
     # Reconstruct an iterator over all of the lines.
     parsing_line_iter = chain(initial_lines, initial_line_iter)
 
@@ -890,52 +899,36 @@ def parse_network_text(lines):
     # Parsing Pass
     ##############
 
-    from typing import Any, Union
-    from typing import NamedTuple
-
-    class ParseStackFrame(NamedTuple):
-        node: Any
-        indent: int
-        has_vertical_child: Union[int, None]
-
     edges = []
     nodes = []
+    is_empty = None
 
     noparent = object()  # sentinal value
 
     # keep a stack of previous nodes that could be parents of subsequent nodes
     stack = [ParseStackFrame(noparent, -1, None)]
 
-    # the backedge symbol by itself can be ambiguous, but with spaces around it
-    # becomes unambiguous.
-    backedge_symbol = ' ' + glyphs_lut['backedge'] + ' '
-
-    print_ = ub.identity
-    # print_ = print
-    # import rich
-    # rprint_ = rich.print
-    rprint_ = ub.identity
-
-    print_(f'{is_directed=}')
-    print_(f'{is_ascii=}')
     for line in parsing_line_iter:
-        print_('------------')
-        print_(f'line={line!r}')
 
         if line == glyphs_lut['empty']:
+            # If the line is the empty glyph, we are done.
+            # There shouldn't be anything else after this.
+            is_empty = True
             continue
 
-        # Parse which node this line is referring to.
         if backedge_symbol in line:
-            lhs, rhs = line.split(backedge_symbol)
-            rhs_incoming = rhs.split(', ')
-            lhs = lhs.rstrip()
-            prenode, node = lhs.rsplit(' ', 1)
+            # This line has one or more backedges, separate those out
+            node_part, backedge_part = line.split(backedge_symbol)
+            backedge_nodes = backedge_part.split(', ')
+            # Now the node can be parsed
+            node_part = node_part.rstrip()
+            prefix, node = node_part.rsplit(' ', 1)
             node = node.strip()
             # Add the backedges to the edge list
-            edges.extend([(u.strip(), node) for u in rhs_incoming])
+            edges.extend([(u.strip(), node) for u in backedge_nodes])
         else:
-            prenode, node = line.rsplit(' ', 1)
+            # No backedge, the tail of this line is the node
+            prefix, node = line.rsplit(' ', 1)
             node = node.strip()
 
         prev = stack.pop()
@@ -950,17 +943,12 @@ def parse_network_text(lines):
                 True,
             )
             stack.append(modified_prev)
-            print_('Found vertical edge, modifying prev node')
             continue
-
-        # Note: based on the current glphys the (indent - 3) should always be a
-        # multiple of 4. However, this breaks if the label has any leading
-        # spaces.
 
         # The length of the string before the node characters give us a hint
         # about our nesting level. The only case where this doesn't work is
         # when there are vertical chains, which is handled explictly.
-        indent = len(prenode)
+        indent = len(prefix)
         curr = ParseStackFrame(node, indent, None)
 
         if prev.has_vertical_child:
@@ -975,21 +963,15 @@ def parse_network_text(lines):
             # until we find one with a comparable nesting-level, which is our
             # parent.
             while curr.indent <= (prev.indent + bool(prev.has_vertical_child)):
-                print_('popping')
                 prev = stack.pop()
-
-        rprint_(f'node={node!r}')
-        print_('prenode = {}'.format(ub.urepr(prenode, nl=1)))
-        rprint_(f'prev={prev!r}')
-        rprint_(f'curr={curr!r}')
 
         if node == '...':
             # The current previous node is no longer a valid parent,
             # keep it popped from the stack.
             stack.append(prev)
-            print_('Found ..., continuing on')
         else:
-            print_('Found a regular node, adding it')
+            # The previous and current nodes may still be parents, so add them
+            # back onto the stack.
             stack.append(prev)
             stack.append(curr)
 
@@ -997,12 +979,13 @@ def parse_network_text(lines):
             nodes.append(curr.node)
             if prev.node is not noparent:
                 edges.append((prev.node, curr.node))
-        print_('------------')
 
+    if is_empty:
+        # Sanity check
+        assert len(nodes) == 0
+
+    # Reconstruct the graph
     cls = nx.DiGraph if is_directed else nx.Graph
-
-    print_('nodes = {}'.format(ub.urepr(nodes, nl=1)))
-    print_('edges = {}'.format(ub.urepr(edges, nl=1)))
     new = cls()
     new.add_nodes_from(nodes)
     new.add_edges_from(edges)
