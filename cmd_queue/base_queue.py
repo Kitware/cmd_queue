@@ -148,9 +148,13 @@ class Queue(ub.NiceRepr):
                 # Resolve any strings to job objects
                 if not ub.iterable(depends):
                     depends = [depends]
-                depends = [
-                    self.named_jobs[dep] if isinstance(dep, str) else dep
-                    for dep in depends]
+                try:
+                    depends = [
+                        self.named_jobs[dep] if isinstance(dep, str) else dep
+                        for dep in depends]
+                except Exception:
+                    print('self.named_jobs = {}'.format(ub.urepr(self.named_jobs, nl=1)))
+                    raise
             job = serial_queue.BashJob(command, depends=depends, **kwargs)
         else:
             # Assume job is already a bash job

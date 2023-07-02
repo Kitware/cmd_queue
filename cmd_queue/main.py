@@ -52,6 +52,7 @@ class CommonShowRun(CommonConfig):
                                        name=config['qname'])
         # Run a new CLI queue
         data = json.loads(config.cli_queue_fpath.read_text())
+        print('data = {}'.format(ub.urepr(data, nl=1)))
         row = None
         try:
             for row in data:
@@ -63,9 +64,18 @@ class CommonShowRun(CommonConfig):
                 elif row['type'] == 'command':
                     bash_command = row['command']
                     if isinstance(bash_command, list):
-                        import shlex
-                        bash_command = ' '.join([shlex.quote(str(p)) for p in bash_command])
+                        if len(bash_command) == 1:
+                            # hack
+                            import shlex
+                            if shlex.quote(bash_command[0]) == bash_command[0]:
+                                bash_command = bash_command
+                            else:
+                                bash_command = bash_command[0]
+                        else:
+                            import shlex
+                            bash_command = ' '.join([shlex.quote(str(p)) for p in bash_command])
                     submitkw = ub.udict(row) & {'name', 'depends'}
+                    print(f'submitkw={submitkw}')
                     queue.submit(bash_command, log=False, **submitkw)
         except Exception:
             print('row = {}'.format(ub.urepr(row, nl=1)))
@@ -271,6 +281,20 @@ class CmdQueueCLI(scfg.ModalCLI):
                 ub.cmd('cmd_queue show test-queue', system=True, verbose=3)
                 ub.cmd('cmd_queue run test-queue --backend=serial', system=True, verbose=3)
 
+
+                cmd_queue new test-queue
+                cmd_queue submit test-queue hello world
+                cmd_queue submit test-queue -- echo hello world
+                cmd_queue submit test-queue -- \
+                        python -c "if 1:
+                            import ubelt as ub
+                            print(ub.modname_to_modpath('ubelt'))
+                        "
+                cmd_queue submit test-queue -- python -c "import sys; print(sys.argv)" --foo bar --baz biz
+                cmd_queue show test-queue
+                cmd_queue run test-queue --backend=serial
+                cmd_queue run test-queue --backend=tmux
+
             Example:
                 ub.cmd('cmd_queue test-queue')
             """
@@ -279,7 +303,7 @@ class CmdQueueCLI(scfg.ModalCLI):
             data = json.loads(config.cli_queue_fpath.read_text())
             row = {'type': 'command', 'command': config['command']}
             if config.jobname:
-                row['qname'] = config.jobname
+                row['name'] = config.jobname
             if config.depends:
                 row['depends'] = config.depends
             data.append(row)
