@@ -27,7 +27,6 @@ class AsciiDirectedGlyphs(AsciiBaseGlyphs):
     last: str = "L-> "
     mid: str = "|-> "
     backedge: str = "<-"
-    # vertical_edge: str = 'v'
     vertical_edge: str = '!'
 
 
