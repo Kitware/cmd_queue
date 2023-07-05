@@ -15,6 +15,41 @@ import ubelt as ub
 import rich
 
 
+def _testcase():
+    r"""
+
+    ..code bash:
+        cmd_queue new test_queue
+        # cmd_queue submit test_queue --command="
+        #      python -c 'import sys; print(sys.argv)' \
+        #              --key=val \
+        #              --flag \
+        #              --yaml_arg='
+        #                  yaml: mappings
+        #                  are: useful
+        #              ' \
+        #              --final=arg \
+        #              positional
+        #      "
+
+        cmd_queue submit test_queue -- \
+             python -c 'import sys; print(sys.argv)' \
+                     --key=val \
+                     --flag \
+                     --yaml_arg='
+                         yaml: mappings
+                         are: useful
+                     ' \
+                     --final=arg \
+                     positional
+
+        cmd_queue show test_queue
+        cmd_queue run test_queue --backend=serial
+        cmd_queue run test_queue --backend=tmux
+
+    """
+
+
 class CommonConfig(scfg.DataConfig):
 
     qname = scfg.Value(None, position=1, help='name of the CLI queue')
@@ -192,7 +227,7 @@ class CmdQueueCLI(scfg.ModalCLI):
         cleanup tmux sessions
         """
 
-        yes = scfg.Value(False, help='if True say yes to prompts')
+        yes = scfg.Value(False, isflag=True, help='if True say yes to prompts', short_alias=['y'])
 
         __command__ = 'cleanup'
         def run(config):
