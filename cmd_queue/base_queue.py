@@ -271,7 +271,7 @@ class Queue(ub.NiceRepr):
             with_gaurds (bool):
                 tmux / serial only, show bash guards boilerplate
 
-            with_locks (bool):
+            with_locks (bool | int):
                 tmux, show tmux lock boilerplate
 
             exclude_tags (List[str] | None):

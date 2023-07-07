@@ -1,7 +1,6 @@
 from _typeshed import Incomplete
 from rich.console import RenderableType
 from rich.repr import Result
-from rich.style import StyleType as StyleType
 from textual.app import App
 from textual.reactive import Reactive
 from textual.widget import Widget
@@ -25,7 +24,7 @@ class InstanceRunnableApp(App):
 
 class ExtHeader(Widget):
     tall: Incomplete
-    style: StyleType
+    style: Incomplete
     clock: Incomplete
 
     def __init__(self,

@@ -1,4 +1,7 @@
-from .util_network_text import write_network_text  # NOQA
+from . import util_network_text
+
+
+write_network_text = util_network_text.write_network_text
 
 
 def is_topological_order(graph, node_order):

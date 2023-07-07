@@ -227,7 +227,9 @@ class AirflowQueue(base_queue.Queue):
         self.named_jobs[job.name] = job
         return job
 
-    def print_commands(self, with_status=False, with_gaurds=False, with_rich=None, colors=1, style='auto'):
+    def print_commands(self, with_status=False, with_gaurds=False,
+                       with_locks=1, exclude_tags=None, style='auto',
+                       with_rich=None, colors=1, **kwargs):
         r"""
         Print info about the commands, optionally with rich
 

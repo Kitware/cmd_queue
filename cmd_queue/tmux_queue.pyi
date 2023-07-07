@@ -10,7 +10,7 @@ class TMUXMultiQueue(base_queue.Queue):
     size: Incomplete
     environ: Incomplete
     fpath: Incomplete
-    gres: Incomplete
+    gpus: Incomplete
     cmd_verbose: int
     jobs: Incomplete
     header_commands: Incomplete
@@ -22,6 +22,7 @@ class TMUXMultiQueue(base_queue.Queue):
                  dpath: Incomplete | None = ...,
                  rootid: Incomplete | None = ...,
                  environ: Incomplete | None = ...,
+                 gpus: Incomplete | None = ...,
                  gres: Incomplete | None = ...) -> None:
         ...
 
@@ -40,7 +41,7 @@ class TMUXMultiQueue(base_queue.Queue):
     def add_header_command(self, command) -> None:
         ...
 
-    def finalize_text(self):
+    def finalize_text(self, **kwargs):
         ...
 
     def write(self) -> None:
@@ -72,17 +73,8 @@ class TMUXMultiQueue(base_queue.Queue):
     def monitor(self, refresh_rate: float = ..., with_textual: str = ...):
         ...
 
-    def print_commands(self,
-                       with_status: bool = ...,
-                       with_gaurds: bool = ...,
-                       with_rich: Incomplete | None = ...,
-                       with_locks: int = ...,
-                       colors: int = ...,
-                       exclude_tags: Incomplete | None = ...,
-                       style: str = ...) -> None:
+    def print_commands(self, *args, **kwargs) -> None:
         ...
-
-    rprint: Incomplete
 
     def current_output(self) -> None:
         ...

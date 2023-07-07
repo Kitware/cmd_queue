@@ -99,6 +99,11 @@ import scriptconfig as scfg
 import ubelt as ub
 
 
+__docstubs__ = """
+import cmd_queue
+"""
+
+
 class CMDQueueConfig(scfg.DataConfig):
     """
     A helper to carry around the common boilerplate for cmd-queue CLI's.  The
