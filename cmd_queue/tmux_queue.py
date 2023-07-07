@@ -401,7 +401,7 @@ class TMUXMultiQueue(base_queue.Queue):
             >>> self.print_commands()
         """
         import networkx as nx
-        from cmd_queue.util.util_networkx import graph_str
+        from cmd_queue.util.util_network_text import write_network_text
         graph = self._dependency_graph()
 
         # Get rid of implicit dependencies
@@ -419,7 +419,7 @@ class TMUXMultiQueue(base_queue.Queue):
             print(nx.is_directed_acyclic_graph(graph))
             simple_cycles = list(nx.cycles.simple_cycles(graph))
             print('simple_cycles = {}'.format(ub.repr2(simple_cycles, nl=1)))
-            print(graph_str(graph))
+            write_network_text(graph, print, end="")
             raise
 
         in_cut_nodes = set()
@@ -469,7 +469,7 @@ class TMUXMultiQueue(base_queue.Queue):
             util_graphviz.show_nx(reduced_graph, fnum=3)
             util_graphviz.show_nx(condensed, fnum=2)
 
-        # cmd_queue.graph_str(condensed, write=print)
+        # cmd_queue.write_network_text(condensed, write=print)
 
         # Each rank defines a group that must itself be ordered
         # Ranks will execute sequentially, members within the

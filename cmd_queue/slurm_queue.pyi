@@ -1,6 +1,10 @@
 from _typeshed import Incomplete
 from cmd_queue import base_queue
 
+__dev__: str
+SLURM_SBATCH_KVARGS: Incomplete
+SLURM_SBATCH_FLAGS: Incomplete
+
 
 class SlurmJob(base_queue.Job):
     unused_kwargs: Incomplete
@@ -21,7 +25,6 @@ class SlurmJob(base_queue.Job):
                  name: Incomplete | None = ...,
                  output_fpath: Incomplete | None = ...,
                  depends: Incomplete | None = ...,
-                 partition: Incomplete | None = ...,
                  cpus: Incomplete | None = ...,
                  gpus: Incomplete | None = ...,
                  mem: Incomplete | None = ...,
@@ -70,7 +73,7 @@ class SlurmQueue(base_queue.Queue):
 
     jobname_to_varname: Incomplete
 
-    def finalize_text(self, exclude_tags: Incomplete | None = ...):
+    def finalize_text(self, exclude_tags: Incomplete | None = ..., **kwargs):
         ...
 
     def run(self, block: bool = ..., system: bool = ..., **kw):
@@ -85,15 +88,10 @@ class SlurmQueue(base_queue.Queue):
     def read_state(self):
         ...
 
-    def print_commands(self,
-                       with_status: bool = ...,
-                       with_rich: Incomplete | None = ...,
-                       colors: int = ...,
-                       exclude_tags: Incomplete | None = ...,
-                       style: str = ...) -> None:
+    def print_commands(self, *args, **kwargs):
         ...
 
-    rprint: Incomplete
+    rprint = print_commands
 
 
 SLURM_NOTES: str

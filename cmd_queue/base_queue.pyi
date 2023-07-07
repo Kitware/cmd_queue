@@ -1,3 +1,4 @@
+from typing import List
 import ubelt as ub
 from _typeshed import Incomplete
 
@@ -58,10 +59,27 @@ class Queue(ub.NiceRepr):
     def create(cls, backend: str = ..., **kwargs):
         ...
 
-    def write_network_text(self, reduced: bool = ..., rich: str = ...) -> None:
+    def write_network_text(self,
+                           reduced: bool = ...,
+                           rich: str = ...,
+                           vertical_chains: bool = ...) -> None:
         ...
 
-    def print_graph(self, reduced: bool = True) -> None:
+    def print_commands(self,
+                       with_status: bool = False,
+                       with_gaurds: bool = False,
+                       with_locks: bool | int = 1,
+                       exclude_tags: List[str] | None = None,
+                       style: str = 'colors',
+                       **kwargs) -> None:
+        ...
+
+    def rprint(self, **kwargs) -> None:
+        ...
+
+    def print_graph(self,
+                    reduced: bool = True,
+                    vertical_chains: bool = ...) -> None:
         ...
 
     def monitor(self) -> None:

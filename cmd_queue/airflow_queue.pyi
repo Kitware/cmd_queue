@@ -69,12 +69,15 @@ class AirflowQueue(base_queue.Queue):
     def print_commands(self,
                        with_status: bool = ...,
                        with_gaurds: bool = ...,
+                       with_locks: int = ...,
+                       exclude_tags: Incomplete | None = ...,
+                       style: str = ...,
                        with_rich: Incomplete | None = ...,
                        colors: int = ...,
-                       style: str = ...) -> None:
+                       **kwargs) -> None:
         ...
 
-    rprint: Incomplete
+    rprint = print_commands
 
 
 def demo() -> None:

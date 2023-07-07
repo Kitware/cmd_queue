@@ -1,4 +1,3 @@
-from typing import Union
 from typing import List
 from os import PathLike
 from _typeshed import Incomplete
@@ -13,11 +12,11 @@ class BashJob(base_queue.Job):
     name: str
     pathid: str
     command: str
-    depends: Union[List[BashJob], None]
+    depends: List[BashJob] | None
     bookkeeper: bool
-    info_dpath: Union[PathLike, None]
+    info_dpath: PathLike | None
     log: bool
-    tags: Union[List[str], str, None]
+    tags: List[str] | str | None
     allow_indent: bool
     kwargs: Incomplete
     pass_fpath: Incomplete
@@ -43,19 +42,17 @@ class BashJob(base_queue.Job):
     def finalize_text(self,
                       with_status: bool = ...,
                       with_gaurds: bool = ...,
-                      conditionals: Incomplete | None = ...):
+                      conditionals: Incomplete | None = ...,
+                      **kwargs):
         ...
 
     def print_commands(self,
-                       with_status: bool = ...,
-                       with_gaurds: bool = ...,
+                       with_status: bool = False,
+                       with_gaurds: bool = False,
                        with_rich: Incomplete | None = ...,
-                       colors: int = ...,
-                       style: str = ...,
+                       style: str = 'colors',
                        **kwargs) -> None:
         ...
-
-    rprint: Incomplete
 
 
 class SerialQueue(base_queue.Queue):
@@ -92,6 +89,9 @@ class SerialQueue(base_queue.Queue):
     def is_available(cls):
         ...
 
+    def order_jobs(self) -> None:
+        ...
+
     def finalize_text(self,
                       with_status: bool = ...,
                       with_gaurds: bool = ...,
@@ -102,22 +102,18 @@ class SerialQueue(base_queue.Queue):
     def add_header_command(self, command) -> None:
         ...
 
-    def print_commands(self,
-                       with_status: bool = ...,
-                       with_gaurds: bool = ...,
-                       with_rich: Incomplete | None = ...,
-                       colors: int = ...,
-                       with_locks: bool = ...,
-                       exclude_tags: Incomplete | None = ...,
-                       style: str = ...) -> None:
+    def print_commands(self, *args, **kwargs):
         ...
 
-    rprint: Incomplete
+    rprint = print_commands
 
     def run(self,
             block: bool = ...,
             system: bool = ...,
             shell: int = ...,
+            capture: bool = ...,
+            mode: str = ...,
+            verbose: int = ...,
             **kw) -> None:
         ...
 

@@ -5,7 +5,13 @@ We are currently working on porting this changelog to the specifications in
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## Version 0.1.16 - Unreleased
+## Version 0.1.17 - Unreleased
+
+### Changed
+* Change the CLI to be modal
+
+
+## Version 0.1.16 - Released 2023-06-22
 
 ### Changed:
 * Added experimental `vertical_chains` argument to draw-network-text 

@@ -1,7 +1,6 @@
 import io
 import os
 import ubelt as ub
-__all__ = ['Yaml']
 
 
 class _YamlRepresenter:
@@ -118,7 +117,7 @@ class Yaml:
         Load yaml from a file
 
         Args:
-            file (io.TextIO | PathLike | str): yaml file path or file object
+            file (io.TextIOBase | PathLike | str): yaml file path or file object
             backend (str): either ruamel or pyyaml
 
         Returns:
@@ -213,6 +212,9 @@ class Yaml:
             None
 
         Example:
+            >>> assert Yaml.coerce('') is None
+
+        Example:
             >>> dpath = ub.Path.appdir('cmd_queue/tests/util_yaml').ensuredir()
             >>> fpath = dpath / 'external.yaml'
             >>> fpath.write_text(Yaml.dumps({'foo': 'bar'}))
@@ -237,7 +239,7 @@ class Yaml:
         """
         if isinstance(data, str):
             maybe_path = None
-            if '\n' not in data:
+            if '\n' not in data and len(data.strip()) > 0:
                 # Ambiguous case: might this be path-like?
                 maybe_path = ub.Path(data)
                 try:
@@ -269,3 +271,26 @@ class Yaml:
         ret = ruamel.yaml.comments.CommentedSeq(items)
         ret.fa.set_flow_style()
         return ret
+
+    @staticmethod
+    def Dict(data):
+        """
+        Get a ruamel-enhanced dictionary
+
+        Example:
+            >>> data = {'a': 'avalue', 'b': 'bvalue'}
+            >>> data = Yaml.Dict(data)
+            >>> data.yaml_set_start_comment('hello')
+            >>> # Note: not working https://sourceforge.net/p/ruamel-yaml/tickets/400/
+            >>> data.yaml_set_comment_before_after_key('a', before='a comment', indent=2)
+            >>> data.yaml_set_comment_before_after_key('b', 'b comment')
+            >>> print(Yaml.dumps(data))
+        """
+        import ruamel.yaml
+        ret = ruamel.yaml.comments.CommentedMap(data)
+        return ret
+
+    @staticmethod
+    def CodeBlock(text):
+        import ruamel.yaml
+        return ruamel.yaml.scalarstring.LiteralScalarString(ub.codeblock(text))
