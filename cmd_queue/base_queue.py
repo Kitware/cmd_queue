@@ -118,7 +118,7 @@ class Queue(ub.NiceRepr):
         """
         Args:
             name: specify the name of the job
-            **kwargs: passed to BashJob
+            **kwargs: passed to :class:`cmd_queue.serial_queue.BashJob`
         """
         # TODO: we could accept additional args here that modify how we handle
         # the command in the bash script we build (i.e. if the script is

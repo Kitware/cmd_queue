@@ -1023,4 +1023,29 @@ if 0:
     tmux capture-pane -t my_session_id
     tmux capture-pane --help
     -t my_session_id
+
+
+    # Example of passing environment variables (but does not use new-session)
+    export MYVAR1=123
+    export MYVAR2=456
+    tmux -L MYVAR1 -L MYVAR2
+    echo $MYVAR1
+    echo $MYVAR2
+
+    # References
+    https://unix.stackexchange.com/questions/743817/how-to-start-tmux-in-a-way-that-it-inherits-all-environment-variables-from-the-c
+    https://stackoverflow.com/questions/20701757/tmux-setting-environment-variables-for-sessions
+    https://github.com/orgs/tmux/discussions/3659
+
+    # Can start a new session with a specific environment variable
+    export MYVAR1=123
+    tmux new-session -d -s my_session_id -e "MYVAR1=$MYVAR1" -- "bash"
+
+    # Show the environment of the new sesssion
+    tmux show-env -t my_session_id
+
+    tmux ls
+    tmux kill-session -t my_session_id
+
+    tmux new-session -d -s my_session_id -e "MYVAR1" -- "bash"
     """

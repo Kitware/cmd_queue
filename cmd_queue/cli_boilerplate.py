@@ -172,7 +172,7 @@ class CMDQueueConfig(scfg.DataConfig):
             queue.add_header_command(config.virtualenv_cmd)
         return queue
 
-    def run_queue(config, queue, print_kwargs=None):
+    def run_queue(config, queue, print_kwargs=None, **kwargs):
         """
         Execute a queue with options based on this config.
 
@@ -209,4 +209,5 @@ class CMDQueueConfig(scfg.DataConfig):
 
         if config.run:
             queue.run(with_textual=config.with_textual,
-                      other_session_handler=config.other_session_handler)
+                      other_session_handler=config.other_session_handler,
+                      **kwargs)
