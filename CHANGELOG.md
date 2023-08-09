@@ -7,6 +7,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version 0.1.18 - Unreleased
 
+### Changed
+
+* CLI Boilerplate run-queue can now pass kwargs to the run method.
+
 
 ## Version 0.1.17 - Released 2023-07-07
 
