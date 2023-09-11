@@ -103,14 +103,17 @@ class CommonShowRun(CommonConfig):
                             # hack
                             import shlex
                             if shlex.quote(bash_command[0]) == bash_command[0]:
-                                bash_command = bash_command
-                            else:
                                 bash_command = bash_command[0]
+                            else:
+                                bash_command = shlex.quote(bash_command[0])
                         else:
                             import shlex
                             bash_command = ' '.join([shlex.quote(str(p)) for p in bash_command])
                     submitkw = ub.udict(row) & {'name', 'depends'}
+                    print('\n\n\n')
                     print(f'submitkw={submitkw}')
+                    print('bash_command = {}'.format(ub.urepr(bash_command, nl=1)))
+                    print('\n\n\n')
                     queue.submit(bash_command, log=False, **submitkw)
         except Exception:
             print('row = {}'.format(ub.urepr(row, nl=1)))
@@ -275,7 +278,7 @@ class CmdQueueCLI(scfg.ModalCLI):
         jobname = scfg.Value(None, help='for submit, this is the name of the new job')
         depends = scfg.Value(None, help='comma separated jobnames to depend on')
 
-        command = scfg.Value(None, position=2, nargs='*', help=ub.paragraph(
+        command = scfg.Value(None, type=str, position=2, nargs='*', help=ub.paragraph(
             '''
             Specifies the bash command to queue.
             Care must be taken when specifying this argument.  If specifying as a

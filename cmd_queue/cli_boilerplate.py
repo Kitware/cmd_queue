@@ -116,6 +116,14 @@ class CMDQueueConfig(scfg.DataConfig):
     :func:`CMDQueueConfig.run_queue`. In this way you do not need to worry
     about this specific boilerplate when writing your application. See
     ``cmd_queue.cli_boilerplate __doc__:0`` for example usage.
+
+    It is a good idea to overwrite the default value of queue_name when
+    inheriting: e.g.
+
+    .. code:: python
+
+        queue_name = scfg.Value('your_default_name', help='overwrite the default queue name', group='cmd-queue')
+
     """
     run = scfg.Value(False, isflag=True, help='if False, only prints the commands, otherwise executes them', group='cmd-queue')
 
