@@ -14,6 +14,18 @@ import scriptconfig as scfg
 import ubelt as ub
 import rich
 
+__todo__ = """
+
+- [ ] Currently any operation on a CLI queue will read and rewrite an entire
+      json file. This is noticably slugginsh when working in bash. Instead we
+      should abstract this with the concept of a CLIQueueDatabase. Its initial
+      implementation would effectively do the same thing, but then we could
+      test and compare alternative implementations of this API. For instance,
+      we could write files to a folder and then collect all files at the end so
+      multiple jobs could be written simultaniously.
+
+"""
+
 
 def _testcase():
     r"""
