@@ -72,6 +72,8 @@ class CommonConfig(scfg.DataConfig):
         '''
     ))
 
+    verbose = scfg.Value(1, help='verbosity level')
+
     def __post_init__(config):
         if config['dpath'] == 'auto':
             config['dpath'] = str(ub.Path.appdir('cmd_queue/cli'))
@@ -79,7 +81,8 @@ class CommonConfig(scfg.DataConfig):
     @classmethod
     def main(cls, cmdline=1, **kwargs):
         config = cls.cli(cmdline=cmdline, data=kwargs, strict=True)
-        rich.print('config = ' + ub.urepr(dict(config), nl=1))
+        if config.verbose:
+            rich.print('config = ' + ub.urepr(config, nl=1))
         cli_queue_name = config['qname']
         config.cli_queue_dpath = ub.Path(config['dpath'])
         config.cli_queue_fpath = config.cli_queue_dpath / (str(cli_queue_name) + '.cmd_queue.json')
@@ -287,6 +290,8 @@ class CmdQueueCLI(scfg.ModalCLI):
         """
         submit a job to a queue
         """
+        __command__ = 'submit'
+
         jobname = scfg.Value(None, help='for submit, this is the name of the new job')
         depends = scfg.Value(None, help='comma separated jobnames to depend on')
 
@@ -299,8 +304,6 @@ class CmdQueueCLI(scfg.ModalCLI):
             a positional argument. End all of the options to this CLI with `--` and
             then specify your full command.
             '''))
-
-        __command__ = 'submit'
 
         def run(config):
             """
