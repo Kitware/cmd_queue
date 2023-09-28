@@ -306,7 +306,7 @@ class CmdQueueCLI(scfg.ModalCLI):
             '''))
 
         def run(config):
-            """
+            r"""
             Example:
                 from cmd_queue.main import *  # NOQA
                 CmdQueueCLI.new.main(cmdline=0, qname='test-queue')
