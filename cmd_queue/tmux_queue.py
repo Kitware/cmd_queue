@@ -270,7 +270,7 @@ class TMUXMultiQueue(base_queue.Queue):
 
     def _semaphore_wait_command(self, flag_fpaths, msg):
         r"""
-        TODO: use flock?
+        TODO: use flock? or inotify?
 
         Ignore:
 
@@ -289,6 +289,13 @@ class TMUXMultiQueue(base_queue.Queue):
             flock /var/lock/lock2.lock echo "second lock finished"
 
             flock /var/lock/lock1.lock /var/lock/lock2.lock -c python -c 'while True: print("hi")'
+
+        Example:
+            >>> from cmd_queue.tmux_queue import *  # NOQA
+            >>> flag_fpaths = ['foo.txt']
+            >>> msg = 'waiting'
+            >>> command = TMUXMultiQueue._semaphore_wait_command(None, flag_fpaths, msg)
+            >>> print(command)
         """
         # TODO: use inotifywait
         conditions = ['[ ! -f {} ]'.format(p) for p in flag_fpaths]
