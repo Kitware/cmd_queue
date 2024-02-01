@@ -3,6 +3,9 @@ import os
 import ubelt as ub
 
 
+NEW_RUAMEL = 1
+
+
 class _YamlRepresenter:
 
     @staticmethod
@@ -18,15 +21,18 @@ class _YamlRepresenter:
 @ub.memoize
 def _custom_ruaml_loader():
     """
+    old method
+
     References:
         https://stackoverflow.com/questions/59635900/ruamel-yaml-custom-commentedmapping-for-custom-tags
         https://stackoverflow.com/questions/528281/how-can-i-include-a-yaml-file-inside-another
+        https://stackoverflow.com/questions/76870413/using-a-custom-loader-with-ruamel-yaml-0-15-0
     """
     import ruamel.yaml
     Loader = ruamel.yaml.RoundTripLoader
 
     def _construct_include_tag(self, node):
-        print(f'node={node}')
+        # print(f'node={node}')
         if isinstance(node.value, list):
             return [Yaml.coerce(v.value) for v in node.value]
         else:
@@ -67,6 +73,76 @@ def _custom_pyaml_dumper():
     return Dumper
 
 
+# @ub.memoize
+def _custom_new_ruaml_yaml_obj():
+    """
+    new method
+
+    References:
+        https://stackoverflow.com/questions/59635900/ruamel-yaml-custom-commentedmapping-for-custom-tags
+        https://stackoverflow.com/questions/528281/how-can-i-include-a-yaml-file-inside-another
+        https://stackoverflow.com/questions/76870413/using-a-custom-loader-with-ruamel-yaml-0-15-0
+
+    Example:
+        >>> # Test new load
+        >>> import io
+        >>> file = io.StringIO('[a, b, c]')
+        >>> yaml_obj = _custom_new_ruaml_yaml_obj()
+        >>> data = yaml_obj.load(file)
+        >>> print(data)
+        >>> # Test round trip tump
+        >>> file = io.StringIO()
+        >>> yaml_obj.dump(data, file)
+        >>> print(file.getvalue())
+        >>> #
+        >>> # Test new dump
+        >>> data2 = ub.udict(a=1, b=2)
+        >>> file = io.StringIO()
+        >>> yaml_obj.dump(data2, file)
+        >>> print(file.getvalue())
+    """
+    import ruamel.yaml
+    # make a new instance, although you could get the YAML
+    # instance from the constructor argument
+    class CustomConstructor(ruamel.yaml.constructor.RoundTripConstructor):
+        ...
+
+    class CustomRepresenter(ruamel.yaml.representer.RoundTripRepresenter):
+        ...
+
+    CustomRepresenter.add_representer(str, _YamlRepresenter.str_presenter)
+    CustomRepresenter.add_representer(ub.udict, CustomRepresenter.represent_dict)
+
+    def _construct_include_tag(self, node):
+        print(f'node={node}')
+        value = node.value
+        print(f'value={value}')
+        if isinstance(value, list):
+            return [Yaml.coerce(v.value) for v in value]
+        else:
+            external_fpath = ub.Path(value)
+            if not external_fpath.exists():
+                raise IOError(f'Included external yaml file {external_fpath} '
+                              'does not exist')
+            # Not sure why we can't recurse here...
+            # yaml_obj
+            # print(f'yaml_obj={yaml_obj}')
+            # import xdev
+            # xdev.embed()
+            return Yaml.load(value)
+    # Loader = ruamel.yaml.RoundTripLoader
+    # Loader.add_constructor("!include", _construct_include_tag)
+
+    CustomConstructor.add_constructor('!include', _construct_include_tag)
+    # yaml_obj = ruamel.yaml.YAML(typ='unsafe', pure=True)
+    yaml_obj = ruamel.yaml.YAML()
+    yaml_obj.Constructor = CustomConstructor
+    yaml_obj.Representer = CustomRepresenter
+    yaml_obj.preserve_quotes = True
+    yaml_obj.width = float('inf')
+    return yaml_obj
+
+
 class Yaml:
     """
     Namespace for yaml functions
@@ -99,9 +175,13 @@ class Yaml:
         """
         file = io.StringIO()
         if backend == 'ruamel':
-            import ruamel.yaml
-            Dumper = _custom_ruaml_dumper()
-            ruamel.yaml.round_trip_dump(data, file, Dumper=Dumper, width=float("inf"))
+            if NEW_RUAMEL:
+                yaml_obj = _custom_new_ruaml_yaml_obj()
+                yaml_obj.dump(data, file)
+            else:
+                import ruamel.yaml
+                Dumper = _custom_ruaml_dumper()
+                ruamel.yaml.round_trip_dump(data, file, Dumper=Dumper, width=float("inf"))
         elif backend == 'pyyaml':
             import yaml
             Dumper = _custom_pyaml_dumper()
@@ -122,16 +202,42 @@ class Yaml:
 
         Returns:
             object
+
+        Example:
+            >>> import ubelt as ub
+            >>> data = {
+            >>>     'a': 'hello world',
+            >>>     'b': ub.udict({'a': 3})
+            >>> }
+            >>> text1 = Yaml.dumps(data, backend='ruamel')
+            >>> import io
+            >>> # with ruamel
+            >>> file = io.StringIO(text1)
+            >>> data2 = Yaml.load(file)
+            >>> assert data2 == data
+            >>> # with pyyaml
+            >>> file = io.StringIO(text1)
+            >>> data2 = Yaml.load(file, backend='pyyaml')
+            >>> assert data2 == data
         """
         if isinstance(file, (str, os.PathLike)):
-            with open(file, 'r') as fp:
+            fpath = file
+            with open(fpath, 'r') as fp:
                 return Yaml.load(fp, backend=backend)
         else:
             if backend == 'ruamel':
-                import ruamel.yaml
-                Loader = _custom_ruaml_loader()
-                data = ruamel.yaml.load(file, Loader=Loader, preserve_quotes=True)
-                # data = ruamel.yaml.load(file, Loader=ruamel.yaml.RoundTripLoader, preserve_quotes=True)
+                import ruamel.yaml  # NOQA
+                # TODO: seems like there will be a deprecation
+                # from ruamel.yaml import YAML
+                if NEW_RUAMEL:
+                    yaml_obj = _custom_new_ruaml_yaml_obj()
+                    data = yaml_obj.load(file)
+                else:
+                    # yaml = YAML(typ='unsafe', pure=True)
+                    # data = yaml.load(file, Loader=Loader, preserve_quotes=True)
+                    Loader = _custom_ruaml_loader()
+                    data = ruamel.yaml.load(file, Loader=Loader, preserve_quotes=True)
+                    # data = ruamel.yaml.load(file, Loader=ruamel.yaml.RoundTripLoader, preserve_quotes=True)
             elif backend == 'pyyaml':
                 import yaml
                 # data = yaml.load(file, Loader=yaml.SafeLoader)
@@ -198,6 +304,21 @@ class Yaml:
             https://stackoverflow.com/questions/528281/how-can-i-include-a-yaml-file-inside-another
 
         Example:
+            >>> text = ub.codeblock(
+                '''
+                - !!float nan
+                - !!float inf
+                - nan
+                - inf
+                # Seems to break older ruamel.yaml 0.17.21
+                # - .nan
+                # - .inf
+                - null
+                ''')
+            >>> Yaml.coerce(text, backend='pyyaml')
+            >>> Yaml.coerce(text, backend='ruamel')
+
+        Example:
             >>> Yaml.coerce('"[1, 2, 3]"')
             [1, 2, 3]
             >>> fpath = ub.Path.appdir('cmd_queue/tests/util_yaml').ensuredir() / 'file.yaml'
@@ -243,7 +364,7 @@ class Yaml:
                 # Ambiguous case: might this be path-like?
                 maybe_path = ub.Path(data)
                 try:
-                    if not maybe_path.exists():
+                    if not maybe_path.is_file():
                         maybe_path = None
                 except OSError:
                     maybe_path = None
