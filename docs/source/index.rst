@@ -9,6 +9,8 @@
 Welcome to cmd_queue's documentation!
 =====================================
 
+.. include:: manual/pitch.rst
+
 .. The __init__ files contains the top-level documentation overview
 .. automodule:: cmd_queue.__init__
    :show-inheritance:
@@ -16,7 +18,7 @@ Welcome to cmd_queue's documentation!
 .. toctree::
    :maxdepth: 5
 
-   cmd_queue
+   auto/modules.rst
 
 
 Indices and tables

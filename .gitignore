@@ -94,3 +94,6 @@ ENV/
 profile_output.*
 _skbuild
 pip-wheel-metadata/
+
+docs/source/_static/
+docs/source/images/

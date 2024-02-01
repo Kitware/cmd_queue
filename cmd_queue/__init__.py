@@ -1,4 +1,7 @@
 r"""
+Command Queue
+=============
+
 The cmd_queue module is a tool that lets users define a DAG of bash commands.
 This DAG can be executed in a lightweight tmux backend, or a heavyweight slurm
 backend, or in simple serial mode that runs in the foreground thread. Rich
