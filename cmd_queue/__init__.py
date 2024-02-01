@@ -306,7 +306,7 @@ Example:
 __mkinit__ = """
 mkinit -m cmd_queue
 """
-__version__ = '0.1.19'
+__version__ = '0.1.20'
 
 
 __submodules__ = {
