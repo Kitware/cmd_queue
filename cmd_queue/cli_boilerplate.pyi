@@ -27,5 +27,6 @@ class CMDQueueConfig(scfg.DataConfig):
 
     def run_queue(config,
                   queue: cmd_queue.Queue,
-                  print_kwargs: None | Dict = None) -> None:
+                  print_kwargs: None | Dict = None,
+                  **kwargs) -> None:
         ...

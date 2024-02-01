@@ -14,6 +14,18 @@ import scriptconfig as scfg
 import ubelt as ub
 import rich
 
+__todo__ = """
+
+- [ ] Currently any operation on a CLI queue will read and rewrite an entire
+      json file. This is noticably slugginsh when working in bash. Instead we
+      should abstract this with the concept of a CLIQueueDatabase. Its initial
+      implementation would effectively do the same thing, but then we could
+      test and compare alternative implementations of this API. For instance,
+      we could write files to a folder and then collect all files at the end so
+      multiple jobs could be written simultaniously.
+
+"""
+
 
 def _testcase():
     r"""
@@ -60,6 +72,8 @@ class CommonConfig(scfg.DataConfig):
         '''
     ))
 
+    verbose = scfg.Value(1, help='verbosity level')
+
     def __post_init__(config):
         if config['dpath'] == 'auto':
             config['dpath'] = str(ub.Path.appdir('cmd_queue/cli'))
@@ -67,7 +81,8 @@ class CommonConfig(scfg.DataConfig):
     @classmethod
     def main(cls, cmdline=1, **kwargs):
         config = cls.cli(cmdline=cmdline, data=kwargs, strict=True)
-        rich.print('config = ' + ub.urepr(dict(config), nl=1))
+        if config.verbose:
+            rich.print('config = ' + ub.urepr(config, nl=1))
         cli_queue_name = config['qname']
         config.cli_queue_dpath = ub.Path(config['dpath'])
         config.cli_queue_fpath = config.cli_queue_dpath / (str(cli_queue_name) + '.cmd_queue.json')
@@ -103,14 +118,17 @@ class CommonShowRun(CommonConfig):
                             # hack
                             import shlex
                             if shlex.quote(bash_command[0]) == bash_command[0]:
-                                bash_command = bash_command
-                            else:
                                 bash_command = bash_command[0]
+                            else:
+                                bash_command = shlex.quote(bash_command[0])
                         else:
                             import shlex
                             bash_command = ' '.join([shlex.quote(str(p)) for p in bash_command])
                     submitkw = ub.udict(row) & {'name', 'depends'}
+                    print('\n\n\n')
                     print(f'submitkw={submitkw}')
+                    print('bash_command = {}'.format(ub.urepr(bash_command, nl=1)))
+                    print('\n\n\n')
                     queue.submit(bash_command, log=False, **submitkw)
         except Exception:
             print('row = {}'.format(ub.urepr(row, nl=1)))
@@ -272,10 +290,12 @@ class CmdQueueCLI(scfg.ModalCLI):
         """
         submit a job to a queue
         """
+        __command__ = 'submit'
+
         jobname = scfg.Value(None, help='for submit, this is the name of the new job')
         depends = scfg.Value(None, help='comma separated jobnames to depend on')
 
-        command = scfg.Value(None, position=2, nargs='*', help=ub.paragraph(
+        command = scfg.Value(None, type=str, position=2, nargs='*', help=ub.paragraph(
             '''
             Specifies the bash command to queue.
             Care must be taken when specifying this argument.  If specifying as a
@@ -285,10 +305,8 @@ class CmdQueueCLI(scfg.ModalCLI):
             then specify your full command.
             '''))
 
-        __command__ = 'submit'
-
         def run(config):
-            """
+            r"""
             Example:
                 from cmd_queue.main import *  # NOQA
                 CmdQueueCLI.new.main(cmdline=0, qname='test-queue')

@@ -19,6 +19,7 @@ Submodules
    cmd_queue.airflow_queue
    cmd_queue.base_queue
    cmd_queue.cli_boilerplate
+   cmd_queue.main
    cmd_queue.monitor_app
    cmd_queue.serial_queue
    cmd_queue.slurm_queue

@@ -117,6 +117,7 @@ class Queue(ub.NiceRepr):
     def submit(self, command, **kwargs):
         """
         Args:
+            command (str): The command to execute
             name: specify the name of the job
             **kwargs: passed to :class:`cmd_queue.serial_queue.BashJob`
         """
@@ -157,6 +158,7 @@ class Queue(ub.NiceRepr):
                     raise
             job = serial_queue.BashJob(command, depends=depends, **kwargs)
         else:
+            assert isinstance(command, Job)
             # Assume job is already a bash job
             job = command
         self.jobs.append(job)

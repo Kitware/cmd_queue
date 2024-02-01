@@ -72,6 +72,9 @@ class BashJob(base_queue.Job):
               wrap the job with some sort of negation, so we depend on the
               negation of the job?
 
+        - [ ] Need support for specifying cwd (current working directory) when
+              submitting a job.
+
     CommandLine:
         xdoctest -m cmd_queue.serial_queue BashJob
 

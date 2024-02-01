@@ -116,6 +116,39 @@ class CMDQueueConfig(scfg.DataConfig):
     :func:`CMDQueueConfig.run_queue`. In this way you do not need to worry
     about this specific boilerplate when writing your application. See
     ``cmd_queue.cli_boilerplate __doc__:0`` for example usage.
+
+    It is a good idea to overwrite the default value of queue_name when
+    inheriting: e.g.
+
+    .. code:: python
+
+        queue_name = scfg.Value('your_default_name', help='overwrite the default queue name', group='cmd-queue')
+
+    Other defaults that can be overwritten are:
+
+    .. code:: python
+
+        run = scfg.Value(False, isflag=True, help='if False, only prints the commands, otherwise executes them', group='cmd-queue')
+
+        backend = scfg.Value('tmux', help=('The cmd_queue backend. Can be tmux, slurm, or serial'), group='cmd-queue')
+
+        print_commands = scfg.Value('auto', isflag=True, help='enable / disable rprint before exec', group='cmd-queue')
+
+        print_queue = scfg.Value('auto', isflag=True, help='print the cmd queue DAG', group='cmd-queue')
+
+        with_textual = scfg.Value('auto', isflag=True, help='setting for cmd-queue monitoring', group='cmd-queue')
+
+        other_session_handler = scfg.Value('ask', help='for tmux backend only. How to handle conflicting sessions. Can be ask, kill, or ignore, or auto', group='cmd-queue')
+
+        virtualenv_cmd = scfg.Value(None, type=str, help=ub.paragraph(
+            '''
+            Command to start the appropriate virtual environment if your bashrc
+            does not start it by default.'''), group='cmd-queue')
+
+        tmux_workers = scfg.Value(8, help='number of tmux workers in the queue for the tmux backend', group='cmd-queue')
+
+        slurm_options = scfg.Value(None, help='if the backend is slurm, provide a YAML dictionary for things like partition / etc...', group='cmd-queue')
+
     """
     run = scfg.Value(False, isflag=True, help='if False, only prints the commands, otherwise executes them', group='cmd-queue')
 

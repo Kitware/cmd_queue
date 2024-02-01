@@ -1,4 +1,7 @@
 r"""
+Command Queue
+=============
+
 The cmd_queue module is a tool that lets users define a DAG of bash commands.
 This DAG can be executed in a lightweight tmux backend, or a heavyweight slurm
 backend, or in simple serial mode that runs in the foreground thread. Rich
@@ -303,7 +306,7 @@ Example:
 __mkinit__ = """
 mkinit -m cmd_queue
 """
-__version__ = '0.1.18'
+__version__ = '0.1.19'
 
 
 __submodules__ = {

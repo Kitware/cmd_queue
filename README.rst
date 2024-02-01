@@ -1,9 +1,9 @@
 Command Queue - cmd_queue
 =========================
 
-.. .. |GitlabCIPipeline| |GitlabCICoverage| |Appveyor| |Codecov|
+.. ..  |Appveyor| |Codecov|
 
-|Pypi| |Downloads| |ReadTheDocs|
+|Pypi| |Downloads| |GitlabCIPipeline| |GitlabCICoverage| |ReadTheDocs|
 
 
 +------------------+-------------------------------------------------------------------------------------+
@@ -433,20 +433,20 @@ This prints the very simple slurm submission script:
     :target: https://cmd-queue.readthedocs.io/en/release/
 
 .. # See: https://ci.appveyor.com/project/jon.crall/cmd_queue/settings/badges
-.. |Appveyor| image:: https://ci.appveyor.com/api/projects/status/py3s2d6tyfjc8lm3/branch/master?svg=true
-   :target: https://ci.appveyor.com/project/jon.crall/cmd_queue/branch/master
+.. |Appveyor| image:: https://ci.appveyor.com/api/projects/status/py3s2d6tyfjc8lm3/branch/main?svg=true
+   :target: https://ci.appveyor.com/project/jon.crall/cmd_queue/branch/main
 
-.. |GitlabCIPipeline| image:: https://gitlab.kitware.com/utils/cmd_queue/badges/master/pipeline.svg
-   :target: https://gitlab.kitware.com/utils/cmd_queue/-/jobs
+.. |GitlabCIPipeline| image:: https://gitlab.kitware.com/computer-vision/cmd_queue/badges/main/pipeline.svg
+   :target: https://gitlab.kitware.com/computer-vision/cmd_queue/-/jobs
 
-.. |GitlabCICoverage| image:: https://gitlab.kitware.com/utils/cmd_queue/badges/master/coverage.svg?job=coverage
-    :target: https://gitlab.kitware.com/utils/cmd_queue/commits/master
+.. |GitlabCICoverage| image:: https://gitlab.kitware.com/computer-vision/cmd_queue/badges/main/coverage.svg?job=coverage
+    :target: https://gitlab.kitware.com/computer-vision/cmd_queue/commits/main
 
 .. |CircleCI| image:: https://circleci.com/gh/Erotemic/cmd_queue.svg?style=svg
     :target: https://circleci.com/gh/Erotemic/cmd_queue
 
-.. |Travis| image:: https://img.shields.io/travis/Erotemic/cmd_queue/master.svg?label=Travis%20CI
+.. |Travis| image:: https://img.shields.io/travis/Erotemic/cmd_queue/main.svg?label=Travis%20CI
    :target: https://travis-ci.org/Erotemic/cmd_queue
 
-.. |Codecov| image:: https://codecov.io/github/Erotemic/cmd_queue/badge.svg?branch=master&service=github
-   :target: https://codecov.io/github/Erotemic/cmd_queue?branch=master
+.. |Codecov| image:: https://codecov.io/github/Erotemic/cmd_queue/badge.svg?branch=main&service=github
+   :target: https://codecov.io/github/Erotemic/cmd_queue?branch=main

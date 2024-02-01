@@ -5,7 +5,13 @@ We are currently working on porting this changelog to the specifications in
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## Version 0.1.18 - Unreleased
+## Version 0.1.19 - Unreleased
+
+### Fixed
+* Fixed issue with single-argv commands in the bash interface
+
+
+## Version 0.1.18 - Released 2023-08-09
 
 ### Changed
 
