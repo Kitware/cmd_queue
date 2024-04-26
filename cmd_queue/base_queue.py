@@ -135,6 +135,11 @@ class Queue(ub.NiceRepr):
             name = kwargs.get('name', None)
             if name is None:
                 name = kwargs['name'] = self.name + '-job-{}'.format(self.num_real_jobs)
+
+            # TODO: make sure name is path safe.
+            if ':' in name:
+                raise ValueError('Name must be path-safe')
+
             if self.all_depends:
                 depends = kwargs.get('depends', None)
                 if depends is None:
