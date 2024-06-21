@@ -211,6 +211,7 @@ if __name__ == "__main__":
         "tests": parse_requirements("requirements/tests.txt", versions="loose"),
         "optional": parse_requirements("requirements/optional.txt", versions="loose"),
         "docs": parse_requirements("requirements/docs.txt", versions="loose"),
+        "linting": parse_requirements("requirements/linting.txt", versions="loose"),
         "all-strict": parse_requirements("requirements.txt", versions="strict"),
         "runtime-strict": parse_requirements(
             "requirements/runtime.txt", versions="strict"
@@ -220,6 +221,9 @@ if __name__ == "__main__":
             "requirements/optional.txt", versions="strict"
         ),
         "docs-strict": parse_requirements("requirements/docs.txt", versions="strict"),
+        "linting-strict": parse_requirements(
+            "requirements/linting.txt", versions="strict"
+        ),
     }
     setupkw["name"] = NAME
     setupkw["version"] = VERSION
@@ -231,15 +235,13 @@ if __name__ == "__main__":
     setupkw["long_description_content_type"] = "text/x-rst"
     setupkw["license"] = "Apache 2"
     setupkw["packages"] = find_packages(".")
-    setupkw["python_requires"] = ">=3.6"
+    setupkw["python_requires"] = ">=3.8"
     setupkw["classifiers"] = [
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
         "Topic :: Software Development :: Libraries :: Python Modules",
         "Topic :: Utilities",
         "License :: OSI Approved :: Apache Software License",
-        "Programming Language :: Python :: 3.6",
-        "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
