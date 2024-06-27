@@ -7,6 +7,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version 0.2.0 - Unreleased
 
+### Added
+* Add "gpus" as a CLI option
+
 ### Changed
 * Made pint an optional requirement
 

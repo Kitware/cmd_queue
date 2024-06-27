@@ -94,12 +94,15 @@ class CommonShowRun(CommonConfig):
 
     backend = scfg.Value('tmux', help='the execution backend to use', choices=['tmux', 'slurm', 'serial', 'airflow'])
 
+    gpus = scfg.Value(None, help='a comma separated list of the gpu numbers to spread across. tmux backend only.')
+
     def _build_queue(config):
         import cmd_queue
         import json
         queue = cmd_queue.Queue.create(size=max(1, config['workers']),
                                        backend=config['backend'],
-                                       name=config['qname'])
+                                       name=config['qname'],
+                                       gpus=config['gpus'])
         # Run a new CLI queue
         data = json.loads(config.cli_queue_fpath.read_text())
         print('data = {}'.format(ub.urepr(data, nl=1)))
