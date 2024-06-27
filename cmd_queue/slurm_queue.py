@@ -218,6 +218,7 @@ class SlurmJob(base_queue.Job):
     Represents a slurm job that hasn't been submitted yet
 
     Example:
+        >>> # xdoctest: +REQUIRES(module:pint)
         >>> from cmd_queue.slurm_queue import *  # NOQA
         >>> self = SlurmJob('python -c print("hello world")', 'hi', cpus=5, gpus=1, mem='10GB')
         >>> command = self._build_sbatch_args()
