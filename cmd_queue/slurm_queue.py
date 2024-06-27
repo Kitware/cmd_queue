@@ -41,23 +41,51 @@ from cmd_queue import base_queue  # NOQA
 from cmd_queue.util import util_tags
 
 
-def _coerce_mem(mem):
+try:
+    from functools import cache  # Python 3.9+ only
+except ImportError:
+    from ubelt import memoize as cache
+
+
+@cache
+def _unit_registery():
+    import sys
+    if sys.version_info[0:2] == (3, 9):
+        # backwards compatability support for numpy 2.0 and pint on cp39
+        try:
+            import numpy as np
+        except ImportError:
+            ...
+        else:
+            if not np.__version__.startswith('1.'):
+                np.cumproduct = np.cumprod
+    import pint
+    reg = pint.UnitRegistry()
+    return reg
+
+
+def _coerce_mem_megabytes(mem):
     """
+    Transform input into an integer representing amount of megabytes.
+
     Args:
         mem (int | str): integer number of megabytes or a parseable string
 
+    Returns:
+        int: number of megabytes
+
     Example:
+        >>> # xdoctest: +REQUIRES(module:pint)
         >>> from cmd_queue.slurm_queue import *  # NOQA
-        >>> print(_coerce_mem(30602))
-        >>> print(_coerce_mem('4GB'))
-        >>> print(_coerce_mem('32GB'))
-        >>> print(_coerce_mem('300000000 bytes'))
+        >>> print(_coerce_mem_megabytes(30602))
+        >>> print(_coerce_mem_megabytes('4GB'))
+        >>> print(_coerce_mem_megabytes('32GB'))
+        >>> print(_coerce_mem_megabytes('300000000 bytes'))
     """
     if isinstance(mem, int):
         assert mem > 0
     elif isinstance(mem, str):
-        import pint
-        reg = pint.UnitRegistry()
+        reg = _unit_registery()
         mem = reg.parse_expression(mem)
         mem = int(mem.to('megabytes').m)
     else:
@@ -190,6 +218,7 @@ class SlurmJob(base_queue.Job):
     Represents a slurm job that hasn't been submitted yet
 
     Example:
+        >>> # xdoctest: +REQUIRES(module:pint)
         >>> from cmd_queue.slurm_queue import *  # NOQA
         >>> self = SlurmJob('python -c print("hello world")', 'hi', cpus=5, gpus=1, mem='10GB')
         >>> command = self._build_sbatch_args()
@@ -245,7 +274,7 @@ class SlurmJob(base_queue.Job):
         if self.cpus:
             sbatch_args.append(f'--cpus-per-task={self.cpus}')
         if self.mem:
-            mem = _coerce_mem(self.mem)
+            mem = _coerce_mem_megabytes(self.mem)
             sbatch_args.append(f'--mem={mem}')
         if self.gpus and 'gres' not in self._sbatch_kvargs:
             ub.schedule_deprecation(

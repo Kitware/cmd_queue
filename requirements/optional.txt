@@ -1,2 +1,5 @@
 # xdev availpkg textual
 textual>=0.1.18 ;    python_version >= '3.7'    # Python 3.7+
+
+pint>=0.18      ;                            python_version >= '3.7'    # Python 3.7+
+pint>=0.10      ; python_version < '3.7' and python_version >= '3.6'    # Python 3.6

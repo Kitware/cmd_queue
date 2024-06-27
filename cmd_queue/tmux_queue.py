@@ -1055,4 +1055,24 @@ if 0:
     tmux kill-session -t my_session_id
 
     tmux new-session -d -s my_session_id -e "MYVAR1" -- "bash"
+
+
+
+    #### to start a tmux session with 4 panes
+    tmux new-session -d -s my_session_id1 "bash"
+    tmux send -t my_session_id1 "tmux split-window -h -t 0" Enter
+    tmux send -t my_session_id1 "tmux split-window -v -t 0" Enter
+    tmux send -t my_session_id1 "tmux split-window -v -t 2" Enter
+
+    # Now send a command to each pane
+    tmux send -t my_session_id1 "tmux select-pane -t 0" Enter
+    tmux send -t my_session_id1 "echo pane0" Enter
+    tmux send -t my_session_id1 "tmux select-pane -t 1" Enter
+    tmux send -t my_session_id1 "echo pane1" Enter
+    tmux send -t my_session_id1 "tmux select-pane -t 2" Enter
+    tmux send -t my_session_id1 "echo pane2" Enter
+    tmux send -t my_session_id1 "tmux select-pane -t 3" Enter
+    tmux send -t my_session_id1 "echo pane3" Enter
+
+
     """

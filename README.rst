@@ -190,6 +190,73 @@ that you define in Python.
 We plan on adding an airflow backend.
 
 
+Usage
+=====
+
+
+There are two ways to use ``cmd_queue``:
+
+1. In Python create a Queue object, and then call the .submit method to pass it
+   a shell invocation. It returns an object that you can use to specify
+   dependencies of any further calls to .submit. This simply organizes all of
+   your CLI invocations into a bash script, which can be inspected and then
+   run. There are different backends that enable parallel execution of jobs
+   when dependencies allow.
+
+2. There is a way to use it via the CLI, with details shown in cmd_queue
+   --help. Usage is basically the same.  You create a queue, submit jobs to it,
+   you can inspect it, and you can run it.
+
+
+Example usage in Python:
+
+.. code:: python
+
+   import cmd_queue
+
+   # Create a Queue object
+   self = cmd_queue.Queue.create(name='demo_queue', backend='serial')
+
+   # Submit bash invocations that you want to run, and mark dependencies.
+   job1 = self.submit('echo hello')
+   job2 = self.submit('echo world', depends=[job1])
+   job3 = self.submit('echo foo')
+   job4 = self.submit('echo bar', depends=[job2, job3])
+   job5 = self.submit('echo spam', depends=[job1])
+
+   # Print a graph of job dependencies
+   self.print_graph()
+
+   # Display the simplified bash script to be executed.
+   self.print_commands()
+
+   # Execute the jobs
+   self.run()
+
+
+Example usage in the CLI:
+
+.. code:: bash
+
+    # Create a Queue
+    cmd_queue new "demo_cli_queue"
+
+    # Submit bash invocations that you want to run, and mark dependencies.
+    cmd_queue submit --jobname job1 "demo_cli_queue" -- echo hello
+    cmd_queue submit --jobname job2 --depends job1 "demo_cli_queue" -- echo world
+    cmd_queue submit --jobname job3 "demo_cli_queue" -- echo foo
+    cmd_queue submit --jobname job4 --depends job1,job2 "demo_cli_queue" -- echo bar
+    cmd_queue submit --jobname job5 --depends job1  "demo_cli_queue" -- echo spam
+
+    # Display the simplified bash script to be executed.
+    cmd_queue show "demo_cli_queue" --backend=serial
+
+    # Execute the jobs
+    cmd_queue run "demo_cli_queue" --backend=serial
+
+
+
+
 Examples
 ========
 
@@ -202,7 +269,11 @@ use cmd_queue to "transpile" these sequences of commands to pure bash.
 .. code:: python
 
    import cmd_queue
+
+   # Create a Queue object
    self = cmd_queue.Queue.create(name='demo_queue', backend='serial')
+
+   # Submit bash invocations that you want to run, and mark dependencies.
    job1 = self.submit('echo hello && sleep 0.5')
    job2 = self.submit('echo world && sleep 0.5', depends=[job1])
    job3 = self.submit('echo foo && sleep 0.5')
@@ -214,17 +285,11 @@ use cmd_queue to "transpile" these sequences of commands to pure bash.
    job9 = self.submit('echo eggs && sleep 0.5', depends=[job8])
    job10 = self.submit('echo bazbiz && sleep 0.5', depends=[job9])
 
-   # Display the "user-friendly" pure bash
+   # Display the simplified bash script to be executed.
    self.print_commands()
 
-   # Display the real bash that gets executed under the hood
-   # that is independencly executable, tracks the success / failure of each job,
-   # and manages dependencies.
-   self.print_commands(1, 1)
-
-   # Blocking will display a job monitor while it waits for everything to
-   # complete
-   self.run(block=True)
+   # Execute the jobs
+   self.run()
 
 
 This prints the bash commands in an appropriate order to resolve dependencies.
@@ -269,6 +334,8 @@ This prints the bash commands in an appropriate order to resolve dependencies.
     echo bazbiz && sleep 0.5
 
 
+The same code can be run in parallel by chosing a more powerful backend.
+The tmux backend is the lightest weight parallel backend.
 
 .. code:: python
 
