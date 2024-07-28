@@ -575,6 +575,10 @@ class SerialQueue(base_queue.Queue):
         r"""
         Print info about the commands, optionally with rich
 
+        Args:
+            *args: see :func:`cmd_queue.base_queue.Queue.print_commands`.
+            **kwargs: see :func:`cmd_queue.base_queue.Queue.print_commands`.
+
         CommandLine:
             xdoctest -m cmd_queue.serial_queue SerialQueue.print_commands
 
