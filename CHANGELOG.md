@@ -7,6 +7,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version 0.2.1 - Unreleased
 
+### Added
+* Slurmify helper script
+* Better slurm support
+
+### Fixed
+* fix `SlurmQueue.is_available` with slurm version 19.x
+
 
 ## Version 0.2.0 - Released 2024-06-27
 
