@@ -410,9 +410,11 @@ class SlurmQueue(base_queue.Queue):
         self.unused_kwargs = kwargs
         self.queue_id = name + '-' + stamp + '-' + ub.hash_data(uuid.uuid4())[0:8]
         self.dpath = ub.Path.appdir('cmd_queue/slurm') / self.queue_id
-        if 1:
-            # hack for submission on different systems
+        if 0:
+            # hack for submission on different systems, probably dont want to
+            # do this.
             self.dpath = self.dpath.shrinkuser(home='$HOME')
+
         self.log_dpath = self.dpath / 'logs'
         self.fpath = self.dpath / (self.queue_id + '.sh')
         self.shell = shell
