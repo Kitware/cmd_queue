@@ -99,7 +99,8 @@ class BashJob(base_queue.Job):
             >>> from cmd_queue.serial_queue import *  # NOQA
             >>> # Demo full boilerplate for a job with dependencies
             >>> self = BashJob('basd syhi(', name='job1')
-            >>> self._test_bash_syntax_errors()
+            >>> with pytest.raises(SyntaxError):
+            >>>     self._test_bash_syntax_errors()
         """
         bash_text = self.finalize_text()
         _check_bash_text_for_syntax_errors(bash_text)
