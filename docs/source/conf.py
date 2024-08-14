@@ -17,7 +17,7 @@ Notes:
     # need to edit the conf.py
 
     cd ~/code/cmd_queue/docs
-    sphinx-apidoc --private --separate -f -o ~/code/cmd_queue/docs/source/auto ~/code/cmd_queue/cmd_queue
+    sphinx-apidoc --private --separate --force --output-dir ~/code/cmd_queue/docs/source/auto ~/code/cmd_queue/cmd_queue
 
     # Note: the module should importable before running this
     # (e.g. install it in developer mode or munge the PYTHONPATH)
