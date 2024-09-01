@@ -590,6 +590,10 @@ class SlurmQueue(base_queue.Queue):
             info = ub.cmd('squeue --format="%i %P %j %u %t %M %D %R"')
             stream = io.StringIO(info['out'])
             df = pd.read_csv(stream, sep=' ')
+            
+            # Only include job names that this queue created
+            job_names = [job.name for job in self.jobs]
+            df = df[df['NAME'].isin(job_names)]
             jobid_history.update(df['JOBID'])
 
             num_running = (df['ST'] == 'R').sum()
