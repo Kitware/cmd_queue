@@ -371,6 +371,19 @@ class SlurmQueue(base_queue.Queue):
     Example:
         >>> from cmd_queue.slurm_queue import *  # NOQA
         >>> self = SlurmQueue()
+        >>> job0 = self.submit('echo "hi from $SLURM_JOBID"')
+        >>> job1 = self.submit('echo "hi from $SLURM_JOBID"', depends=[job0])
+        >>> job2 = self.submit('echo "hi from $SLURM_JOBID"', depends=[job1])
+        >>> job3 = self.submit('echo "hi from $SLURM_JOBID"', depends=[job1, job2])
+        >>> self.write()
+        >>> self.print_commands()
+        >>> # xdoctest: +REQUIRES(--run)
+        >>> if not self.is_available():
+        >>>     self.run()
+
+    Example:
+        >>> from cmd_queue.slurm_queue import *  # NOQA
+        >>> self = SlurmQueue()
         >>> job0 = self.submit('echo "hi from $SLURM_JOBID"', begin=0)
         >>> job1 = self.submit('echo "hi from $SLURM_JOBID"', depends=[job0])
         >>> job2 = self.submit('echo "hi from $SLURM_JOBID"', depends=[job1])
