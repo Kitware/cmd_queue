@@ -9,30 +9,6 @@ from cmd_queue import base_queue
 from cmd_queue.util import util_tags
 
 
-def indent(text, prefix='    '):
-    r"""
-    Indents a block of text
-
-    Args:
-        text (str): text to indent
-        prefix (str, default = '    '): prefix to add to each line
-
-    Returns:
-        str: indented text
-
-        >>> from cmd_queue.serial_queue import *  # NOQA
-        >>> text = ['aaaa', 'bb', 'cc\n   dddd\n    ef\n']
-        >>> text = indent(text)
-        >>> print(text)
-        >>> text = indent(text)
-        >>> print(text)
-    """
-    if isinstance(text, (list, tuple)):
-        return indent('\n'.join(text), prefix)
-    else:
-        return prefix + text.replace('\n', '\n' + prefix)
-
-
 class BashJob(base_queue.Job):
     r"""
     A job meant to run inside of a larger bash file. Analog of SlurmJob
@@ -114,6 +90,21 @@ class BashJob(base_queue.Job):
         self.log_fpath = self.info_dpath / f'status/{self.pathid}.logs'
         self.tags = util_tags.Tags.coerce(tags)
         self.allow_indent = allow_indent
+
+    def _test_bash_syntax_errors(self):
+        """
+        Check for bash syntax errors
+
+        Example:
+            >>> from cmd_queue.serial_queue import *  # NOQA
+            >>> # Demo full boilerplate for a job with dependencies
+            >>> self = BashJob('basd syhi(', name='job1')
+            >>> import pytest
+            >>> with pytest.raises(SyntaxError):
+            >>>     self._test_bash_syntax_errors()
+        """
+        bash_text = self.finalize_text()
+        _check_bash_text_for_syntax_errors(bash_text)
 
     def finalize_text(self, with_status=True, with_gaurds=True,
                       conditionals=None, **kwargs):
@@ -575,6 +566,10 @@ class SerialQueue(base_queue.Queue):
         r"""
         Print info about the commands, optionally with rich
 
+        Args:
+            *args: see :func:`cmd_queue.base_queue.Queue.print_commands`.
+            **kwargs: see :func:`cmd_queue.base_queue.Queue.print_commands`.
+
         CommandLine:
             xdoctest -m cmd_queue.serial_queue SerialQueue.print_commands
 
@@ -713,3 +708,40 @@ def _bash_json_dump(json_fmt_parts, fpath):
     printf_part = 'printf ' +  printf_body + ' \\\n    ' + printf_args
     dump_code = printf_part + ' \\\n    ' + redirect_part
     return dump_code
+
+
+def indent(text, prefix='    '):
+    r"""
+    Indents a block of text
+
+    Args:
+        text (str): text to indent
+        prefix (str, default = '    '): prefix to add to each line
+
+    Returns:
+        str: indented text
+
+        >>> from cmd_queue.serial_queue import *  # NOQA
+        >>> text = ['aaaa', 'bb', 'cc\n   dddd\n    ef\n']
+        >>> text = indent(text)
+        >>> print(text)
+        >>> text = indent(text)
+        >>> print(text)
+    """
+    if isinstance(text, (list, tuple)):
+        return indent('\n'.join(text), prefix)
+    else:
+        return prefix + text.replace('\n', '\n' + prefix)
+
+
+def _check_bash_text_for_syntax_errors(bash_text):
+    import tempfile
+    tmpdir = tempfile.TemporaryDirectory()
+    with tmpdir:
+        dpath = ub.Path(tmpdir.name)
+        fpath = dpath / 'job_text.sh'
+        fpath.write_text(bash_text)
+        info = ub.cmd(['bash', '-nv', fpath])
+        if info.returncode != 0:
+            print(info.stderr)
+            raise SyntaxError('bash syntax error')

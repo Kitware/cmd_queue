@@ -264,10 +264,6 @@ class SlurmJob(base_queue.Job):
         return ' \\\n    '.join(args)
 
     def _build_sbatch_args(self, jobname_to_varname=None):
-        # job_name = 'todo'
-        # output_fpath = '$HOME/.cache/slurm/logs/job-%j-%x.out'
-        # command = "python -c 'import sys; sys.exit(1)'"
-        # -c 2 -p priority --gres=gpu:1
         sbatch_args = ['sbatch']
         if self.name:
             sbatch_args.append(f'--job-name="{self.name}"')
@@ -306,7 +302,8 @@ class SlurmJob(base_queue.Job):
 
         for key, value in self._sbatch_kvargs.items():
             key = key.replace('_', '-')
-            sbatch_args.append(f'--{key}="{value}"')
+            if value is not None:
+                sbatch_args.append(f'--{key}="{value}"')
 
         for key, flag in self._sbatch_flags.items():
             if flag:
@@ -374,6 +371,19 @@ class SlurmQueue(base_queue.Queue):
     Example:
         >>> from cmd_queue.slurm_queue import *  # NOQA
         >>> self = SlurmQueue()
+        >>> job0 = self.submit('echo "hi from $SLURM_JOBID"')
+        >>> job1 = self.submit('echo "hi from $SLURM_JOBID"', depends=[job0])
+        >>> job2 = self.submit('echo "hi from $SLURM_JOBID"', depends=[job1])
+        >>> job3 = self.submit('echo "hi from $SLURM_JOBID"', depends=[job1, job2])
+        >>> self.write()
+        >>> self.print_commands()
+        >>> # xdoctest: +REQUIRES(--run)
+        >>> if not self.is_available():
+        >>>     self.run()
+
+    Example:
+        >>> from cmd_queue.slurm_queue import *  # NOQA
+        >>> self = SlurmQueue()
         >>> job0 = self.submit('echo "hi from $SLURM_JOBID"', begin=0)
         >>> job1 = self.submit('echo "hi from $SLURM_JOBID"', depends=[job0])
         >>> job2 = self.submit('echo "hi from $SLURM_JOBID"', depends=[job1])
@@ -413,6 +423,11 @@ class SlurmQueue(base_queue.Queue):
         self.unused_kwargs = kwargs
         self.queue_id = name + '-' + stamp + '-' + ub.hash_data(uuid.uuid4())[0:8]
         self.dpath = ub.Path.appdir('cmd_queue/slurm') / self.queue_id
+        if 0:
+            # hack for submission on different systems, probably dont want to
+            # do this.
+            self.dpath = self.dpath.shrinkuser(home='$HOME')
+
         self.log_dpath = self.dpath / 'logs'
         self.fpath = self.dpath / (self.queue_id + '.sh')
         self.shell = shell
@@ -423,6 +438,37 @@ class SlurmQueue(base_queue.Queue):
 
     def __nice__(self):
         return self.queue_id
+
+    @classmethod
+    def _slurm_checks(cls):
+        status = {}
+        info = {}
+        info['squeue_fpath'] = ub.find_exe('squeue')
+        status['has_squeue'] = bool(info['squeue_fpath'])
+        status['slurmd_running'] = False
+        import psutil
+        for p in psutil.process_iter():
+            if p.name() == 'slurmd':
+                status['slurmd_running'] = True
+                info['slurmd_info'] = {
+                    'pid': p.pid,
+                    'name': p.name(),
+                    'status': p.status(),
+                    'create_time': p.create_time(),
+                }
+                break
+        status['squeue_working'] = (ub.cmd('squeue')['ret'] == 0)
+
+        sinfo = ub.cmd('sinfo --json')
+        status['sinfo_working'] = False
+        if sinfo['ret'] == 0:
+            status['sinfo_working'] = True
+            import json
+            sinfo_out = json.loads(sinfo['out'])
+            has_working_nodes = not all(
+                node['state'] == 'down'
+                for node in sinfo_out['nodes'])
+            status['has_working_nodes'] = has_working_nodes
 
     @classmethod
     def is_available(cls):
@@ -436,15 +482,23 @@ class SlurmQueue(base_queue.Queue):
                 squeue_working = (ub.cmd('squeue')['ret'] == 0)
                 if squeue_working:
                     # Check if nodes are available or down
-                    sinfo = ub.cmd('sinfo --json')
-                    if sinfo['ret'] == 0:
-                        import json
-                        sinfo_out = json.loads(sinfo['out'])
-                        has_working_nodes = not all(
-                            node['state'] == 'down'
-                            for node in sinfo_out['nodes'])
-                        if has_working_nodes:
-                            return True
+                    # note: the --json command is not available in
+                    # slurm-wlm 19.05.5, but it is in slurm-wlm 21.08.5
+                    sinfo_version_str = ub.cmd('sinfo --version').stdout.strip().split(' ')[1]
+                    sinfo_major_version = int(sinfo_version_str.split('.')[0])
+                    if sinfo_major_version < 21:
+                        # Dont check in this case
+                        return True
+                    else:
+                        sinfo = ub.cmd('sinfo --json')
+                        if sinfo['ret'] == 0:
+                            import json
+                            sinfo_out = json.loads(sinfo['out'])
+                            has_working_nodes = not all(
+                                node['state'] == 'down'
+                                for node in sinfo_out['nodes'])
+                            if has_working_nodes:
+                                return True
         return False
 
     def submit(self, command, **kwargs):
@@ -549,6 +603,10 @@ class SlurmQueue(base_queue.Queue):
             info = ub.cmd('squeue --format="%i %P %j %u %t %M %D %R"')
             stream = io.StringIO(info['out'])
             df = pd.read_csv(stream, sep=' ')
+            
+            # Only include job names that this queue created
+            job_names = [job.name for job in self.jobs]
+            df = df[df['NAME'].isin(job_names)]
             jobid_history.update(df['JOBID'])
 
             num_running = (df['ST'] == 'R').sum()
@@ -727,6 +785,11 @@ sbatch \
     --gpu-bind "map_gpu:2,3" \
     --wrap="python -c \"import torch, os; print(os.getenv('CUDA_VISIBLE_DEVICES', 'x')) and torch.rand(1000).to(0)\""
 squeue
+
+
+
+References:
+    https://stackoverflow.com/questions/74164136/slurm-accessing-stdout-stderr-location-of-a-completed-job
 
 
 """

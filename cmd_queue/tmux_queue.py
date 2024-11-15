@@ -1074,5 +1074,19 @@ if 0:
     tmux send -t my_session_id1 "tmux select-pane -t 3" Enter
     tmux send -t my_session_id1 "echo pane3" Enter
 
+    # https://stackoverflow.com/questions/54954177/how-to-write-a-tmux-script-so-that-it-automatically-split-windows-and-opens-a-se
+    # https://tmuxcheatsheet.com/
+    # https://gist.github.com/Starefossen/5955406
+
+    # List the bindings
+    tmux list-keys
+
+    # Can arange the splits in a session via a preset layout
+    # Preset layouts are:
+    # even-horizontal, even-vertical, main-horizontal, main-vertical, or tiled.
+    tmux select-layout -t "${SESSION_NAME}" even-vertical
+
+    # switch to an existing session
+    tmux switch -t "${SESSION_NAME}"
 
     """
