@@ -724,7 +724,7 @@ class TMUXMultiQueue(base_queue.Queue):
 
         CommandLine:
             xdoctest -m cmd_queue.tmux_queue TMUXMultiQueue.monitor:0
-            xdoctest -m cmd_queue.tmux_queue TMUXMultiQueue.monitor:1 --interact
+            INTERACTIVE_TEST=1 xdoctest -m cmd_queue.tmux_queue TMUXMultiQueue.monitor:1
 
         Example:
             >>> # xdoctest: +REQUIRES(--interact)

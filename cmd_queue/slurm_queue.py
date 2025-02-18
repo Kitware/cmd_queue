@@ -642,7 +642,7 @@ class SlurmQueue(base_queue.Queue):
             >>> queue = SlurmQueue()
             >>> job0 = queue.submit(f'echo "here we go"', name='job0')
             >>> job1 = queue.submit(f'echo "this job will pass, allowing dependencies to run" && true', depends=[job0])
-            >>> job2 = queue.submit(f'echo "this job will run and pass" && true', depends=[job1])
+            >>> job2 = queue.submit(f'echo "this job will run and pass" && sleep 10 && true', depends=[job1])
             >>> job3 = queue.submit(f'echo "this job will run and fail" && false', depends=[job1])
             >>> job4 = queue.submit(f'echo "this job will fail, preventing dependencies from running" && false', depends=[job0])
             >>> job5 = queue.submit(f'echo "this job will never run" && true', depends=[job4])
@@ -674,7 +674,8 @@ class SlurmQueue(base_queue.Queue):
                     {
                         'job_varname': job_varname,
                         'job_id': job_id,
-                        'status': 'UNKNOWN',
+                        'status': 'unknown',
+                        'needs_update': True,
                     }
                     for job_varname, job_id in jobid_lut.items()
                 ]
@@ -683,7 +684,7 @@ class SlurmQueue(base_queue.Queue):
 
         def update_jobid_status():
             for row in job_status_table:
-                if row['status'] in {'UNKNOWN', 'PENDING'}:
+                if row['needs_update']:
                     job_id = row['job_id']
                     out = ub.cmd(f'scontrol show job "{job_id}"')
                     info = {}
@@ -697,72 +698,116 @@ class SlurmQueue(base_queue.Queue):
                     # print(f'info = {ub.urepr(info, nl=1)}')
                     row['JobState'] = info['JobState']
                     row['ExitCode'] = info.get('ExitCode', None)
+                    # https://slurm.schedmd.com/job_state_codes.html
                     if info['JobState'].startswith('FAILED'):
-                        row['status'] = 'FAIL'
+                        row['status'] = 'failed'
+                        row['needs_update'] = False
                     elif info['JobState'].startswith('CANCELLED'):
-                        row['status'] = 'FAIL'
+                        row['status'] = 'skipped'
+                        row['needs_update'] = False
                     elif info['JobState'].startswith('COMPLETED'):
-                        row['status'] = 'SUCCESS'
+                        row['status'] = 'passed'
+                        row['needs_update'] = False
+                    elif info['JobState'].startswith('RUNNING'):
+                        row['status'] = 'running'
                     elif info['JobState'].startswith('PENDING'):
-                        row['status'] = 'PENDING'
+                        row['status'] = 'pending'
+                    else:
+                        row['status'] = 'unknown'
             # print(f'job_status_table = {ub.urepr(job_status_table, nl=1)}')
 
         def update_status_table():
             nonlocal num_at_start
-            update_jobid_status()
-            # https://rich.readthedocs.io/en/stable/live.html
-            info = ub.cmd('squeue --format="%i %P %j %u %t %M %D %R"')
-            stream = io.StringIO(info['out'])
-            df = pd.read_csv(stream, sep=' ')
 
-            # Only include job names that this queue created
-            job_names = [job.name for job in self.jobs]
-            df = df[df['NAME'].isin(job_names)]
-            jobid_history.update(df['JOBID'])
+            # TODO: move this block into into the version where job status
+            # table is not available, and reimplement it for the per-job style
+            # of query. The reason we have it out here now is because we need
+            # to implement the HACK_KILL_BROKEN_JOBS in the alternate case.
+            if True:
+                # https://rich.readthedocs.io/en/stable/live.html
+                info = ub.cmd('squeue --format="%i %P %j %u %t %M %D %R"')
+                stream = io.StringIO(info['out'])
+                df = pd.read_csv(stream, sep=' ')
 
-            num_running = (df['ST'] == 'R').sum()
-            num_in_queue = len(df)
-            total_monitored = len(jobid_history)
+                # Only include job names that this queue created
+                job_names = [job.name for job in self.jobs]
+                df = df[df['NAME'].isin(job_names)]
+                jobid_history.update(df['JOBID'])
 
-            HACK_KILL_BROKEN_JOBS = 1
-            if HACK_KILL_BROKEN_JOBS:
-                # For whatever reason using kill-on-invalid-dep
-                # kills jobs too fast and not when they are in a dependency state not a
-                # a never satisfied state. Killing these jobs here seems to fix
-                # it.
-                broken_jobs = df[df['NODELIST(REASON)'] == '(DependencyNeverSatisfied)']
-                if len(broken_jobs):
-                    for name in broken_jobs['NAME']:
-                        ub.cmd(f'scancel --name="{name}"')
+                num_running = (df['ST'] == 'R').sum()
+                num_in_queue = len(df)
+                total_monitored = len(jobid_history)
+
+                HACK_KILL_BROKEN_JOBS = 1
+                if HACK_KILL_BROKEN_JOBS:
+                    # For whatever reason using kill-on-invalid-dep
+                    # kills jobs too fast and not when they are in a dependency state not a
+                    # a never satisfied state. Killing these jobs here seems to fix
+                    # it.
+                    broken_jobs = df[df['NODELIST(REASON)'] == '(DependencyNeverSatisfied)']
+                    if len(broken_jobs):
+                        for name in broken_jobs['NAME']:
+                            ub.cmd(f'scancel --name="{name}"')
 
             if num_at_start is None:
                 num_at_start = len(df)
 
-            header = ['num_running', 'num_in_queue', 'total_monitored', 'num_at_start']
-
-            # TODO: determine if slurm has accounting on, and if we can
-            # figure out how many jobs errored / passed
-            row_values = [
-                f'{num_running}',
-                f'{num_in_queue}',
-                f'{total_monitored}',
-                f'{num_at_start}',
-            ]
-
-            status_hist = ub.dict_hist([row['status'] for row in job_status_table])
-
             if job_status_table is not None:
-                header += ['num_passed', 'num_failed', 'num_pending']
-                row_values.append(str(status_hist.get('SUCCESS', 0)))
-                row_values.append(str(status_hist.get('FAIL', 0)))
-                row_values.append(str(status_hist.get('PENDING', 0)))
+                update_jobid_status()
+                state = ub.dict_hist([row['status'] for row in job_status_table])
+                state.setdefault('passed', 0)
+                state.setdefault('failed', 0)
+                state.setdefault('skipped', 0)
+                state.setdefault('pending', 0)
+                state.setdefault('unknown', 0)
+                state.setdefault('running', 0)
+                state['total'] = len(job_status_table)
+
+                state['other'] = state['total'] - (
+                    state['passed'] + state['failed'] + state['skipped'] +
+                    state['running'] + state['pending']
+                )
+                pass_color = ''
+                fail_color = ''
+                skip_color = ''
+                finished = (state['pending'] + state['unknown'] + state['running'] == 0)
+                if (state['failed'] > 0):
+                    fail_color = '[red]'
+                if (state['skipped'] > 0):
+                    skip_color = '[yellow]'
+                if finished:
+                    pass_color = '[green]'
+
+                header = ['passed', 'failed', 'skipped', 'running', 'pending', 'other', 'total']
+                row_values = [
+                    f"{pass_color}{state['passed']}",
+                    f"{fail_color}{state['failed']}",
+                    f"{skip_color}{state['skipped']}",
+                    f"{state['running']}",
+                    f"{state['pending']}",
+                    f"{state['other']}",
+                    f"{state['total']}",
+                ]
+            else:
+                # TODO: determine if slurm has accounting on, and if we can
+                # figure out how many jobs errored / passed
+                header = ['num_running', 'num_in_queue', 'total_monitored', 'num_at_start']
+                row_values = [
+                    f'{num_running}',
+                    f'{num_in_queue}',
+                    f'{total_monitored}',
+                    f'{num_at_start}',
+                ]
+                # row_values.append(str(state.get('FAIL', 0)))
+                # row_values.append(str(state.get('SKIPPED', 0)))
+                # row_values.append(str(state.get('PENDING', 0)))
+                finished = (num_in_queue == 0)
 
             table = Table(*header,
                           title='slurm-monitor')
 
             table.add_row(*row_values)
 
-            finished = (num_in_queue == 0)
             return table, finished
 
         try:
