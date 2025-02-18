@@ -4,7 +4,7 @@ def bash_json_dump(json_fmt_parts, fpath):
     bash environment.
 
     Args:
-        List[Tuple[str, str, str]]: A list of 3-tupels indicating the name of
+        List[Tuple[str, str, str]]: A list of 3-tuples indicating the name of
             the json key, the printf code, and the bash expression to fill the
             printf code.
 
