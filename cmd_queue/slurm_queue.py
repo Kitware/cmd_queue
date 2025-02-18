@@ -435,6 +435,8 @@ class SlurmQueue(base_queue.Queue):
         self.all_depends = None
         self._sbatch_kvargs = ub.udict(kwargs) & SLURM_SBATCH_KVARGS
         self._sbatch_flags = ub.udict(kwargs) & SLURM_SBATCH_FLAGS
+        self._include_monitor_metadata = True
+        self.jobid_fpath = None
 
     def __nice__(self):
         return self.queue_id
@@ -600,6 +602,20 @@ class SlurmQueue(base_queue.Queue):
                 jobname_to_varname[job.name] = varname
             commands.append(command)
         self.jobname_to_varname = jobname_to_varname
+
+        self._include_monitor_metadata = True
+        if self._include_monitor_metadata:
+            # Build a command to dump the job-ids for this queue to disk to
+            # allow us to track them in the monitor.
+            from cmd_queue.util import util_bash
+            json_fmt_parts = [
+                (job_varname, '%s', '$' + job_varname)
+                for job_varname in self.jobname_to_varname.values()
+            ]
+            self.jobid_fpath = self.fpath.augment(ext='.jobids.json')
+            command = util_bash.bash_json_dump(json_fmt_parts, self.jobid_fpath)
+            commands.append(command)
+
         text = '\n'.join(commands)
         return text
 
@@ -616,22 +632,24 @@ class SlurmQueue(base_queue.Queue):
         """
         Monitor progress until the jobs are done
 
+        CommandLine:
+            xdoctest -m cmd_queue.slurm_queue SlurmQueue.monitor --dev --run
+
         Example:
             >>> # xdoctest: +REQUIRES(--dev)
             >>> from cmd_queue.slurm_queue import *  # NOQA
             >>> dpath = ub.Path.appdir('slurm_queue/tests/test-slurm-failed-monitor')
             >>> queue = SlurmQueue()
-            >>> job0 = queue.submit(f'echo "here we go"', name='job1')
+            >>> job0 = queue.submit(f'echo "here we go"', name='job0')
             >>> job1 = queue.submit(f'echo "this job will pass, allowing dependencies to run" && true', depends=[job0])
             >>> job2 = queue.submit(f'echo "this job will run and pass" && true', depends=[job1])
             >>> job3 = queue.submit(f'echo "this job will run and fail" && false', depends=[job1])
-            >>> job4 = queue.submit(f'echo "this job will fail, preventing dependencies from running" && true', depends=[job0])
+            >>> job4 = queue.submit(f'echo "this job will fail, preventing dependencies from running" && false', depends=[job0])
             >>> job5 = queue.submit(f'echo "this job will never run" && true', depends=[job4])
             >>> job6 = queue.submit(f'echo "this job will also never run" && false', depends=[job4])
             >>> queue.print_commands()
             >>> # xdoctest: +REQUIRES(--run)
             >>> queue.run()
-
         """
 
         import time
@@ -643,8 +661,55 @@ class SlurmQueue(base_queue.Queue):
 
         num_at_start = None
 
+        job_status_table = None
+        if self.jobid_fpath is not None:
+            class UnableToMonitor(Exception):
+                ...
+            try:
+                import json
+                if not self.jobid_fpath.exists():
+                    raise UnableToMonitor
+                jobid_lut = json.loads(self.jobid_fpath.read_text())
+                job_status_table = [
+                    {
+                        'job_varname': job_varname,
+                        'job_id': job_id,
+                        'status': 'UNKNOWN',
+                    }
+                    for job_varname, job_id in jobid_lut.items()
+                ]
+            except UnableToMonitor:
+                print('ERROR: Unable to monitors jobids')
+
+        def update_jobid_status():
+            for row in job_status_table:
+                if row['status'] in {'UNKNOWN', 'PENDING'}:
+                    job_id = row['job_id']
+                    out = ub.cmd(f'scontrol show job "{job_id}"')
+                    info = {}
+                    # FIXME; this is incorrect parsing, but works in simple
+                    # cases
+                    for line in out.stdout.splitlines():
+                        for part in line.split(' '):
+                            if '=' in part:
+                                key, value = part.split('=', 1)
+                                info[key.strip()] = value.strip()
+                    # print(f'info = {ub.urepr(info, nl=1)}')
+                    row['JobState'] = info['JobState']
+                    row['ExitCode'] = info.get('ExitCode', None)
+                    if info['JobState'].startswith('FAILED'):
+                        row['status'] = 'FAIL'
+                    elif info['JobState'].startswith('CANCELLED'):
+                        row['status'] = 'FAIL'
+                    elif info['JobState'].startswith('COMPLETED'):
+                        row['status'] = 'SUCCESS'
+                    elif info['JobState'].startswith('PENDING'):
+                        row['status'] = 'PENDING'
+            # print(f'job_status_table = {ub.urepr(job_status_table, nl=1)}')
+
         def update_status_table():
             nonlocal num_at_start
+            update_jobid_status()
             # https://rich.readthedocs.io/en/stable/live.html
             info = ub.cmd('squeue --format="%i %P %j %u %t %M %D %R"')
             stream = io.StringIO(info['out'])
@@ -673,18 +738,29 @@ class SlurmQueue(base_queue.Queue):
             if num_at_start is None:
                 num_at_start = len(df)
 
-            table = Table(*['num_running', 'num_in_queue', 'total_monitored', 'num_at_start'],
-                          title='slurm-monitor')
+            header = ['num_running', 'num_in_queue', 'total_monitored', 'num_at_start']
 
             # TODO: determine if slurm has accounting on, and if we can
             # figure out how many jobs errored / passed
-
-            table.add_row(
+            row_values = [
                 f'{num_running}',
                 f'{num_in_queue}',
                 f'{total_monitored}',
                 f'{num_at_start}',
-            )
+            ]
+
+            status_hist = ub.dict_hist([row['status'] for row in job_status_table])
+
+            if job_status_table is not None:
+                header += ['num_passed', 'num_failed', 'num_pending']
+                row_values.append(str(status_hist.get('SUCCESS', 0)))
+                row_values.append(str(status_hist.get('FAIL', 0)))
+                row_values.append(str(status_hist.get('PENDING', 0)))
+
+            table = Table(*header,
+                          title='slurm-monitor')
+
+            table.add_row(*row_values)
 
             finished = (num_in_queue == 0)
             return table, finished

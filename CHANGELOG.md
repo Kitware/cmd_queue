@@ -7,6 +7,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version 0.2.2 - Unreleased
 
+### Added
+
+* Add initial support for monitoring passed and failed jobs in slurm.
+
+
 ### Fixed
 
 * Fixed compatibility issues with Slurm v23
