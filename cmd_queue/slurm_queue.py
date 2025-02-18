@@ -683,29 +683,30 @@ class SlurmQueue(base_queue.Queue):
                 print('ERROR: Unable to monitors jobids')
 
         def update_jobid_status():
+            import rich
             for row in job_status_table:
                 if row['needs_update']:
                     job_id = row['job_id']
                     out = ub.cmd(f'scontrol show job "{job_id}"')
-                    info = {}
-                    # FIXME; this is incorrect parsing, but works in simple
-                    # cases
-                    for line in out.stdout.splitlines():
-                        for part in line.split(' '):
-                            if '=' in part:
-                                key, value = part.split('=', 1)
-                                info[key.strip()] = value.strip()
-                    # print(f'info = {ub.urepr(info, nl=1)}')
+                    info = parse_scontrol_output(out.stdout)
                     row['JobState'] = info['JobState']
                     row['ExitCode'] = info.get('ExitCode', None)
                     # https://slurm.schedmd.com/job_state_codes.html
                     if info['JobState'].startswith('FAILED'):
                         row['status'] = 'failed'
+                        rich.print(f'[red] Failed job: {info["JobName"]}')
+                        if info["StdErr"] == info["StdOut"]:
+                            rich.print(f'[red]  * Logs: {info["StdErr"]}')
+                        else:
+                            rich.print(f'[red] StdErr: {info["StdErr"]}')
+                            rich.print(f'[red] StdOut: {info["StdOut"]}')
                         row['needs_update'] = False
                     elif info['JobState'].startswith('CANCELLED'):
+                        rich.print(f'[yellow] Skip job: {info["JobName"]}')
                         row['status'] = 'skipped'
                         row['needs_update'] = False
                     elif info['JobState'].startswith('COMPLETED'):
+                        rich.print(f'[green] Completed job: {info["JobName"]}')
                         row['status'] = 'passed'
                         row['needs_update'] = False
                     elif info['JobState'].startswith('RUNNING'):
@@ -865,6 +866,82 @@ class SlurmQueue(base_queue.Queue):
         return super().print_commands(*args, **kwargs)
 
     rprint = print_commands
+
+
+def parse_scontrol_output(output: str) -> dict:
+    """
+    Parses the output of `scontrol show job` into a dictionary.
+
+    Example:
+        from cmd_queue.slurm_queue import *  # NOQA
+        # Example usage
+        output = ub.codeblock(
+            '''
+            JobId=307 JobName=J0002-SQ-2025 with a space 0218T165929-9a50513a
+               UserId=joncrall(1000) GroupId=joncrall(1000) MCS_label=N/A
+               Priority=1 Nice=0 Account=(null) QOS=(null)
+               JobState=COMPLETED Reason=None Dependency=(null)
+               Requeue=1 Restarts=0 BatchFlag=1 Reboot=0 ExitCode=0:0
+               RunTime=00:00:10 TimeLimit=365-00:00:00 TimeMin=N/A
+               SubmitTime=2025-02-18T16:59:30 EligibleTime=2025-02-18T16:59:33
+               AccrueTime=Unknown
+               StartTime=2025-02-18T16:59:33 EndTime=2025-02-18T16:59:43 Deadline=N/A
+               SuspendTime=None SecsPreSuspend=0 LastSchedEval=2025-02-18T16:59:33 Scheduler=Backfill
+               Partition=priority AllocNode:Sid=localhost:215414
+               ReqNodeList=(null) ExcNodeList=(null)
+               NodeList=toothbrush
+               BatchHost=toothbrush
+               NumNodes=1 NumCPUs=2 NumTasks=1 CPUs/Task=1 ReqB:S:C:T=0:0:*:*
+               ReqTRES=cpu=1,mem=120445M,node=1,billing=1
+               AllocTRES=cpu=2,node=1,billing=2
+               Socks/Node=* NtasksPerN:B:S:C=0:0:*:* CoreSpec=*
+               MinCPUsNode=1 MinMemoryNode=0 MinTmpDiskNode=0
+               Features=(null) DelayBoot=00:00:00
+               OverSubscribe=OK Contiguous=0 Licenses=(null) Network=(null)
+               Command=(null)
+               WorkDir=/home/joncrall/code/cmd_queue
+               StdErr="cmd_queue/slurm/SQ-2025021 with a space 8T165929-9a50513a/logs/J0002-SQ-20250218T165929-9a50513a.sh"
+               StdIn=/dev/null
+               StdOut="slurm/SQ-20 with and = 250218T165929-9a50513a/logs/J0002-SQ-20250218T165929-9a50513a.sh"
+               Power=
+             ''')
+        parse_scontrol_output(output)
+    """
+    import re
+    # These keys should be the last key on a line. They are allowed to contain
+    # space and equal characters.
+    special_keys = [
+        'JobName', 'WorkDir', 'StdErr', 'StdIn', 'StdOut', 'Command',
+        'NodeList', 'BatchHost', 'Partition'
+    ]
+    patterns = '(' + '|'.join(f' {re.escape(k)}=' for k in special_keys) + ')'
+    pat = re.compile(patterns)
+
+    # Initialize dictionary to store parsed key-value pairs
+    parsed_data = {}
+
+    # Split the input into lines
+    for line in output.splitlines():
+        # First, check for special keys (those with spaces before the equal sign)
+        match = pat.search(line)
+        if match:
+            # Special case: Key is a special key with a space
+            startpos = match.start()
+            leading_part = line[:startpos]
+            special_part = line[startpos + 1:]
+            key, value = special_part.split('=', 1)
+            parsed_data[key] = value.strip()
+            line = leading_part
+
+        # Now, handle the general case: split by spaces and then by "="
+        line = line.strip()
+        if line:
+            parts = line.split(' ')
+            for part in parts:
+                key, value = part.split('=', 1)
+                parsed_data[key] = value
+
+    return parsed_data
 
 
 SLURM_NOTES = r"""
