@@ -1,17 +1,18 @@
 def bash_json_dump(json_fmt_parts, fpath):
-    """
-    Make a printf command that dumps a json file indicating some status in a
-    bash environment.
+    r"""
+    Generate a printf bash command that dumps a JSON file indicating some
+    status in a bash environment.
 
     Args:
-        List[Tuple[str, str, str]]: A list of 3-tuples indicating the name of
-            the json key, the printf code, and the bash expression to fill the
-            printf code.
+        List[Tuple[str, str, str]]: A list of 3-tuples where each tuple contains:
+            - The JSON key (str)
+            - The printf format string (str)
+            - The bash expression (str) that provides the value to be printed
 
-        fpath (str): where bash should write the json file
+        fpath (str): Path where the bash script should write the JSON file.
 
     Returns:
-        str : the bash that will perform the printf
+        str: The bash command that will perform the printf.
 
     Example:
         >>> from cmd_queue.util.util_bash import *  # NOQA
@@ -25,6 +26,16 @@ def bash_json_dump(json_fmt_parts, fpath):
         >>> print(dump_code)
         printf '{"home": %s, "const": %s, "ps2": "%s"}\n' \
             "$HOME" "MY_CONSTANT" "$PS2" \
+            > out.json
+
+    Example:
+        >>> from cmd_queue.util.util_bash import *  # NOQA
+        >>> json_fmt_parts = []
+        >>> fpath = 'out.json'
+        >>> dump_code = bash_json_dump(json_fmt_parts, fpath)
+        >>> print(dump_code)
+        printf '{}\n' \
+             \
             > out.json
     """
     printf_body_parts = [
