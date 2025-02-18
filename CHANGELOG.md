@@ -7,6 +7,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version 0.2.2 - Unreleased
 
+### Fixed
+
+* Fixed compatibility issues with Slurm v23
+
 
 ## Version 0.2.1 - Released 2024-11-18
 

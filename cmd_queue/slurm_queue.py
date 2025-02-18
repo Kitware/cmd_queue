@@ -490,15 +490,29 @@ class SlurmQueue(base_queue.Queue):
                         # Dont check in this case
                         return True
                     else:
-                        sinfo = ub.cmd('sinfo --json')
+                        import json
+                        # sinfo --json changed between v22 and v23
+                        # https://github.com/SchedMD/slurm/blob/slurm-23.02/RELEASE_NOTES#L230
+                        if sinfo_major_version == 22:
+                            sinfo = ub.cmd('sinfo --json')
+                        else:
+                            sinfo = ub.cmd('scontrol show nodes --json')
                         if sinfo['ret'] == 0:
-                            import json
                             sinfo_out = json.loads(sinfo['out'])
-                            has_working_nodes = not all(
-                                node['state'] == 'down'
-                                for node in sinfo_out['nodes'])
+                            nodes = sinfo_out['nodes']
+                            # FIXME: this might be an incorrect check on v22
+                            # the v23 version seems different, but I don't have
+                            # v22 setup anymore. Might not be worth supporting.
+                            node_states = [node['state'] for node in nodes]
+                            if sinfo_major_version == 22:
+                                has_working_nodes = not all(
+                                    'down' in str(state).lower() for state in node_states)
+                            else:
+                                has_working_nodes = not all(
+                                    'DOWN' in state for state in node_states)
                             if has_working_nodes:
                                 return True
+
         return False
 
     def submit(self, command, **kwargs):
@@ -540,6 +554,12 @@ class SlurmQueue(base_queue.Queue):
         self.header_commands.append(command)
 
     def order_jobs(self):
+        """
+        Get a topological sorting of the jobs in this DAG.
+
+        Returns:
+            List[SlurmJob]: ordered jobs
+        """
         import networkx as nx
         graph = self._dependency_graph()
         if 0:
@@ -551,6 +571,15 @@ class SlurmQueue(base_queue.Queue):
         return new_order
 
     def finalize_text(self, exclude_tags=None, **kwargs):
+        """
+        Serialize the state of the queue into a bash script.
+
+        Returns:
+            str
+        """
+        # generating the slurm bash script is straightforward because slurm
+        # will take of the hard stuff (like scheduling) for us.  we just need
+        # to effectively encode the DAG as a list of sbatch commands.
         exclude_tags = util_tags.Tags.coerce(exclude_tags)
         new_order = self.order_jobs()
         commands = []
@@ -586,6 +615,23 @@ class SlurmQueue(base_queue.Queue):
     def monitor(self, refresh_rate=0.4):
         """
         Monitor progress until the jobs are done
+
+        Example:
+            >>> # xdoctest: +REQUIRES(--dev)
+            >>> from cmd_queue.slurm_queue import *  # NOQA
+            >>> dpath = ub.Path.appdir('slurm_queue/tests/test-slurm-failed-monitor')
+            >>> queue = SlurmQueue()
+            >>> job0 = queue.submit(f'echo "here we go"', name='job1')
+            >>> job1 = queue.submit(f'echo "this job will pass, allowing dependencies to run" && true', depends=[job0])
+            >>> job2 = queue.submit(f'echo "this job will run and pass" && true', depends=[job1])
+            >>> job3 = queue.submit(f'echo "this job will run and fail" && false', depends=[job1])
+            >>> job4 = queue.submit(f'echo "this job will fail, preventing dependencies from running" && true', depends=[job0])
+            >>> job5 = queue.submit(f'echo "this job will never run" && true', depends=[job4])
+            >>> job6 = queue.submit(f'echo "this job will also never run" && false', depends=[job4])
+            >>> queue.print_commands()
+            >>> # xdoctest: +REQUIRES(--run)
+            >>> queue.run()
+
         """
 
         import time
@@ -603,7 +649,7 @@ class SlurmQueue(base_queue.Queue):
             info = ub.cmd('squeue --format="%i %P %j %u %t %M %D %R"')
             stream = io.StringIO(info['out'])
             df = pd.read_csv(stream, sep=' ')
-            
+
             # Only include job names that this queue created
             job_names = [job.name for job in self.jobs]
             df = df[df['NAME'].isin(job_names)]
@@ -679,6 +725,8 @@ class SlurmQueue(base_queue.Queue):
 
             style (str):
                 can be 'colors', 'rich', or 'plain'
+
+            **kwargs: extra backend-specific args passed to finalize_text
 
         CommandLine:
             xdoctest -m cmd_queue.slurm_queue SlurmQueue.print_commands
