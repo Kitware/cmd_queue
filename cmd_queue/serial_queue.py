@@ -7,6 +7,7 @@ import ubelt as ub
 import uuid
 from cmd_queue import base_queue
 from cmd_queue.util import util_tags
+from cmd_queue.util import util_bash
 
 
 class BashJob(base_queue.Job):
@@ -169,7 +170,8 @@ class BashJob(base_queue.Job):
                 json_fmt_parts += [
                     ('logs', '"%s"', self.log_fpath),
                 ]
-            dump_pre_status = _bash_json_dump(json_fmt_parts, self.stat_fpath)
+            dump_pre_status = util_bash.bash_json_dump(json_fmt_parts,
+                                                       self.stat_fpath)
             script.append('# Mark job as running')
             script.append(dump_pre_status)
 
@@ -238,7 +240,8 @@ class BashJob(base_queue.Job):
                 json_fmt_parts += [
                     ('logs', '"%s"', self.log_fpath),
                 ]
-            dump_post_status = _bash_json_dump(json_fmt_parts, self.stat_fpath)
+            dump_post_status = util_bash.bash_json_dump(json_fmt_parts,
+                                                        self.stat_fpath)
 
             on_pass_part = indent(_job_conditionals['on_pass'])
             on_fail_part = indent(_job_conditionals['on_fail'])
@@ -459,7 +462,8 @@ class SerialQueue(base_queue.Queue):
                     ('name', '"%s"', self.name),
                     ('rootid', '"%s"', self.rootid),
                 ]
-                dump_code = _bash_json_dump(json_fmt_parts, self.state_fpath)
+                dump_code = util_bash.bash_json_dump(json_fmt_parts,
+                                                     self.state_fpath)
                 script.append('# Update queue status')
                 script.append(dump_code)
                 # script.append('cat ' + str(self.state_fpath))
@@ -668,46 +672,6 @@ class SerialQueue(base_queue.Queue):
                 continue
             break
         return state
-
-
-def _bash_json_dump(json_fmt_parts, fpath):
-    """
-    Make a printf command that dumps a json file indicating some status in a
-    bash environment.
-
-    Args:
-        List[Tuple[str, str, str]]: A list of 3-tupels indicating the name of
-            the json key, the printf code, and the bash expression to fill the
-            printf code.
-
-        fpath (str): where bash should write the json file
-
-    Returns:
-        str : the bash that will perform the printf
-
-    Example:
-        >>> from cmd_queue.serial_queue import _bash_json_dump
-        >>> json_fmt_parts = [
-        >>>     ('home', '%s', '$HOME'),
-        >>>     ('const', '%s', 'MY_CONSTANT'),
-        >>>     ('ps2', '"%s"', '$PS2'),
-        >>> ]
-        >>> fpath = 'out.json'
-        >>> dump_code = _bash_json_dump(json_fmt_parts, fpath)
-        >>> print(dump_code)
-    """
-    printf_body_parts = [
-        '"{}": {}'.format(k, f) for k, f, v in json_fmt_parts
-    ]
-    printf_arg_parts = [
-        '"{}"'.format(v) for k, f, v in json_fmt_parts
-    ]
-    printf_body = r"'{" + ", ".join(printf_body_parts) + r"}\n'"
-    printf_args = ' '.join(printf_arg_parts)
-    redirect_part = '> ' + str(fpath)
-    printf_part = 'printf ' +  printf_body + ' \\\n    ' + printf_args
-    dump_code = printf_part + ' \\\n    ' + redirect_part
-    return dump_code
 
 
 def indent(text, prefix='    '):

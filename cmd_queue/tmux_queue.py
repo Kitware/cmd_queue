@@ -724,7 +724,7 @@ class TMUXMultiQueue(base_queue.Queue):
 
         CommandLine:
             xdoctest -m cmd_queue.tmux_queue TMUXMultiQueue.monitor:0
-            xdoctest -m cmd_queue.tmux_queue TMUXMultiQueue.monitor:1 --interact
+            INTERACTIVE_TEST=1 xdoctest -m cmd_queue.tmux_queue TMUXMultiQueue.monitor:1
 
         Example:
             >>> # xdoctest: +REQUIRES(--interact)
@@ -855,7 +855,6 @@ class TMUXMultiQueue(base_queue.Queue):
                 finished &= (state['status'] == 'done')
                 if state['status'] == 'done':
                     pass_color = '[green]'
-
                 if (state['failed'] > 0):
                     fail_color = '[red]'
                 if (state['skipped'] > 0):

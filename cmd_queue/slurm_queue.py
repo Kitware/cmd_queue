@@ -435,6 +435,8 @@ class SlurmQueue(base_queue.Queue):
         self.all_depends = None
         self._sbatch_kvargs = ub.udict(kwargs) & SLURM_SBATCH_KVARGS
         self._sbatch_flags = ub.udict(kwargs) & SLURM_SBATCH_FLAGS
+        self._include_monitor_metadata = True
+        self.jobid_fpath = None
 
     def __nice__(self):
         return self.queue_id
@@ -490,15 +492,29 @@ class SlurmQueue(base_queue.Queue):
                         # Dont check in this case
                         return True
                     else:
-                        sinfo = ub.cmd('sinfo --json')
+                        import json
+                        # sinfo --json changed between v22 and v23
+                        # https://github.com/SchedMD/slurm/blob/slurm-23.02/RELEASE_NOTES#L230
+                        if sinfo_major_version == 22:
+                            sinfo = ub.cmd('sinfo --json')
+                        else:
+                            sinfo = ub.cmd('scontrol show nodes --json')
                         if sinfo['ret'] == 0:
-                            import json
                             sinfo_out = json.loads(sinfo['out'])
-                            has_working_nodes = not all(
-                                node['state'] == 'down'
-                                for node in sinfo_out['nodes'])
+                            nodes = sinfo_out['nodes']
+                            # FIXME: this might be an incorrect check on v22
+                            # the v23 version seems different, but I don't have
+                            # v22 setup anymore. Might not be worth supporting.
+                            node_states = [node['state'] for node in nodes]
+                            if sinfo_major_version == 22:
+                                has_working_nodes = not all(
+                                    'down' in str(state).lower() for state in node_states)
+                            else:
+                                has_working_nodes = not all(
+                                    'DOWN' in state for state in node_states)
                             if has_working_nodes:
                                 return True
+
         return False
 
     def submit(self, command, **kwargs):
@@ -540,6 +556,12 @@ class SlurmQueue(base_queue.Queue):
         self.header_commands.append(command)
 
     def order_jobs(self):
+        """
+        Get a topological sorting of the jobs in this DAG.
+
+        Returns:
+            List[SlurmJob]: ordered jobs
+        """
         import networkx as nx
         graph = self._dependency_graph()
         if 0:
@@ -551,6 +573,15 @@ class SlurmQueue(base_queue.Queue):
         return new_order
 
     def finalize_text(self, exclude_tags=None, **kwargs):
+        """
+        Serialize the state of the queue into a bash script.
+
+        Returns:
+            str
+        """
+        # generating the slurm bash script is straightforward because slurm
+        # will take of the hard stuff (like scheduling) for us.  we just need
+        # to effectively encode the DAG as a list of sbatch commands.
         exclude_tags = util_tags.Tags.coerce(exclude_tags)
         new_order = self.order_jobs()
         commands = []
@@ -571,6 +602,20 @@ class SlurmQueue(base_queue.Queue):
                 jobname_to_varname[job.name] = varname
             commands.append(command)
         self.jobname_to_varname = jobname_to_varname
+
+        self._include_monitor_metadata = True
+        if self._include_monitor_metadata:
+            # Build a command to dump the job-ids for this queue to disk to
+            # allow us to track them in the monitor.
+            from cmd_queue.util import util_bash
+            json_fmt_parts = [
+                (job_varname, '%s', '$' + job_varname)
+                for job_varname in self.jobname_to_varname.values()
+            ]
+            self.jobid_fpath = self.fpath.augment(ext='.jobids.json')
+            command = util_bash.bash_json_dump(json_fmt_parts, self.jobid_fpath)
+            commands.append(command)
+
         text = '\n'.join(commands)
         return text
 
@@ -586,6 +631,25 @@ class SlurmQueue(base_queue.Queue):
     def monitor(self, refresh_rate=0.4):
         """
         Monitor progress until the jobs are done
+
+        CommandLine:
+            xdoctest -m cmd_queue.slurm_queue SlurmQueue.monitor --dev --run
+
+        Example:
+            >>> # xdoctest: +REQUIRES(--dev)
+            >>> from cmd_queue.slurm_queue import *  # NOQA
+            >>> dpath = ub.Path.appdir('slurm_queue/tests/test-slurm-failed-monitor')
+            >>> queue = SlurmQueue()
+            >>> job0 = queue.submit(f'echo "here we go"', name='job0')
+            >>> job1 = queue.submit(f'echo "this job will pass, allowing dependencies to run" && true', depends=[job0])
+            >>> job2 = queue.submit(f'echo "this job will run and pass" && sleep 10 && true', depends=[job1])
+            >>> job3 = queue.submit(f'echo "this job will run and fail" && false', depends=[job1])
+            >>> job4 = queue.submit(f'echo "this job will fail, preventing dependencies from running" && false', depends=[job0])
+            >>> job5 = queue.submit(f'echo "this job will never run" && true', depends=[job4])
+            >>> job6 = queue.submit(f'echo "this job will also never run" && false', depends=[job4])
+            >>> queue.print_commands()
+            >>> # xdoctest: +REQUIRES(--run)
+            >>> queue.run()
         """
 
         import time
@@ -597,50 +661,154 @@ class SlurmQueue(base_queue.Queue):
 
         num_at_start = None
 
+        job_status_table = None
+        if self.jobid_fpath is not None:
+            class UnableToMonitor(Exception):
+                ...
+            try:
+                import json
+                if not self.jobid_fpath.exists():
+                    raise UnableToMonitor
+                jobid_lut = json.loads(self.jobid_fpath.read_text())
+                job_status_table = [
+                    {
+                        'job_varname': job_varname,
+                        'job_id': job_id,
+                        'status': 'unknown',
+                        'needs_update': True,
+                    }
+                    for job_varname, job_id in jobid_lut.items()
+                ]
+            except UnableToMonitor:
+                print('ERROR: Unable to monitors jobids')
+
+        def update_jobid_status():
+            import rich
+            for row in job_status_table:
+                if row['needs_update']:
+                    job_id = row['job_id']
+                    out = ub.cmd(f'scontrol show job "{job_id}"')
+                    info = parse_scontrol_output(out.stdout)
+                    row['JobState'] = info['JobState']
+                    row['ExitCode'] = info.get('ExitCode', None)
+                    # https://slurm.schedmd.com/job_state_codes.html
+                    if info['JobState'].startswith('FAILED'):
+                        row['status'] = 'failed'
+                        rich.print(f'[red] Failed job: {info["JobName"]}')
+                        if info["StdErr"] == info["StdOut"]:
+                            rich.print(f'[red]  * Logs: {info["StdErr"]}')
+                        else:
+                            rich.print(f'[red] StdErr: {info["StdErr"]}')
+                            rich.print(f'[red] StdOut: {info["StdOut"]}')
+                        row['needs_update'] = False
+                    elif info['JobState'].startswith('CANCELLED'):
+                        rich.print(f'[yellow] Skip job: {info["JobName"]}')
+                        row['status'] = 'skipped'
+                        row['needs_update'] = False
+                    elif info['JobState'].startswith('COMPLETED'):
+                        rich.print(f'[green] Completed job: {info["JobName"]}')
+                        row['status'] = 'passed'
+                        row['needs_update'] = False
+                    elif info['JobState'].startswith('RUNNING'):
+                        row['status'] = 'running'
+                    elif info['JobState'].startswith('PENDING'):
+                        row['status'] = 'pending'
+                    else:
+                        row['status'] = 'unknown'
+            # print(f'job_status_table = {ub.urepr(job_status_table, nl=1)}')
+
         def update_status_table():
             nonlocal num_at_start
-            # https://rich.readthedocs.io/en/stable/live.html
-            info = ub.cmd('squeue --format="%i %P %j %u %t %M %D %R"')
-            stream = io.StringIO(info['out'])
-            df = pd.read_csv(stream, sep=' ')
-            
-            # Only include job names that this queue created
-            job_names = [job.name for job in self.jobs]
-            df = df[df['NAME'].isin(job_names)]
-            jobid_history.update(df['JOBID'])
 
-            num_running = (df['ST'] == 'R').sum()
-            num_in_queue = len(df)
-            total_monitored = len(jobid_history)
+            # TODO: move this block into into the version where job status
+            # table is not available, and reimplement it for the per-job style
+            # of query. The reason we have it out here now is because we need
+            # to implement the HACK_KILL_BROKEN_JOBS in the alternate case.
+            if True:
+                # https://rich.readthedocs.io/en/stable/live.html
+                info = ub.cmd('squeue --format="%i %P %j %u %t %M %D %R"')
+                stream = io.StringIO(info['out'])
+                df = pd.read_csv(stream, sep=' ')
 
-            HACK_KILL_BROKEN_JOBS = 1
-            if HACK_KILL_BROKEN_JOBS:
-                # For whatever reason using kill-on-invalid-dep
-                # kills jobs too fast and not when they are in a dependency state not a
-                # a never satisfied state. Killing these jobs here seems to fix
-                # it.
-                broken_jobs = df[df['NODELIST(REASON)'] == '(DependencyNeverSatisfied)']
-                if len(broken_jobs):
-                    for name in broken_jobs['NAME']:
-                        ub.cmd(f'scancel --name="{name}"')
+                # Only include job names that this queue created
+                job_names = [job.name for job in self.jobs]
+                df = df[df['NAME'].isin(job_names)]
+                jobid_history.update(df['JOBID'])
+
+                num_running = (df['ST'] == 'R').sum()
+                num_in_queue = len(df)
+                total_monitored = len(jobid_history)
+
+                HACK_KILL_BROKEN_JOBS = 1
+                if HACK_KILL_BROKEN_JOBS:
+                    # For whatever reason using kill-on-invalid-dep
+                    # kills jobs too fast and not when they are in a dependency state not a
+                    # a never satisfied state. Killing these jobs here seems to fix
+                    # it.
+                    broken_jobs = df[df['NODELIST(REASON)'] == '(DependencyNeverSatisfied)']
+                    if len(broken_jobs):
+                        for name in broken_jobs['NAME']:
+                            ub.cmd(f'scancel --name="{name}"')
 
             if num_at_start is None:
                 num_at_start = len(df)
 
-            table = Table(*['num_running', 'num_in_queue', 'total_monitored', 'num_at_start'],
+            if job_status_table is not None:
+                update_jobid_status()
+                state = ub.dict_hist([row['status'] for row in job_status_table])
+                state.setdefault('passed', 0)
+                state.setdefault('failed', 0)
+                state.setdefault('skipped', 0)
+                state.setdefault('pending', 0)
+                state.setdefault('unknown', 0)
+                state.setdefault('running', 0)
+                state['total'] = len(job_status_table)
+
+                state['other'] = state['total'] - (
+                    state['passed'] + state['failed'] + state['skipped'] +
+                    state['running'] + state['pending']
+                )
+                pass_color = ''
+                fail_color = ''
+                skip_color = ''
+                finished = (state['pending'] + state['unknown'] + state['running'] == 0)
+                if (state['failed'] > 0):
+                    fail_color = '[red]'
+                if (state['skipped'] > 0):
+                    skip_color = '[yellow]'
+                if finished:
+                    pass_color = '[green]'
+
+                header = ['passed', 'failed', 'skipped', 'running', 'pending', 'other', 'total']
+                row_values = [
+                    f"{pass_color}{state['passed']}",
+                    f"{fail_color}{state['failed']}",
+                    f"{skip_color}{state['skipped']}",
+                    f"{state['running']}",
+                    f"{state['pending']}",
+                    f"{state['other']}",
+                    f"{state['total']}",
+                ]
+            else:
+                # TODO: determine if slurm has accounting on, and if we can
+                # figure out how many jobs errored / passed
+                header = ['num_running', 'num_in_queue', 'total_monitored', 'num_at_start']
+                row_values = [
+                    f'{num_running}',
+                    f'{num_in_queue}',
+                    f'{total_monitored}',
+                    f'{num_at_start}',
+                ]
+                # row_values.append(str(state.get('FAIL', 0)))
+                # row_values.append(str(state.get('SKIPPED', 0)))
+                # row_values.append(str(state.get('PENDING', 0)))
+                finished = (num_in_queue == 0)
+
+            table = Table(*header,
                           title='slurm-monitor')
 
-            # TODO: determine if slurm has accounting on, and if we can
-            # figure out how many jobs errored / passed
+            table.add_row(*row_values)
 
-            table.add_row(
-                f'{num_running}',
-                f'{num_in_queue}',
-                f'{total_monitored}',
-                f'{num_at_start}',
-            )
-
-            finished = (num_in_queue == 0)
             return table, finished
 
         try:
@@ -680,6 +848,8 @@ class SlurmQueue(base_queue.Queue):
             style (str):
                 can be 'colors', 'rich', or 'plain'
 
+            **kwargs: extra backend-specific args passed to finalize_text
+
         CommandLine:
             xdoctest -m cmd_queue.slurm_queue SlurmQueue.print_commands
 
@@ -696,6 +866,82 @@ class SlurmQueue(base_queue.Queue):
         return super().print_commands(*args, **kwargs)
 
     rprint = print_commands
+
+
+def parse_scontrol_output(output: str) -> dict:
+    """
+    Parses the output of `scontrol show job` into a dictionary.
+
+    Example:
+        from cmd_queue.slurm_queue import *  # NOQA
+        # Example usage
+        output = ub.codeblock(
+            '''
+            JobId=307 JobName=J0002-SQ-2025 with a space 0218T165929-9a50513a
+               UserId=joncrall(1000) GroupId=joncrall(1000) MCS_label=N/A
+               Priority=1 Nice=0 Account=(null) QOS=(null)
+               JobState=COMPLETED Reason=None Dependency=(null)
+               Requeue=1 Restarts=0 BatchFlag=1 Reboot=0 ExitCode=0:0
+               RunTime=00:00:10 TimeLimit=365-00:00:00 TimeMin=N/A
+               SubmitTime=2025-02-18T16:59:30 EligibleTime=2025-02-18T16:59:33
+               AccrueTime=Unknown
+               StartTime=2025-02-18T16:59:33 EndTime=2025-02-18T16:59:43 Deadline=N/A
+               SuspendTime=None SecsPreSuspend=0 LastSchedEval=2025-02-18T16:59:33 Scheduler=Backfill
+               Partition=priority AllocNode:Sid=localhost:215414
+               ReqNodeList=(null) ExcNodeList=(null)
+               NodeList=toothbrush
+               BatchHost=toothbrush
+               NumNodes=1 NumCPUs=2 NumTasks=1 CPUs/Task=1 ReqB:S:C:T=0:0:*:*
+               ReqTRES=cpu=1,mem=120445M,node=1,billing=1
+               AllocTRES=cpu=2,node=1,billing=2
+               Socks/Node=* NtasksPerN:B:S:C=0:0:*:* CoreSpec=*
+               MinCPUsNode=1 MinMemoryNode=0 MinTmpDiskNode=0
+               Features=(null) DelayBoot=00:00:00
+               OverSubscribe=OK Contiguous=0 Licenses=(null) Network=(null)
+               Command=(null)
+               WorkDir=/home/joncrall/code/cmd_queue
+               StdErr="cmd_queue/slurm/SQ-2025021 with a space 8T165929-9a50513a/logs/J0002-SQ-20250218T165929-9a50513a.sh"
+               StdIn=/dev/null
+               StdOut="slurm/SQ-20 with and = 250218T165929-9a50513a/logs/J0002-SQ-20250218T165929-9a50513a.sh"
+               Power=
+             ''')
+        parse_scontrol_output(output)
+    """
+    import re
+    # These keys should be the last key on a line. They are allowed to contain
+    # space and equal characters.
+    special_keys = [
+        'JobName', 'WorkDir', 'StdErr', 'StdIn', 'StdOut', 'Command',
+        'NodeList', 'BatchHost', 'Partition'
+    ]
+    patterns = '(' + '|'.join(f' {re.escape(k)}=' for k in special_keys) + ')'
+    pat = re.compile(patterns)
+
+    # Initialize dictionary to store parsed key-value pairs
+    parsed_data = {}
+
+    # Split the input into lines
+    for line in output.splitlines():
+        # First, check for special keys (those with spaces before the equal sign)
+        match = pat.search(line)
+        if match:
+            # Special case: Key is a special key with a space
+            startpos = match.start()
+            leading_part = line[:startpos]
+            special_part = line[startpos + 1:]
+            key, value = special_part.split('=', 1)
+            parsed_data[key] = value.strip()
+            line = leading_part
+
+        # Now, handle the general case: split by spaces and then by "="
+        line = line.strip()
+        if line:
+            parts = line.split(' ')
+            for part in parts:
+                key, value = part.split('=', 1)
+                parsed_data[key] = value
+
+    return parsed_data
 
 
 SLURM_NOTES = r"""

@@ -5,7 +5,19 @@ We are currently working on porting this changelog to the specifications in
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## Version 0.2.1 - Unreleased
+## Version 0.2.2 - Unreleased
+
+### Added
+
+* Add initial support for monitoring passed and failed jobs in slurm.
+
+
+### Fixed
+
+* Fixed compatibility issues with Slurm v23
+
+
+## Version 0.2.1 - Released 2024-11-18
 
 ### Added
 * Slurmify helper script
