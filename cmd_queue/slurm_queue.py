@@ -464,12 +464,14 @@ class SlurmQueue(base_queue.Queue):
         sinfo = ub.cmd('sinfo --json')
         status['sinfo_working'] = False
         if sinfo['ret'] == 0:
-            status['sinfo_working'] = True
             import json
+            status['sinfo_working'] = True
+            status['sinfo_version_str'] = ub.cmd('sinfo --version').stdout.strip().split(' ')[1]
             sinfo_out = json.loads(sinfo['out'])
+            nodes = sinfo_out['nodes']
+            node_states = [node['state'] for node in nodes]
             has_working_nodes = not all(
-                node['state'] == 'down'
-                for node in sinfo_out['nodes'])
+                'down' in str(state).lower() for state in node_states)
             status['has_working_nodes'] = has_working_nodes
 
     @classmethod
@@ -495,7 +497,7 @@ class SlurmQueue(base_queue.Queue):
                         import json
                         # sinfo --json changed between v22 and v23
                         # https://github.com/SchedMD/slurm/blob/slurm-23.02/RELEASE_NOTES#L230
-                        if sinfo_major_version == 22:
+                        if sinfo_major_version > 21:
                             sinfo = ub.cmd('sinfo --json')
                         else:
                             sinfo = ub.cmd('scontrol show nodes --json')
@@ -506,7 +508,7 @@ class SlurmQueue(base_queue.Queue):
                             # the v23 version seems different, but I don't have
                             # v22 setup anymore. Might not be worth supporting.
                             node_states = [node['state'] for node in nodes]
-                            if sinfo_major_version == 22:
+                            if sinfo_major_version > 21:
                                 has_working_nodes = not all(
                                     'down' in str(state).lower() for state in node_states)
                             else:
