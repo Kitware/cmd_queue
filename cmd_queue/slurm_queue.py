@@ -441,8 +441,8 @@ class SlurmQueue(base_queue.Queue):
     def __nice__(self):
         return self.queue_id
 
-    @classmethod
-    def _slurm_checks(cls):
+    @staticmethod
+    def _slurm_checks():
         status = {}
         info = {}
         info['squeue_fpath'] = ub.find_exe('squeue')
@@ -474,8 +474,8 @@ class SlurmQueue(base_queue.Queue):
                 'down' in str(state).lower() for state in node_states)
             status['has_working_nodes'] = has_working_nodes
 
-    @classmethod
-    def is_available(cls):
+    @staticmethod
+    def is_available():
         """
         Determines if we can run the slurm queue or not.
         """
@@ -497,7 +497,7 @@ class SlurmQueue(base_queue.Queue):
                         import json
                         # sinfo --json changed between v22 and v23
                         # https://github.com/SchedMD/slurm/blob/slurm-23.02/RELEASE_NOTES#L230
-                        if sinfo_major_version > 21:
+                        if sinfo_major_version >= 21:
                             sinfo = ub.cmd('sinfo --json')
                         else:
                             sinfo = ub.cmd('scontrol show nodes --json')
