@@ -173,8 +173,9 @@ tmux_queue to be a general "command queue" that can use 1 of 3 backends:
 serial, tmux, or slurm.
 
 
-Niche
-=====
+Related Work
+============
+
 There are many DAG schedulers out there:
 
 * `airflow <https://github.com/apache/airflow>`_
