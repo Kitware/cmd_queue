@@ -11,6 +11,8 @@ Notes:
     SUBMIT COMMANDS WILL USE /bin/sh by default, not sure how to fix that
     properly. There are workarounds though.
 
+SeeAlso:
+    * https://github.com/amq92/simple_slurm
 
 CommandLine:
    xdoctest -m cmd_queue.slurm_queue __doc__
@@ -520,6 +522,20 @@ class SlurmQueue(base_queue.Queue):
         return False
 
     def submit(self, command, **kwargs):
+        """
+        Submit a command to this slurm queue
+
+        Args:
+            command (str): command line to execute.
+            **kwargs:
+                name (str | None): name of job
+                shell (str | None): shell to use, defaults to bash
+                depends (str | List[str] | None): name of jobs to depend on
+                **slurm_options:see SLURM_SBATCH_KVARGS and SLURM_SBATCH_FLAGS
+
+        Returns:
+            SlurmJob
+        """
         name = kwargs.get('name', None)
         if name is None:
             name = kwargs['name'] = f'J{len(self.jobs):04d}-{self.queue_id}'
