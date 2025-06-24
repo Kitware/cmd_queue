@@ -177,14 +177,14 @@ Niche
 =====
 There are many DAG schedulers out there:
 
-* `airflow<https://github.com/apache/airflow>`_.
-* `luigi<https://github.com/spotify/luigi>`_.
-* `submitit<https://github.com/facebookincubator/submitit>`_.
-* `rq_scheduler<https://github.com/rq/rq-scheduler>`_.
-* `slurmpy<https://github.com/brentp/slurmpy>`_.
-* `dask-jobqueue<https://github.com/dask/dask-jobqueue>`_.
-* `fireworks<https://github.com/materialsproject/fireworks>`_.
-* `ClusterWrap<https://github.com/GFleishman/ClusterWrap>`_.
+* `airflow <https://github.com/apache/airflow>`_.
+* `luigi <https://github.com/spotify/luigi>`_.
+* `submitit <https://github.com/facebookincubator/submitit>`_.
+* `rq_scheduler <https://github.com/rq/rq-scheduler>`_.
+* `slurmpy <https://github.com/brentp/slurmpy>`_.
+* `dask-jobqueue <https://github.com/dask/dask-jobqueue>`_.
+* `fireworks <https://github.com/materialsproject/fireworks>`_.
+* `ClusterWrap <https://github.com/GFleishman/ClusterWrap>`_.
 
 
 The the niche for this is when you have large pipelines of bash commands that
