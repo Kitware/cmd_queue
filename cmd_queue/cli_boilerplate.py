@@ -206,7 +206,19 @@ class CMDQueueConfig(scfg.DataConfig):
             backend=config.backend,
             **queuekw)
         if config.virtualenv_cmd:
-            queue.add_header_command(config.virtualenv_cmd)
+            # Experimental feature to automatically activate virtual
+            # environments
+            virtualenv_cmd = config.virtualenv_cmd
+            if virtualenv_cmd == 'auto':
+                import os
+                import shlex
+                venv_path = os.environ.get('VIRTUAL_ENV', '')
+                if venv_path:
+                    virtualenv_cmd = 'source ' + shlex.quote(str(ub.Path(venv_path) / 'bin/activate'))
+                else:
+                    virtualenv_cmd = None
+            if virtualenv_cmd:
+                queue.add_header_command(virtualenv_cmd)
         return queue
 
     def run_queue(config, queue, print_kwargs=None, **kwargs):
