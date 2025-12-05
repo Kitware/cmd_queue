@@ -21,6 +21,71 @@ This is a simple module for "generating" a bash script that schedules multiples
 jobs (in parallel if possible) on a single machine. There are 3 backends with
 increasing levels of complexity: serial, tmux, and slurm.
 
+Overview
+========
+
+cmd_queue lets you define a DAG of shell commands once and then materialize it
+into runnable scripts for different environments. The same queue definition can
+run sequentially in the foreground, distribute work across local tmux sessions,
+or emit slurm submissions for HPC clusters. A lightweight Airflow backend exists
+for experimentation.
+
+Key capabilities include:
+
+* Python and Bash APIs for describing jobs, dependencies, and metadata.
+* DAG visualization via ``print_graph`` and command inspection via
+  ``print_commands`` before execution.
+* Swappable backends so you can iterate locally in serial or tmux and later
+  scale out with slurm.
+* Rich-based monitoring / live control when running interactive queues.
+
+Project Layout
+==============
+
+* ``cmd_queue/`` contains the implementation, with backends in
+  ``serial_queue.py``, ``tmux_queue.py``, and ``slurm_queue.py`` plus CLI
+  helpers in ``main.py`` and ``cli_boilerplate.py``.
+* ``examples/`` provides sample pipelines.
+* ``docs/`` hosts the Sphinx documentation (``make -C docs html``).
+* ``tests/`` contains automated checks; ``run_tests.py`` is a convenience entry
+  point for running them with coverage.
+* Helper scripts such as ``run_developer_setup.sh`` (installs dependencies in
+  editable mode) and ``run_linter.sh`` (flake8) support local development.
+
+Quickstart
+==========
+
+Python API
+----------
+
+.. code:: python
+
+   import cmd_queue
+   queue = cmd_queue.Queue.create(backend='serial', name='demo')
+   job_a = queue.submit('echo "hello"', name='job_a')
+   job_b = queue.submit('echo "after a"', depends=[job_a], name='job_b')
+   queue.print_commands(style='plain')
+
+Bash / CLI
+----------
+
+.. code:: bash
+
+   # Create a queue persisted as JSON under ~/.cache/cmd_queue/cli
+   cmd_queue new "my_queue"
+
+   # Add jobs; the double dash forwards the remaining arguments to the job
+   cmd_queue submit "my_queue" --  echo "\"do work\""
+   cmd_queue submit "my_queue" --name="post" --depends="my_queue-job-0" -- \
+       echo "\"after first job\""
+
+   # Inspect and then execute
+   cmd_queue show "my_queue"
+   cmd_queue run "my_queue" --backend=serial
+
+Additional usage examples – including tmux and slurm execution – live in the
+module docstrings (``cmd_queue.__init__``) and the online documentation.
+
 In serial mode, a single bash script gets written that executes your jobs in
 sequence. There are no external dependencies
 
