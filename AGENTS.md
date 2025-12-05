@@ -1,49 +1,89 @@
-# AGENTS instructions
+# AGENTS.md
 
-## Repository Scope
-These notes cover the entire repository (no nested AGENTS files exist). Keep this
-file updated when workflows change.
+This guide orients AI coding agents and developers working in this repository. It applies to the entire repo (no nested AGENTS files).
 
-## Project Overview
-- `cmd_queue` builds and executes DAGs of shell commands with backends for
-  serial execution, tmux workers, and slurm. An Airflow backend exists but is
-  labeled experimental.
-- CLI entrypoint: `cmd_queue/main.py` (also aliased via `python -m cmd_queue`).
-  Bash-focused helpers live in `cmd_queue/cli_boilerplate.py`.
-- Core queue abstractions are defined in `cmd_queue/base_queue.py` with backend
-  implementations in `serial_queue.py`, `tmux_queue.py`, and `slurm_queue.py`.
-- `cmd_queue/__init__.py` contains extensive usage examples and backend demos.
+## Project Snapshot
+- **Purpose:** `cmd_queue` builds and executes DAGs of shell commands via interchangeable backends (serial, tmux, slurm, experimental Airflow) with both Python and CLI frontends.
+- **Entry points:** `cmd_queue/main.py` (and `python -m cmd_queue`) and the `cmd_queue` console script defined in `pyproject.toml`. Rich CLI scaffolding lives in `cmd_queue/cli_boilerplate.py`.
+- **Backbone types:** queue abstractions in `cmd_queue/base_queue.py` with Bash job helpers in `serial_queue.py`, `tmux_queue.py`, and `slurm_queue.py`. The Airflow prototype is in `airflow_queue.py`.
+- **Monitoring:** `monitor_app.py` provides textual/rich monitors; many utilities are under `cmd_queue/util/` (bash helpers, networkx graph formatting, tmux helpers, textual extensions, YAML helpers).
+- **Examples & docs:** Examples live in `examples/`. Sphinx sources are under `docs/` with `docs/source/index.rst` as the landing page.
 
-## Development Workflow
-- **Environment setup:** `./run_developer_setup.sh` installs requirements and
-  sets the package in editable mode.
-- **Tests:** run `python run_tests.py` (pytest + coverage + xdoctest). You can
-  scope to `tests/` or `cmd_queue/` directly if needed.
-- **Linting:** `./run_linter.sh` executes flake8 against package and tests.
-- **Doctests only:** `./run_doctests.sh` is available if you want to focus on
-  embedded examples.
-- **Docs:** build Sphinx docs with `make -C docs html`. Source lives in
-  `docs/source/`; the landing page pulls from `docs/source/index.rst`.
+## Repository Layout
+- `cmd_queue/`: core package
+  - `__init__.py`: usage-rich module docstring, backend demos, convenience imports.
+  - `__main__.py`: wiring for the CLI entry point.
+  - `base_queue.py`: core queue classes and shared behaviors.
+  - `serial_queue.py`: always-available backend producing sequential bash scripts.
+  - `tmux_queue.py`: tmux workers with GPU pinning support; requires system `tmux`.
+  - `slurm_queue.py` / `slurmify.py`: slurm submission logic and sbatch templating.
+  - `airflow_queue.py`: experimental Airflow DAG generator.
+  - `monitor_app.py`: runtime monitoring UI (rich/textual-driven).
+  - `util/`: shared helpers (`util_bash.py`, `util_networkx.py`, `util_tmux.py`, `util_network_text.py`, `util_yaml.py`, `richer.py`, etc.) plus `.pyi` stubs to aid type checkers.
+  - `*.pyi` files mirror public interfaces for static analysis (`py.typed` included).
+- `tests/`: pytest suites covering CLI flows, bash job error handling, import sanity, and tmux queue error handling (skips when tmux unavailable).
+- `docs/`: Sphinx configuration (`Makefile`, `source/conf.py`, `source/index.rst`, manual notes in `source/manual/pitch.rst`).
+- `examples/`: sample queue definitions.
+- Tooling scripts in repo root: `run_developer_setup.sh`, `run_tests.py`, `run_linter.sh`, `run_doctests.sh`, `run_developer_setup.sh`, `publish.sh`, plus packaging metadata (`setup.py`, `pyproject.toml`, `MANIFEST.in`).
+- `dev/`: helper scripts/keys for internal CI (generally not needed for day-to-day development).
 
-## CLI Queues
-- The CLI stores queue definitions as JSON under `~/.cache/cmd_queue/cli` by
-  default. `--dpath` can override the location.
-- Actions include `new`, `submit`, `show`, `run`, and `cleanup` (kills tmux
-  sessions starting with `cmdq_`). See `CmdQueueCLI` in `cmd_queue/main.py` for
-  supported options.
+## Environment Setup
+- Requires Python **>=3.8** (per `pyproject.toml` metadata). Create and activate a virtual environment before installing.
+- Quick setup (installs dependencies and editable package):
+  ```bash
+  ./run_developer_setup.sh
+  ```
+- Dependency groups:
+  - Core runtime: see `requirements/runtime.txt` (ubelt, networkx, rich, pandas, ruamel.yaml, psutil, numpy versions keyed to Python versions).
+  - Testing: `requirements/tests.txt` (pytest, xdoctest, pytest-cov, coverage).
+  - Linting/docs/optional extras are in `requirements/linting.txt`, `requirements/docs.txt`, and `requirements/optional.txt`.
+- Backend system dependencies:
+  - **tmux backend** requires `tmux` available on PATH.
+  - **slurm backend** needs an active Slurm deployment (sbatch/squeue, etc.).
+  - **Airflow backend** is experimental and assumes an existing Airflow environment.
 
-## Backends
-- **Serial:** always available; writes a runnable bash script that executes jobs
-  sequentially. Uses `cmd_queue/serial_queue.py`.
-- **Tmux:** requires `tmux` installed; spins up worker sessions and streams jobs
-  with optional GPU pinning. See `cmd_queue/tmux_queue.py`.
-- **Slurm:** requires an active slurm deployment; generates `sbatch` commands
-  with dependency wiring. See `cmd_queue/slurm_queue.py` and `cmd_queue/slurmify.py`.
-- **Airflow:** generates a Python DAG skeleton in `cmd_queue/airflow_queue.py`,
-  but the execution story is not fully documented/tested.
+## Running & Writing Tests
+- Full suite (pytest + coverage + xdoctest):
+  ```bash
+  python run_tests.py
+  ```
+  Outputs coverage HTML to `htmlcov/`.
+- Targeted runs:
+  ```bash
+  pytest tests             # test modules
+  pytest cmd_queue         # package-level xdoctests and unit tests
+  ./run_doctests.sh        # xdoctest all cmd_queue modules
+  ```
+- CLI linting:
+  ```bash
+  ./run_linter.sh          # flake8 on cmd_queue and tests
+  ```
+- Notes:
+  - Tmux-dependent tests skip automatically when `tmux` is missing.
+  - `pyproject.toml` configures pytest options, doctest style, and coverage ignore rules.
+  - Prefer adding doctested examples to module/function docstrings; they are executed via xdoctest.
 
-## Examples and Utilities
-- Check `examples/` for sample queues.
-- `run_tests.py` collects coverage reports to `htmlcov/` by default.
-- Helper scripts in repository root (e.g., `run_developer_setup.sh`) are used in
-  CI configs like `.gitlab-ci.yml` 
+## Documentation
+- Build Sphinx docs locally:
+  ```bash
+  make -C docs html
+  ```
+- Sources are in `docs/source/` with autogenerated API docs under `docs/source/auto/` and narrative guides under `docs/source/manual/`.
+- README.rst provides a user-facing overview and quickstart examples; keep it aligned with code changes.
+
+## Working with the CLI
+- The `cmd_queue` CLI stores queue JSON definitions under `~/.cache/cmd_queue/cli` by default (override with `--dpath`).
+- Common commands (see `CmdQueueCLI` in `cmd_queue/main.py`): `new`, `submit`, `show`, `run`, `cleanup`. `cleanup` kills tmux sessions prefixed with `cmdq_`.
+- Use `--backend` to select `serial`, `tmux`, or `slurm`. The Airflow backend emits a DAG scaffold but is not fully supported.
+
+## Extending / Refactoring Tips
+- Queue/backends: extend `BaseQueue` patterns in `base_queue.py`; mirror interfaces in corresponding `.pyi` stubs to keep static typing consistent.
+- Jobs: `serial_queue.BashJob` encapsulates command strings, logging, and dependency wiring; reuse its helpers when adding new behaviors.
+- Utilities: prefer existing helpers in `cmd_queue/util/` for bash quoting, graph formatting, tmux control, and YAML serialization instead of reimplementing.
+- Monitoring: `monitor_app.py` integrates rich/textual views; ensure new backend events surface there for consistent UX.
+- Keep CLI and Python APIs aligned—update both docstrings and CLI boilerplate when changing flags or outputs.
+
+## Release & Packaging Notes
+- Console script is defined in `pyproject.toml` under `[tool.xcookie.entry_points]` (`cmd_queue = cmd_queue.__main__:main`).
+- Package metadata lives in `setup.py`, `pyproject.toml`, and `MANIFEST.in`; update versioning and classifiers there when publishing.
+- Continuous integration references helper scripts in the repository root; preserve compatibility when altering developer workflow commands.
