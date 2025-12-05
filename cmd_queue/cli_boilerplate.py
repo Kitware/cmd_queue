@@ -171,7 +171,11 @@ class CMDQueueConfig(scfg.DataConfig):
 
     tmux_workers = scfg.Value(8, help='number of tmux workers in the queue for the tmux backend', group='cmd-queue')
 
-    slurm_options = scfg.Value(None, help='if the backend is slurm, provide a YAML dictionary for things like partition / etc...', group='cmd-queue')
+    slurm_options = scfg.Value(None, help=ub.paragraph(
+        '''
+        if the backend is slurm, provide a YAML dictionary for things like
+        partition / etc...
+        '''), group='cmd-queue')
 
     def __post_init__(self):
         from cmd_queue.util.util_yaml import Yaml
@@ -202,7 +206,19 @@ class CMDQueueConfig(scfg.DataConfig):
             backend=config.backend,
             **queuekw)
         if config.virtualenv_cmd:
-            queue.add_header_command(config.virtualenv_cmd)
+            # Experimental feature to automatically activate virtual
+            # environments
+            virtualenv_cmd = config.virtualenv_cmd
+            if virtualenv_cmd == 'auto':
+                import os
+                import shlex
+                venv_path = os.environ.get('VIRTUAL_ENV', '')
+                if venv_path:
+                    virtualenv_cmd = 'source ' + shlex.quote(str(ub.Path(venv_path) / 'bin/activate'))
+                else:
+                    virtualenv_cmd = None
+            if virtualenv_cmd:
+                queue.add_header_command(virtualenv_cmd)
         return queue
 
     def run_queue(config, queue, print_kwargs=None, **kwargs):

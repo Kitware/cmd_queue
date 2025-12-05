@@ -58,7 +58,7 @@ class BashJob(base_queue.Job):
     Example:
         >>> from cmd_queue.serial_queue import *  # NOQA
         >>> # Demo full boilerplate for a job with no dependencies
-        >>> self = BashJob('echo hi', 'myjob')
+        >>> self = BashJob('echo hi', 'myjob', cwd='/foo/bar')
         >>> self.print_commands(1, 1)
 
     Example:
@@ -71,13 +71,14 @@ class BashJob(base_queue.Job):
     """
     def __init__(self, command, name=None, depends=None, gpus=None, cpus=None,
                  mem=None, bookkeeper=0, info_dpath=None, log=False, tags=None,
-                 allow_indent=True, **kwargs):
+                 allow_indent=True, cwd=None, **kwargs):
 
         if depends is not None and not ub.iterable(depends):
             depends = [depends]
         self.name = name
         self.pathid = self.name + '_' + ub.hash_data(uuid.uuid4())[0:8]
         self.kwargs = kwargs  # unused kwargs
+        self.cwd = cwd
         self.command = command
         self.depends: list[base_queue.Job] = depends
         self.bookkeeper = bookkeeper
@@ -184,6 +185,12 @@ class BashJob(base_queue.Job):
             script.append('# Disable exit-on-error, enable command echo')
             script.append('set +e -x')
 
+        if self.cwd is not None:
+            # TODO: add error handling if the directory does not exist
+            # If the directory doesn't exist, then the job should be marked as
+            # failed.
+            script.append(f'pushd "{self.cwd}" || echo "todo need to handle directory does not exist errors"')
+
         if with_status:
             # script.append('#     </before_command> ')
             # script.append('#     <command> ')
@@ -256,6 +263,9 @@ class BashJob(base_queue.Job):
             script.append(dump_post_status)
             script.append(conditional_body)
             # script.append('#     </after_command> ')
+
+        if self.cwd is not None:
+            script.append('popd')
 
         assert isinstance(script, list)
         text = '\n'.join(script)

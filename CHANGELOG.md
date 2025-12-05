@@ -5,7 +5,16 @@ We are currently working on porting this changelog to the specifications in
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## Version 0.2.2 - Unreleased
+## Version 0.2.3 - Unreleased
+
+### Fixed
+* Issue with slurm 21.x
+
+### Added
+* Experimental feature to automatically handle activating virtual environments, currently disabled by default set  `--virtualenv_cmd=auto` to use with cmdqueue boilerplate scripts.
+
+
+## Version 0.2.2 - Released 2025-02-19
 
 ### Added
 

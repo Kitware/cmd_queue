@@ -11,6 +11,8 @@ Notes:
     SUBMIT COMMANDS WILL USE /bin/sh by default, not sure how to fix that
     properly. There are workarounds though.
 
+SeeAlso:
+    * https://github.com/amq92/simple_slurm
 
 CommandLine:
    xdoctest -m cmd_queue.slurm_queue __doc__
@@ -441,8 +443,8 @@ class SlurmQueue(base_queue.Queue):
     def __nice__(self):
         return self.queue_id
 
-    @classmethod
-    def _slurm_checks(cls):
+    @staticmethod
+    def _slurm_checks():
         status = {}
         info = {}
         info['squeue_fpath'] = ub.find_exe('squeue')
@@ -464,16 +466,18 @@ class SlurmQueue(base_queue.Queue):
         sinfo = ub.cmd('sinfo --json')
         status['sinfo_working'] = False
         if sinfo['ret'] == 0:
-            status['sinfo_working'] = True
             import json
+            status['sinfo_working'] = True
+            status['sinfo_version_str'] = ub.cmd('sinfo --version').stdout.strip().split(' ')[1]
             sinfo_out = json.loads(sinfo['out'])
+            nodes = sinfo_out['nodes']
+            node_states = [node['state'] for node in nodes]
             has_working_nodes = not all(
-                node['state'] == 'down'
-                for node in sinfo_out['nodes'])
+                'down' in str(state).lower() for state in node_states)
             status['has_working_nodes'] = has_working_nodes
 
-    @classmethod
-    def is_available(cls):
+    @staticmethod
+    def is_available():
         """
         Determines if we can run the slurm queue or not.
         """
@@ -495,7 +499,7 @@ class SlurmQueue(base_queue.Queue):
                         import json
                         # sinfo --json changed between v22 and v23
                         # https://github.com/SchedMD/slurm/blob/slurm-23.02/RELEASE_NOTES#L230
-                        if sinfo_major_version == 22:
+                        if sinfo_major_version >= 21:
                             sinfo = ub.cmd('sinfo --json')
                         else:
                             sinfo = ub.cmd('scontrol show nodes --json')
@@ -506,7 +510,7 @@ class SlurmQueue(base_queue.Queue):
                             # the v23 version seems different, but I don't have
                             # v22 setup anymore. Might not be worth supporting.
                             node_states = [node['state'] for node in nodes]
-                            if sinfo_major_version == 22:
+                            if sinfo_major_version > 21:
                                 has_working_nodes = not all(
                                     'down' in str(state).lower() for state in node_states)
                             else:
@@ -518,6 +522,20 @@ class SlurmQueue(base_queue.Queue):
         return False
 
     def submit(self, command, **kwargs):
+        """
+        Submit a command to this slurm queue
+
+        Args:
+            command (str): command line to execute.
+            **kwargs:
+                name (str | None): name of job
+                shell (str | None): shell to use, defaults to bash
+                depends (str | List[str] | None): name of jobs to depend on
+                **slurm_options:see SLURM_SBATCH_KVARGS and SLURM_SBATCH_FLAGS
+
+        Returns:
+            SlurmJob
+        """
         name = kwargs.get('name', None)
         if name is None:
             name = kwargs['name'] = f'J{len(self.jobs):04d}-{self.queue_id}'
