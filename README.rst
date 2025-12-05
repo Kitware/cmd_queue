@@ -139,9 +139,9 @@ Debian systems).
 Other backends require more complex setups. The slurm backend will require that
 `slurm is installed <https://slurm.schedmd.com/quickstart_admin.html>`_ and the
 daemon is running. The slurm backend is functional and tested, but improvements
-can still be made (help wanted). The airflow backend similarly requires a
-configured airflow server, but is not fully functional or tested (contributions
-to make airflow work / easier are wanted!).
+can still be made (help wanted). The airflow backend now ships with a local
+``dag.test`` runner, so you can execute DAGs on a single machine with only a
+lightweight Airflow installation (see ``Airflow backend`` below).
 
 
 Tmux Queue Demo
@@ -223,6 +223,36 @@ sessions spawned while running this demo.
 By default, if there are no errors, these sessions will exit after execution
 completes, but this is configurable. Likewise if there are errors, the tmux
 sessions will persist to allow for debugging.
+
+
+Airflow backend
+===============
+
+You can now run Airflow DAGs on a single machine without standing up a
+scheduler or webserver. Install Airflow with the official constraints file and
+let ``cmd_queue`` manage an isolated ``AIRFLOW_HOME`` for you:
+
+.. code:: bash
+
+    pip install "apache-airflow[core]==3.1.3" \\
+        --constraint https://raw.githubusercontent.com/apache/airflow/constraints-3.1.3/constraints-3.12.txt
+
+With Airflow installed, create and execute an Airflow queue:
+
+.. code:: python
+
+    from cmd_queue import Queue
+
+    queue = Queue.create(backend='airflow', name='cmdq_airflow_demo')
+    job1 = queue.submit('echo first')
+    job2 = queue.submit('echo second', depends=job1)
+
+    # Writes the DAG to ``~/.cache/cmd_queue/airflow/<run>/dags/<name>.py``
+    # and executes it via ``DAG.test`` with a local SQLite metadata DB.
+    queue.run()
+
+If you already have an Airflow deployment, you can drop the generated DAG file
+into your cluster's ``dags`` folder instead of calling ``run()``.
 
 
 Modivation

@@ -1,12 +1,19 @@
-"""
-UNFINISHED - NOT FUNCTIONAL
+"""Airflow backend.
 
-Airflow backend
+This backend materializes the queue as an Airflow DAG and can execute it
+locally via ``dag.test``.  A minimal Airflow environment is constructed under
+``AIRFLOW_HOME`` (which defaults to a subdirectory of the queue path) so users
+do not need a running scheduler for simple single-machine runs.
 
-Requires:
-    pip install apache-airflow
-    pip install apache-airflow[cncf.kubernetes]
+Requirements:
+    pip install "apache-airflow[core]==3.1.3" \
+        --constraint https://raw.githubusercontent.com/apache/airflow/constraints-3.1.3/constraints-3.12.txt
 """
+import contextlib
+import os
+import time
+import uuid
+
 import ubelt as ub
 from cmd_queue import base_queue  # NOQA
 
@@ -19,9 +26,7 @@ class AirflowJob(base_queue.Job):
                  partition=None, cpus=None, gpus=None, mem=None, begin=None,
                  shell=None, **kwargs):
         super().__init__()
-        # from airflow.operators.bash import BashOperator
         if name is None:
-            import uuid
             name = 'job-' + str(uuid.uuid4())
         if depends is not None and not ub.iterable(depends):
             depends = [depends]
@@ -35,26 +40,6 @@ class AirflowJob(base_queue.Job):
         self.mem = mem
         self.begin = begin
         self.shell = shell
-        # if shell not in {None, 'bash'}:
-        #     raise NotImplementedError(shell)
-
-        # TODO:
-        # Unfortunately, we need to write out a python file that actually
-        # contains this code.
-
-        # self.operator = BashOperator(
-        #     task_id=self.name,
-        #     bash_command=command,
-        #     dag=dag,
-        # )
-        # cwd
-        # env
-        # if depends:
-        #     for dep in depends:
-        #         if dep is not None:
-        #             self.operator.set_upstream(dep.operator)
-        # self.jobid = None  # only set once this is run (maybe)
-        # --partition=community --cpus-per-task=5 --mem=30602 --gres=gpu:1
 
     def __nice__(self):
         return repr(self.command)
@@ -99,10 +84,9 @@ class AirflowQueue(base_queue.Queue):
         cd /home/joncrall/.cache/cmd_queue/SQ-20220711T180827-12f2905e
     """
 
-    def __init__(self, name=None, shell=None, **kwargs):
+    def __init__(self, name=None, shell=None, dpath=None, airflow_home=None,
+                 **kwargs):
         super().__init__()
-        import uuid
-        import time
         self.jobs = []
         if name is None:
             name = 'SQ'
@@ -110,12 +94,17 @@ class AirflowQueue(base_queue.Queue):
         stamp = time.strftime('%Y%m%dT%H%M%S')
         self.unused_kwargs = kwargs
         self.queue_id = name + '-' + stamp + '-' + ub.hash_data(uuid.uuid4())[0:8]
-        self.dpath = ub.Path.appdir('cmd_queue') / self.queue_id
-        self.log_dpath = self.dpath / 'logs'
-        self.fpath = self.dpath / (self.queue_id + '.py')
+        base_dpath = ub.Path(dpath) if dpath is not None else ub.Path.appdir('cmd_queue') / 'airflow'
+        self.dpath = (base_dpath / self.queue_id).ensuredir()
+        self.dags_dpath = (self.dpath / 'dags').ensuredir()
+        self.log_dpath = (self.dpath / 'logs').ensuredir()
+        self.fpath = self.dags_dpath / (self.name + '.py')
         self.shell = shell
         self.header_commands = []
         self.all_depends = None
+        self.job_info_dpath = self.dpath / 'job_info'
+        home = ub.Path(airflow_home) if airflow_home is not None else (self.dpath / 'airflow_home')
+        self.airflow_home = home.ensuredir()
 
         # from airflow import DAG
         # from datetime import timedelta
@@ -142,43 +131,106 @@ class AirflowQueue(base_queue.Queue):
     @classmethod
     def is_available(cls):
         """
-        Determines if we can run the tmux queue or not.
+        Determines if the airflow queue can run.
         """
-        # TODO: get this working
-        return False
+        try:
+            import airflow  # NOQA
+        except Exception:
+            return False
+        else:
+            return True
+
+    def _airflow_env(self):
+        env = os.environ.copy()
+        env['AIRFLOW_HOME'] = os.fspath(self.airflow_home)
+        env['AIRFLOW__CORE__DAGS_FOLDER'] = os.fspath(self.dags_dpath)
+        env['AIRFLOW__CORE__LOAD_EXAMPLES'] = 'False'
+        return env
+
+    @contextlib.contextmanager
+    def _patched_env(self, env):
+        original = {}
+        try:
+            for key, value in env.items():
+                original[key] = os.environ.get(key)
+                os.environ[key] = value
+            yield
+        finally:
+            for key, value in original.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
 
     def run(self, block=True, system=False):
+        del system  # unused, kept for API parity
         self.write()
-        # TODO: can implement a monitor here for non-blocking mode
-        import os
-        env = os.environ.copy()
-        env['AIRFLOW__CORE__DAGS_FOLDER'] = os.fspath(self.dpath)
+        env = self._airflow_env()
         detach = not block
-        ub.cmd(f'airflow dags backfill {self.name} --start-date $(date +"%Y-%m-%d")', verbose=3, check=True, shell=1,
-               system=system, detach=detach, env=env)
+        if detach:
+            raise NotImplementedError('Non-blocking airflow runs are not implemented yet')
+        with self._patched_env(env):
+            from airflow.utils import db
+            from airflow.models.dagbag import DagBag
+            from airflow.models.serialized_dag import DagVersion
+            from airflow.models.dagbundle import DagBundleModel
+            from airflow.models.dag import DagModel
+            from airflow.utils.session import create_session
+            if hasattr(db, 'check_and_run_migrations'):
+                db.check_and_run_migrations()
+            elif hasattr(db, 'upgradedb'):
+                db.upgradedb()
+            else:
+                db.initdb()
+            dag_bag = DagBag(dag_folder=os.fspath(self.dags_dpath), include_examples=False, safe_mode=False)
+            dag = dag_bag.get_dag(self.name)
+            if dag is None:
+                raise RuntimeError(f'Could not load DAG {self.name} from {self.dags_dpath}')
+            # Airflow 3 requires DAG bundle versioning unless explicitly disabled.
+            if not getattr(dag, 'disable_bundle_versioning', False):
+                dag.disable_bundle_versioning = True
+            bundle_name = 'cmd_queue'
+            with create_session() as session:
+                dag_model = session.get(DagModel, dag.dag_id)
+                if dag_model is None:
+                    dag_model = DagModel(dag_id=dag.dag_id, fileloc=dag.fileloc, bundle_name=bundle_name)
+                else:
+                    dag_model.fileloc = dag.fileloc
+                    dag_model.bundle_name = bundle_name
+                session.merge(dag_model)
+                if session.get(DagBundleModel, bundle_name) is None:
+                    session.add(DagBundleModel(name=bundle_name))
+                session.commit()
+            DagVersion.write_dag(dag_id=dag.dag_id, bundle_name=bundle_name)
+            dag.test()
 
     def finalize_text(self):
+        import networkx as nx
+
+        graph = self._dependency_graph()
+        topo_jobs = [self.named_jobs[n] for n in nx.topological_sort(graph)]
+
         header = ub.codeblock(
             f'''
             from airflow import DAG
             from datetime import timezone
             from datetime import datetime as datetime_cls
-            from airflow.operators.bash import BashOperator
-            now = datetime_cls.utcnow().replace(tzinfo=timezone.utc)
+            from airflow.providers.standard.operators.bash import BashOperator
+            now = datetime_cls.now(timezone.utc)
             dag = DAG(
                 '{self.name}',
                 start_date=now,
                 catchup=False,
-                tags=['example'],
+                tags=['cmd_queue'],
             )
             jobs = dict()
             '''
         )
         parts = [header]
-        for job in self.jobs:
+        for job in topo_jobs:
             parts.append(job.finalize_text())
 
-        for job in self.jobs:
+        for job in topo_jobs:
             for dep in job.depends or []:
                 if dep is not None:
                     parts.append(f'jobs[{job.name!r}].set_upstream(jobs[{dep.name!r}])')
@@ -199,9 +251,8 @@ class AirflowQueue(base_queue.Queue):
         name = kwargs.get('name', None)
         if name is None:
             name = kwargs['name'] = f'J{len(self.jobs):04d}-{self.queue_id}'
-            # + '-job-{}'.format(len(self.jobs))
         if 'output_fpath' not in kwargs:
-            kwargs['output_fpath'] = self.log_dpath / (name + '.sh')
+            kwargs['output_fpath'] = self.log_dpath / (name + '.log')
         if self.shell is not None:
             kwargs['shell'] = kwargs.get('shell', self.shell)
         if self.all_depends:
@@ -217,10 +268,11 @@ class AirflowQueue(base_queue.Queue):
         depends = kwargs.pop('depends', None)
         if depends is not None:
             # Resolve any strings to job objects
+            if isinstance(depends, str) or not ub.iterable(depends):
+                depends = [depends]
             depends = [
                 self.named_jobs[dep] if isinstance(dep, str) else dep
                 for dep in depends]
-        # dag = self.dag
         job = AirflowJob(command, depends=depends, **kwargs)
         self.jobs.append(job)
         self.num_real_jobs += 1
