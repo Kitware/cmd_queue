@@ -18,8 +18,7 @@ Command Queue - cmd_queue
 
 
 This is a simple module for "generating" a bash script that schedules multiples
-jobs (in parallel if possible) on a single machine. There are 3 backends with
-increasing levels of complexity: serial, tmux, and slurm.
+jobs (in parallel if possible) on a single machine.
 
 Overview
 ========
@@ -27,8 +26,7 @@ Overview
 cmd_queue lets you define a DAG of shell commands once and then materialize it
 into runnable scripts for different environments. The same queue definition can
 run sequentially in the foreground, distribute work across local tmux sessions,
-or emit slurm submissions for HPC clusters. A lightweight Airflow backend exists
-for experimentation.
+or emit slurm submissions for HPC clusters.
 
 Key capabilities include:
 
@@ -64,7 +62,7 @@ Python API
    queue = cmd_queue.Queue.create(backend='serial', name='demo')
    job_a = queue.submit('echo "hello"', name='job_a')
    job_b = queue.submit('echo "after a"', depends=[job_a], name='job_b')
-   queue.print_commands(style='plain')
+   queue.print_commands()
 
 Bash / CLI
 ----------
@@ -85,6 +83,10 @@ Bash / CLI
 
 Additional usage examples – including tmux and slurm execution – live in the
 module docstrings (``cmd_queue.__init__``) and the online documentation.
+
+
+Notice the ``--backend`` arugment. There are 3 backends with increasing levels
+of complexity: serial, tmux, and slurm.
 
 In serial mode, a single bash script gets written that executes your jobs in
 sequence. There are no external dependencies

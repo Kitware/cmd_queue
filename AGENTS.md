@@ -1,4 +1,4 @@
-# Notes for Future Agents
+# AGENTS instructions
 
 ## Repository Scope
 These notes cover the entire repository (no nested AGENTS files exist). Keep this
@@ -46,10 +46,4 @@ file updated when workflows change.
 - Check `examples/` for sample queues.
 - `run_tests.py` collects coverage reports to `htmlcov/` by default.
 - Helper scripts in repository root (e.g., `run_developer_setup.sh`) are used in
-  CI configs like `.gitlab-ci.yml` (not present locally) and `appveyor.yml`.
-
-## TODO / Open Questions
-- Airflow backend execution steps and required environment are unclear; add
-  guidance when available.
-- CLI queue persistence currently rewrites the entire JSON file per mutation;
-  see TODO in `cmd_queue/main.py` for planned database abstraction.
+  CI configs like `.gitlab-ci.yml` 
