@@ -12,6 +12,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 * Experimental feature to automatically handle activating virtual environments, currently disabled by default set  `--virtualenv_cmd=auto` to use with cmdqueue boilerplate scripts.
+* Experimental airflow backend now has minimal functionality.
 
 
 ## Version 0.2.2 - Released 2025-02-19
