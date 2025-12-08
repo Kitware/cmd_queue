@@ -195,6 +195,8 @@ class AirflowQueue(base_queue.Queue):
             from airflow.models.dagbundle import DagBundleModel
             from airflow.models.dag import DagModel
             from airflow.utils.session import create_session
+            import sys
+            import contextlib
             if hasattr(db, 'resetdb'):
                 db.resetdb()
             elif hasattr(db, 'check_and_run_migrations'):
@@ -224,7 +226,83 @@ class AirflowQueue(base_queue.Queue):
                 session.merge(dag_model)
                 session.commit()
             DagVersion.write_dag(dag_id=dag.dag_id, bundle_name=bundle_name)
-            dag.test()
+            # Some logging backends may emit to pytest's captured streams which can
+            # be closed unexpectedly. Ensure Airflow writes to the real stdout/
+            # stderr streams to avoid "I/O operation on closed file" errors
+            # during tests.
+            with contextlib.redirect_stdout(sys.__stdout__), contextlib.redirect_stderr(sys.__stderr__):
+                dag.test()
+
+    def read_state(self):
+        """
+        Summarize the most recent DAG run using Airflow's metadata DB.
+
+        Returns:
+            Dict: A lightweight status summary similar to other backends.
+        """
+        env = self._airflow_env()
+        with self._patched_env(env):
+            from airflow.utils.session import create_session
+            from airflow.models.dagrun import DagRun
+            from airflow.models.taskinstance import TaskInstance
+            from sqlalchemy import select
+            try:
+                from airflow.utils.state import TaskInstanceState
+                success_state = TaskInstanceState.SUCCESS
+                failed_state = TaskInstanceState.FAILED
+                skipped_state = TaskInstanceState.SKIPPED
+            except Exception:  # pragma: no cover
+                from airflow.utils.state import State as TaskInstanceState  # type: ignore
+                success_state = TaskInstanceState.SUCCESS
+                failed_state = TaskInstanceState.FAILED
+                skipped_state = TaskInstanceState.SKIPPED
+
+            summary = {
+                'name': self.name,
+                'status': 'unknown',
+                'total': None,
+                'passed': None,
+                'failed': None,
+                'skipped': None,
+            }
+
+            with create_session() as session:
+                order_field = (
+                    getattr(DagRun, 'logical_date', None)
+                    or getattr(DagRun, 'execution_date', None)
+                    or getattr(DagRun, 'start_date', None)
+                    or getattr(DagRun, 'run_id', None)
+                )
+
+                dr_stmt = select(DagRun).where(DagRun.dag_id == self.name)
+                if order_field is not None:
+                    dr_stmt = dr_stmt.order_by(order_field.desc())
+                dr_stmt = dr_stmt.limit(1)
+                dagrun = session.scalars(dr_stmt).first()
+                if dagrun is None:
+                    return summary
+
+                summary['status'] = getattr(dagrun, 'state', 'unknown')
+                summary['run_id'] = dagrun.run_id
+
+                ti_stmt = (
+                    select(TaskInstance.state)
+                    .where(
+                        TaskInstance.dag_id == dagrun.dag_id,
+                        TaskInstance.run_id == dagrun.run_id,
+                    )
+                )
+                states = list(session.scalars(ti_stmt))
+                passed = sum(state == success_state for state in states)
+                failed = sum(state == failed_state for state in states)
+                skipped = sum(state == skipped_state for state in states)
+                summary.update({
+                    'total': len(states),
+                    'passed': passed,
+                    'failed': failed,
+                    'skipped': skipped,
+                })
+        return summary
 
     def finalize_text(self):
         import networkx as nx

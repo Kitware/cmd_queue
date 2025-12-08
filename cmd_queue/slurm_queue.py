@@ -505,7 +505,13 @@ class SlurmQueue(base_queue.Queue):
                             sinfo = ub.cmd('scontrol show nodes --json')
                         if sinfo['ret'] == 0:
                             sinfo_out = json.loads(sinfo['out'])
-                            nodes = sinfo_out['nodes']
+                            if 'nodes' in sinfo_out:
+                                nodes = sinfo_out['nodes']
+                            elif 'sinfo' in sinfo_out:
+                                # on v23 this seems to be the output format.
+                                items = sinfo_out['sinfo']
+                                nodes = [item['node'] for item in items]
+
                             # FIXME: this might be an incorrect check on v22
                             # the v23 version seems different, but I don't have
                             # v22 setup anymore. Might not be worth supporting.
