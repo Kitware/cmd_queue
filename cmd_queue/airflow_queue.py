@@ -78,8 +78,7 @@ class AirflowQueue(base_queue.Queue):
         >>> self.print_commands()
         >>> self.write()
         >>> self.run()
-        >>> #self.run()
-        >>> # self.read_state()
+        >>> state = self.read_state()
 
     Ignore:
         airflow users create --role Admin --username admin --email admin --firstname admin --lastname admin --password admin
