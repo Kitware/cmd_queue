@@ -44,4 +44,3 @@ def test_airflow_queue_run_executes_in_order():
 
     contents = outfile.read_text().strip().splitlines()
     assert contents == ['first', 'second']
-
