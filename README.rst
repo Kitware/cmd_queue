@@ -234,10 +234,10 @@ let ``cmd_queue`` manage an isolated ``AIRFLOW_HOME`` for you:
 
 .. code:: bash
 
-    pip install "apache-airflow[core]==3.1.3" \\
-        --constraint https://raw.githubusercontent.com/apache/airflow/constraints-3.1.3/constraints-3.12.txt
+    pip install -r requirements/airflow.txt
 
-With Airflow installed, create and execute an Airflow queue:
+With Airflow installed, create and execute an Airflow queue (copy/paste this
+exact snippet into ``python`` or IPython):
 
 .. code:: python
 
@@ -247,9 +247,11 @@ With Airflow installed, create and execute an Airflow queue:
     job1 = queue.submit('echo first')
     job2 = queue.submit('echo second', depends=job1)
 
-    # Writes the DAG to ``~/.cache/cmd_queue/airflow/<run>/dags/<name>.py``
-    # and executes it via ``DAG.test`` with a local SQLite metadata DB.
     queue.run()
+
+``queue.run()`` writes the DAG to
+``~/.cache/cmd_queue/airflow/<run>/dags/<name>.py`` and executes it locally via
+``dag.test`` using a SQLite metadata database under the per-run ``AIRFLOW_HOME``.
 
 If you already have an Airflow deployment, you can drop the generated DAG file
 into your cluster's ``dags`` folder instead of calling ``run()``.

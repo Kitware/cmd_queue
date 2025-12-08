@@ -1,12 +1,26 @@
 """Airflow backend.
 
-This backend materializes the queue as an Airflow DAG and can execute it
-locally via ``dag.test``.  A minimal Airflow environment is constructed under
-``AIRFLOW_HOME`` (which defaults to a subdirectory of the queue path) so users
-do not need a running scheduler for simple single-machine runs.
+Minimal working example (copy/paste into ``python`` or IPython):
 
-Requirements:
-    pip install "apache-airflow[core]==3.1.3" \
+    >>> # xdoctest: +REQUIRES(module:airflow)
+    >>> import ubelt as ub
+    >>> from cmd_queue import Queue
+    >>> dpath = ub.Path.appdir('cmd_queue/doctests/airflow_mwe').delete().ensuredir()
+    >>> queue = Queue.create(
+    ...     backend='airflow',
+    ...     name='cmdq_airflow_mwe',
+    ...     dpath=dpath / 'queue_root',
+    ...     airflow_home=dpath / 'airflow_home',
+    ... )
+    >>> first = queue.submit('echo first', name='first')
+    >>> queue.submit('echo second', name='second', depends=first)
+    >>> queue.run()  # writes a DAG file and executes it via ``dag.test``
+    >>> print((dpath / 'queue_root' / 'dags' / 'cmdq_airflow_mwe.py').exists())
+    True
+
+Install Airflow with the official constraints before running the example:
+
+    pip install "apache-airflow[core]>=3.1.3" \\
         --constraint https://raw.githubusercontent.com/apache/airflow/constraints-3.1.3/constraints-3.12.txt
 """
 import contextlib
@@ -145,6 +159,10 @@ class AirflowQueue(base_queue.Queue):
         env['AIRFLOW_HOME'] = os.fspath(self.airflow_home)
         env['AIRFLOW__CORE__DAGS_FOLDER'] = os.fspath(self.dags_dpath)
         env['AIRFLOW__CORE__LOAD_EXAMPLES'] = 'False'
+        env.setdefault(
+            'AIRFLOW__DATABASE__SQL_ALCHEMY_CONN',
+            f"sqlite:///{self.airflow_home / 'airflow.db'}",
+        )
         return env
 
     @contextlib.contextmanager
@@ -176,7 +194,9 @@ class AirflowQueue(base_queue.Queue):
             from airflow.models.dagbundle import DagBundleModel
             from airflow.models.dag import DagModel
             from airflow.utils.session import create_session
-            if hasattr(db, 'check_and_run_migrations'):
+            if hasattr(db, 'resetdb'):
+                db.resetdb()
+            elif hasattr(db, 'check_and_run_migrations'):
                 db.check_and_run_migrations()
             elif hasattr(db, 'upgradedb'):
                 db.upgradedb()
@@ -191,6 +211,9 @@ class AirflowQueue(base_queue.Queue):
                 dag.disable_bundle_versioning = True
             bundle_name = 'cmd_queue'
             with create_session() as session:
+                if session.get(DagBundleModel, bundle_name) is None:
+                    session.add(DagBundleModel(name=bundle_name))
+                    session.flush()
                 dag_model = session.get(DagModel, dag.dag_id)
                 if dag_model is None:
                     dag_model = DagModel(dag_id=dag.dag_id, fileloc=dag.fileloc, bundle_name=bundle_name)
@@ -198,8 +221,6 @@ class AirflowQueue(base_queue.Queue):
                     dag_model.fileloc = dag.fileloc
                     dag_model.bundle_name = bundle_name
                 session.merge(dag_model)
-                if session.get(DagBundleModel, bundle_name) is None:
-                    session.add(DagBundleModel(name=bundle_name))
                 session.commit()
             DagVersion.write_dag(dag_id=dag.dag_id, bundle_name=bundle_name)
             dag.test()

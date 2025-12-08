@@ -1,5 +1,6 @@
-"""Tests for the Airflow backend."""
+"""Tests for the Airflow backend without pytest fixtures."""
 
+import ubelt as ub
 import pytest
 
 from cmd_queue.airflow_queue import AirflowQueue
@@ -8,13 +9,20 @@ from cmd_queue.airflow_queue import AirflowQueue
 airflow = pytest.importorskip('airflow')
 
 
-def _make_queue(tmp_path, name='cmdq_airflow_demo'):
-    airflow_home = tmp_path / 'airflow_home'
-    return AirflowQueue(name=name, dpath=tmp_path / 'queue_root', airflow_home=airflow_home)
+def _test_dpath(name: str) -> ub.Path:
+    """Create a reproducible test directory under the repo appdir."""
+    dpath = ub.Path.appdir(f'cmd_queue/tests/{name}').delete().ensuredir()
+    return dpath
 
 
-def test_finalize_text_contains_dependencies(tmp_path):
-    queue = _make_queue(tmp_path, name='finalize_demo')
+def _make_queue(name='cmdq_airflow_demo'):
+    dpath = _test_dpath(name)
+    airflow_home = dpath / 'airflow_home'
+    return AirflowQueue(name=name, dpath=dpath / 'queue_root', airflow_home=airflow_home)
+
+
+def test_finalize_text_contains_dependencies():
+    queue = _make_queue(name='finalize_demo')
     first = queue.submit('echo first', name='first_task')
     queue.submit('echo second', name='second_task', depends=first)
 
@@ -26,9 +34,9 @@ def test_finalize_text_contains_dependencies(tmp_path):
     assert "jobs['second_task'].set_upstream(jobs['first_task'])" in text
 
 
-def test_airflow_queue_run_executes_in_order(tmp_path):
-    queue = _make_queue(tmp_path, name='run_demo')
-    outfile = tmp_path / 'output.txt'
+def test_airflow_queue_run_executes_in_order():
+    queue = _make_queue(name='run_demo')
+    outfile = queue.dpath / 'output.txt'
     queue.submit(f"echo first >> {outfile}", name='first')
     queue.submit(f"echo second >> {outfile}", name='second', depends='first')
 
