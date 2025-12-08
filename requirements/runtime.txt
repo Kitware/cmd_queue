@@ -29,6 +29,7 @@ pandas>=1.1.5  ; python_version < '3.7' and python_version >= '3.6'     # Python
 
 scriptconfig >= 0.7.9
 
-psutil>=5.9.1
+psutil>=6.1.0  ; python_version < '4.0' and python_version >= '3.9'    # Python 3.13+
+psutil>=5.9.1  ; python_version < '3.9' and python_version >= '3.7' 
 
 ruamel.yaml>=0.17.22
