@@ -1,7 +1,11 @@
-"""Airflow backend.
+r"""Airflow backend.
 
 Minimal working example (copy/paste into ``python`` or IPython):
 
+CommandLine:
+    xdoctest -m cmd_queue.airflow_queue __doc__:0
+
+Example:
     >>> # xdoctest: +REQUIRES(module:airflow)
     >>> import ubelt as ub
     >>> from cmd_queue import Queue
@@ -14,14 +18,11 @@ Minimal working example (copy/paste into ``python`` or IPython):
     ... )
     >>> first = queue.submit('echo first', name='first')
     >>> queue.submit('echo second', name='second', depends=first)
+    >>> queue.print_commands()
     >>> queue.run()  # writes a DAG file and executes it via ``dag.test``
-    >>> print((dpath / 'queue_root' / 'dags' / 'cmdq_airflow_mwe.py').exists())
+    ...
+    >>> print((queue.dags_dpath / 'cmdq_airflow_mwe.py').exists())
     True
-
-Install Airflow with the official constraints before running the example:
-
-    pip install "apache-airflow[core]>=3.1.3" \\
-        --constraint https://raw.githubusercontent.com/apache/airflow/constraints-3.1.3/constraints-3.12.txt
 """
 import contextlib
 import os
