@@ -1,7 +1,7 @@
 r"""Airflow backend.
 
 Note:
-    This backend is only available in Python 3.9+
+    This backend is only available in Python 3.10+
 
 CommandLine:
     xdoctest -m cmd_queue.airflow_queue __doc__:0
