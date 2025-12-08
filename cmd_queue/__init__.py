@@ -178,21 +178,21 @@ Example:
     JOB_007=$(sbatch --job-name="jobZ" --output="/.../logs/jobZ.sh" --wrap 'echo "Hello Giblet" && sleep 0.1' "--dependency=afterok:${JOB_005}" --parsable)
     >>> # The airflow backend is slightly different because it defines
     >>> # DAGs with Python files, so we write a Python file instead of
-    >>> # a bash file. NOTE: the process of actually executing the airflow
-    >>> # DAG has not been finalized yet. (Help wanted)
+    >>> # a bash file. When Airflow is installed, ``queue.run()`` will execute
+    >>> # the DAG locally via ``DAG.test``.
     >>> airflow_queue = queue.change_backend('airflow')
     >>> airflow_queue.print_commands(style='plain')
     # --- ...py
     from airflow import DAG
     from datetime import timezone
     from datetime import datetime as datetime_cls
-    from airflow.operators.bash import BashOperator
-    now = datetime_cls.utcnow().replace(tzinfo=timezone.utc)
+    from airflow.providers.standard.operators.bash import BashOperator
+    now = datetime_cls.now(timezone.utc)
     dag = DAG(
         'SQ',
         start_date=now,
         catchup=False,
-        tags=['example'],
+        tags=['cmd_queue'],
     )
     jobs = dict()
     jobs['job1a'] = BashOperator(task_id='job1a', bash_command='echo "Hello World" && sleep 0.1', dag=dag)
