@@ -1,9 +1,3 @@
-from . import util_network_text
-
-
-write_network_text = util_network_text.write_network_text
-
-
 def is_topological_order(graph, node_order):
     """
     A topological ordering of nodes is an ordering of the nodes such that for

@@ -267,22 +267,21 @@ class Queue(ub.NiceRepr):
         else:
             print_ = print
 
-        from cmd_queue.util.util_networkx import write_network_text
         import networkx as nx
         graph = self._dependency_graph()
         if reduced:
             print_('\nGraph (reduced):')
             try:
                 reduced_graph = nx.transitive_reduction(graph)
-                write_network_text(reduced_graph, path=print_, end='',
-                                   vertical_chains=vertical_chains)
+                nx.write_network_text(reduced_graph, path=print_, end='',
+                                      vertical_chains=vertical_chains)
             except Exception as ex:
                 print_(f'ex={ex}')
             print_('\n')
         else:
             print_('\nGraph:')
-            write_network_text(graph, path=print_, end='',
-                               vertical_chains=vertical_chains)
+            nx.write_network_text(graph, path=print_, end='',
+                                  vertical_chains=vertical_chains)
 
     def print_commands(self,
                        with_status=False,
