@@ -195,7 +195,7 @@ class TMUXMultiQueue(base_queue.Queue):
         >>>     self.run(with_textual=False, check_other_sessions=0)
     """
     def __init__(self, size=1, name=None, dpath=None, rootid=None, environ=None,
-                 gpus=None, gres=None):
+                 preamble=None, gpus=None, gres=None):
         super().__init__()
 
         if rootid is None:
@@ -228,12 +228,15 @@ class TMUXMultiQueue(base_queue.Queue):
         self.cmd_verbose = 2
 
         self.jobs = []
-        self.header_commands = []
+        self.preamble = []
 
         self._tmux_session_prefix = 'cmdq_'
         self.job_info_dpath = self.dpath / 'job_info'
 
         self._new_workers()
+
+        if preamble is not None:
+            self.add_preamble_commands(preamble)
 
     @classmethod
     def is_available(cls):
@@ -555,15 +558,9 @@ class TMUXMultiQueue(base_queue.Queue):
 
         # Overwrite workers with our new dependency aware workers
         for worker in queue_workers:
-            for header_command in self.header_commands:
-                worker.add_header_command(header_command)
+            for header_command in self.preamble:
+                worker.add_preamble_command(header_command)
         self.workers = queue_workers
-
-    def add_header_command(self, command):
-        """
-        Adds a header command run at the start of each queue
-        """
-        self.header_commands.append(command)
 
     def finalize_text(self, **kwargs):
         self.order_jobs()

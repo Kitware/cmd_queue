@@ -9,6 +9,8 @@ from cmd_queue import base_queue
 from cmd_queue.util import util_tags
 from cmd_queue.util import util_bash
 
+from typing import Optional, List
+
 
 class BashJob(base_queue.Job):
     r"""
@@ -37,6 +39,9 @@ class BashJob(base_queue.Job):
             a list of strings that can be used to group jobs or filter the
             queue or other custom purposes.
 
+        preamble (str | List[str] | None):
+            One or more setup steps to execute before all commands.
+
         allow_indent (bool):
             In some cases indentation matters for the shell command.
             In that case ensure this is False at the cost of readability in the
@@ -58,8 +63,14 @@ class BashJob(base_queue.Job):
     Example:
         >>> from cmd_queue.serial_queue import *  # NOQA
         >>> # Demo full boilerplate for a job with no dependencies
-        >>> self = BashJob('echo hi', 'myjob', cwd='/foo/bar')
-        >>> self.print_commands(1, 1)
+        >>> self = BashJob('echo hi', 'myjob', cwd='/foo/bar', preamble=['export SETUP_LINE1=1', 'export SETUP_LINE2=2'])
+        >>> self.print_commands(with_status=0, with_gaurds=0)
+        >>> self.print_commands(with_status=True, with_gaurds=True)
+
+        >>> self = BashJob('echo hi', 'myjob')
+        >>> self.log = True
+        >>> conditionals = {'on_skip': ['echo "CUSTOM MESSAGE FOR WHEN WE SKIP A JOB"']}
+        >>> self.print_commands(with_status=1, with_gaurds=1, conditionals=conditionals)
 
     Example:
         >>> from cmd_queue.serial_queue import *  # NOQA
@@ -67,11 +78,31 @@ class BashJob(base_queue.Job):
         >>> dep = BashJob('echo hi', name='job1')
         >>> conditionals = {'on_skip': ['echo "CUSTOM MESSAGE FOR WHEN WE SKIP A JOB"']}
         >>> self = BashJob('echo hi', name='job2', depends=[dep])
-        >>> self.print_commands(1, 1, conditionals=conditionals)
+        >>> self.log = True
+        >>> self.print_commands(with_status=True, with_gaurds=True, conditionals=conditionals)
+
+    Example:
+        >>> from cmd_queue.serial_queue import *  # NOQA
+        >>> # Dead simple job
+        >>> self = BashJob('echo hi', 'myjob')
+        >>> self.print_commands(with_status=True, with_gaurds=True)
+
+    Example:
+        # Demo witht the works.
+        dep = BashJob('echo hi', name='job1')
+        conditionals = {'on_skip': ['echo "CUSTOM MESSAGE FOR WHEN WE SKIP A JOB"']}
+        self = BashJob('echo hi', name='job2', depends=[dep], cwd='/foo/bar', preamble=['export SETUP_LINE1=1', 'export SETUP_LINE2=2'])
+        self.log = True
+        self.print_commands(with_status=True, with_gaurds=True)
+
+
+        # Just cwd
+        self = BashJob('echo hi', 'myjob', cwd='/foo/bar')
+        self.print_commands(with_status=1, with_gaurds=1)
     """
     def __init__(self, command, name=None, depends=None, gpus=None, cpus=None,
                  mem=None, bookkeeper=0, info_dpath=None, log=False, tags=None,
-                 allow_indent=True, cwd=None, **kwargs):
+                 allow_indent=True, cwd=None, preamble=None, **kwargs):
 
         if depends is not None and not ub.iterable(depends):
             depends = [depends]
@@ -79,6 +110,9 @@ class BashJob(base_queue.Job):
         self.pathid = self.name + '_' + ub.hash_data(uuid.uuid4())[0:8]
         self.kwargs = kwargs  # unused kwargs
         self.cwd = cwd
+        if isinstance(preamble, str):
+            preamble = [preamble]
+        self.preamble: Optional[List[str]] = preamble
         self.command = command
         self.depends: list[base_queue.Job] = depends
         self.bookkeeper = bookkeeper
@@ -110,6 +144,11 @@ class BashJob(base_queue.Job):
 
     def finalize_text(self, with_status=True, with_gaurds=True,
                       conditionals=None, **kwargs):
+
+        # Note: with_gaurds are the +- e and +-x bash behaviors, it is not a
+        # great name. with_status is used to dump extra metadata out. These add
+        # a lot of bash boilerplate, which can make the script more difficult
+        # to reason about.
         script = []
         prefix_script = []
         suffix_script = []
@@ -181,22 +220,42 @@ class BashJob(base_queue.Job):
             # +e tells bash to allow the command to fail
             if self.log:
                 # https://stackoverflow.com/questions/6871859/piping-command-output-to-tee-but-also-save-exit-code-of-command
+                # Note, if tee fails but the job doesnt the job will still fail
                 script.append('set -o pipefail')
-            script.append('# Disable exit-on-error, enable command echo')
-            script.append('set +e -x')
+            script.append('# Disable exit-on-error')
+            script.append('set +e')
+
+        internal_conditionals = []
 
         if self.cwd is not None:
-            # TODO: add error handling if the directory does not exist
-            # If the directory doesn't exist, then the job should be marked as
-            # failed.
-            script.append(f'pushd "{self.cwd}" || echo "todo need to handle directory does not exist errors"')
+            # If the directory doesn't exist, then the job is marked as failed.
+            script.append('# Change to the specified directory')
+            script.append(f'{{ pushd "{self.cwd}" && CHDIR_OK=1; }} || CHDIR_OK=0')
+            internal_conditionals.append('"$CHDIR_OK" == 1')
+
+        if self.preamble:
+            script.append('# Run preamble')
+            preamble_str = ' && '.join(self.preamble)
+            script.append(f'{{ {preamble_str} && PREAMBLE_OK=1; }} || PREAMBLE_OK=0')
+            internal_conditionals.append('"$PREAMBLE_OK" == 1')
+
+        if internal_conditionals:
+            condition = ' && '.join(internal_conditionals)
+            script.append(f'if [[ {condition} ]]; then')
+
+        if with_gaurds and not self.bookkeeper:
+            script.append('# Enable command echo')
+            script.append('set -x')
 
         if with_status:
             # script.append('#     </before_command> ')
             # script.append('#     <command> ')
             script.append('# ********')
             script.append('# command:')
-        if self.log and with_status:
+
+        if self.log:
+            # If the user requested logging, we use tee to log all output to
+            # disk
             logged_command = f'({self.command}) 2>&1 | tee {self.log_fpath}'
             script.append(logged_command)
         else:
@@ -204,17 +263,18 @@ class BashJob(base_queue.Job):
 
         if with_status:
             script.append('# ********')
-
-        if with_status:
             # script.append('#     </command> ')
             # script.append('#     <after_command> ')
             script.append('# after_command:')
+
         if with_gaurds:
             # Tells bash to stop printing commands, but is clever in that it
             # captures the last return code and doesnt print this command.
             # Also set -e so our boilerplate is not allowed to fail
             script.append('# Capture job return code, disable command echo, enable exit-on-error')
             script.append('{ RETURN_CODE=$? ; set +x -e; } 2>/dev/null')
+            # NOTE: ${PIPESTATUS[0]} is an alternative to $? if we want a
+            # specific return code from a job chain
             if self.log:
                 script.append('set +o pipefail')
         else:
@@ -222,11 +282,21 @@ class BashJob(base_queue.Job):
                 script.append('# Capture job return code')
                 script.append('RETURN_CODE=$?')
 
+        if self.cwd is not None:
+            script.append('[["$CHDIR_OK" == "1"]] && popd')
+
+        if internal_conditionals:
+            # Use exit code 3 for error in preamble / chdir.
+            script.append('else')
+            script.append('    RETURN_CODE=3')
+            script.append('fi  # internal condition check')
+
         if had_conditions:
             suffix_script.append('else')
             if _job_conditionals['on_skip']:
                 on_skip_part = indent(_job_conditionals['on_skip'])
                 suffix_script.append(on_skip_part)
+            # Use exit code 126 for job skipped
             suffix_script.append('    RETURN_CODE=126')
             suffix_script.append('fi')
             if self.allow_indent:
@@ -241,7 +311,6 @@ class BashJob(base_queue.Job):
             json_fmt_parts = [
                 ('ret', '%s', '$RETURN_CODE'),
                 ('name', '"%s"', self.name),
-                # ('command', '"%s"', shlex.quote(self.command)),
             ]
             if self.log:
                 json_fmt_parts += [
@@ -263,9 +332,6 @@ class BashJob(base_queue.Job):
             script.append(dump_post_status)
             script.append(conditional_body)
             # script.append('#     </after_command> ')
-
-        if self.cwd is not None:
-            script.append('popd')
 
         assert isinstance(script, list)
         text = '\n'.join(script)
@@ -358,7 +424,39 @@ class SerialQueue(base_queue.Queue):
         >>> self.read_state()
     """
 
-    def __init__(self, name='', dpath=None, rootid=None, environ=None, cwd=None, **kwargs):
+    def __init__(self, name='', dpath=None, rootid=None, environ=None, cwd=None, preamble=None, **kwargs):
+        """
+        Args:
+            name (str):
+                Optional human-readable label for this queue instance.
+
+            dpath (str | os.PathLike | None):
+                Directory used to store queue artifacts. If None, a default
+                application directory is created and ensured to exist.
+
+            rootid (str | None):
+                Root identifier for this queue instance. If None, a unique ID is
+                generated in the form ``YYYY-MM-DD_<hash>``.
+
+            environ (dict[str, str] | None):
+                Optional environment variables that should be exported / available
+                when running queued jobs. If None, the current environment may be
+                used by downstream execution logic.
+
+            cwd (str | os.PathLike | None):
+                Optional working directory to run jobs from. If provided, jobs are
+                executed relative to this directory.
+
+            preamble (str | List[str] | None):
+                Optional shell preamble/header content to inject before queued job
+                commands (e.g., module loads, conda activation). If provided, it is
+                typically appended to the generated script header or
+                `header_commands`.
+
+            **kwargs:
+                Forward-compatible extra arguments. Unrecognized keys are stored in
+                `unused_kwargs` for debugging or external consumption.
+        """
         super().__init__()
         if rootid is None:
             rootid = str(ub.timestamp().split('T')[0]) + '_' + ub.hash_data(uuid.uuid4())[0:8]
@@ -373,12 +471,16 @@ class SerialQueue(base_queue.Queue):
         self.fpath = self.dpath / (self.pathid + '.sh')
         self.state_fpath = self.dpath / 'serial_queue_{}.txt'.format(self.pathid)
         self.environ = environ
-        self.header = '#!/bin/bash'
-        self.header_commands = []
+
+        self.header = '#!/bin/bash'  # todo: handle different shells
+        self.preamble = []
         self.jobs = []
 
         self.cwd = cwd
         self.job_info_dpath = self.dpath / 'job_info'
+
+        if preamble is not None:
+            self.add_preamble_command(preamble)
 
     @property
     def pathid(self):
@@ -507,10 +609,10 @@ class SerialQueue(base_queue.Queue):
             script.append('# Working Directory')
             script.append(f'cd {self.cwd}')
 
-        if self.header_commands:
+        if self.preamble:
             script.append('#')
             script.append('# Header commands')
-            for command in self.header_commands:
+            for command in self.preamble:
                 _command_enter()
                 script.append(command)
                 _command_exit()
@@ -574,7 +676,20 @@ class SerialQueue(base_queue.Queue):
         return text
 
     def add_header_command(self, command):
-        self.header_commands.append(command)
+        ub.schedule_deprecation(
+            modname='cmd_queue',
+            name='add_header_command',
+            type='function',
+            migration='use preamble kwarg or add_preamble_command instead',
+            deprecate='now',
+        )
+        self.add_preamble_command.append(command)
+
+    def add_preamble_command(self, command):
+        if isinstance(command, list):
+            self.preamble.extend(command)
+        else:
+            self.preamble.append(command)
 
     def print_commands(self, *args, **kwargs):
         r"""

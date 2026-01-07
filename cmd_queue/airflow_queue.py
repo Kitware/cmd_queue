@@ -61,6 +61,7 @@ class AirflowJob(base_queue.Job):
         return repr(self.command)
 
     def finalize_text(self):
+        # TODO: handle preamble
         dagvar = 'dag'
         return f'jobs[{self.name!r}] = BashOperator(task_id={self.name!r}, bash_command={self.command!r}, dag={dagvar})'
 
@@ -100,7 +101,7 @@ class AirflowQueue(base_queue.Queue):
     """
 
     def __init__(self, name=None, shell=None, dpath=None, airflow_home=None,
-                 **kwargs):
+                 preamble=None, **kwargs):
         super().__init__()
         self.jobs = []
         if name is None:
@@ -115,11 +116,13 @@ class AirflowQueue(base_queue.Queue):
         self.log_dpath = (self.dpath / 'logs').ensuredir()
         self.fpath = self.dags_dpath / (self.name + '.py')
         self.shell = shell
-        self.header_commands = []
+        self.preamble = []
         self.all_depends = None
         self.job_info_dpath = self.dpath / 'job_info'
         home = ub.Path(airflow_home) if airflow_home is not None else (self.dpath / 'airflow_home')
         self.airflow_home = home.ensuredir()
+        if preamble is not None:
+            self.add_preamble_command(preamble)
 
         # from airflow import DAG
         # from datetime import timedelta

@@ -231,7 +231,7 @@ class SlurmJob(base_queue.Job):
     """
     def __init__(self, command, name=None, output_fpath=None, depends=None,
                  cpus=None, gpus=None, mem=None, begin=None, shell=None,
-                 tags=None, **kwargs):
+                 tags=None, preamble=None, **kwargs):
         super().__init__()
         if name is None:
             import uuid
@@ -252,6 +252,7 @@ class SlurmJob(base_queue.Job):
         # Extra arguments for sbatch
         self._sbatch_kvargs = ub.udict(kwargs) & SLURM_SBATCH_KVARGS
         self._sbatch_flags = ub.udict(kwargs) & SLURM_SBATCH_FLAGS
+        self.preamble = preamble
         # if shell not in {None, 'bash'}:
         #     raise NotImplementedError(shell)
 
@@ -261,11 +262,13 @@ class SlurmJob(base_queue.Job):
     def __nice__(self):
         return repr(self.command)
 
-    def _build_command(self, jobname_to_varname=None):
-        args = self._build_sbatch_args(jobname_to_varname=jobname_to_varname)
+    def _build_command(self, jobname_to_varname=None, global_preamble=None):
+        args = self._build_sbatch_args(jobname_to_varname=jobname_to_varname,
+                                       global_preamble=global_preamble)
         return ' \\\n    '.join(args)
 
-    def _build_sbatch_args(self, jobname_to_varname=None):
+    def _build_sbatch_args(self, jobname_to_varname=None,
+                           global_preamble=None):
         sbatch_args = ['sbatch']
         if self.name:
             sbatch_args.append(f'--job-name="{self.name}"')
@@ -356,7 +359,16 @@ class SlurmJob(base_queue.Job):
                 sbatch_args.append(f'"--begin={self.begin}"')
 
         import shlex
-        wrp_command = shlex.quote(self.command)
+        _preamble = []
+        if global_preamble:
+            _preamble.extend(global_preamble)
+        if self.preamble:
+            _preamble.append(self.preamble)
+
+        if _preamble:
+            wrp_command = shlex.quote(' && '.join(_preamble + [self.command]))
+        else:
+            wrp_command = shlex.quote(self.command)
 
         if self.shell:
             wrp_command = shlex.quote(self.shell + ' -c ' + wrp_command)
@@ -403,7 +415,7 @@ class SlurmQueue(base_queue.Queue):
     Example:
         >>> from cmd_queue.slurm_queue import *  # NOQA
         >>> self = SlurmQueue(shell='/bin/bash')
-        >>> self.add_header_command('export FOO=bar')
+        >>> self.add_preamble_command('export FOO=bar')
         >>> job0 = self.submit('echo "$FOO"')
         >>> job1 = self.submit('echo "$FOO"', depends=job0)
         >>> job2 = self.submit('echo "$FOO"')
@@ -414,7 +426,7 @@ class SlurmQueue(base_queue.Queue):
         >>> job5 = self.submit('echo "$FOO"')
         >>> self.print_commands()
     """
-    def __init__(self, name=None, shell=None, **kwargs):
+    def __init__(self, name=None, shell=None, preamble=None, **kwargs):
         super().__init__()
         import uuid
         import time
@@ -433,12 +445,15 @@ class SlurmQueue(base_queue.Queue):
         self.log_dpath = self.dpath / 'logs'
         self.fpath = self.dpath / (self.queue_id + '.sh')
         self.shell = shell
-        self.header_commands = []
+        self.preamble = []
         self.all_depends = None
         self._sbatch_kvargs = ub.udict(kwargs) & SLURM_SBATCH_KVARGS
         self._sbatch_flags = ub.udict(kwargs) & SLURM_SBATCH_FLAGS
         self._include_monitor_metadata = True
         self.jobid_fpath = None
+
+        if preamble:
+            self.add_preamble_command(preamble)
 
     def __nice__(self):
         return self.queue_id
@@ -527,12 +542,14 @@ class SlurmQueue(base_queue.Queue):
 
         return False
 
-    def submit(self, command, **kwargs):
+    def submit(self, command, preamble=None, **kwargs):
         """
         Submit a command to this slurm queue
 
         Args:
             command (str): command line to execute.
+            preamble (str | List[str] | None):
+                job specific setup steps(s) to execute before the command
             **kwargs:
                 name (str | None): name of job
                 shell (str | None): shell to use, defaults to bash
@@ -570,14 +587,11 @@ class SlurmQueue(base_queue.Queue):
                 for dep in depends]
 
         _kwargs = self._sbatch_kvargs | kwargs
-        job = SlurmJob(command, depends=depends, **_kwargs)
+        job = SlurmJob(command, depends=depends, preamble=preamble, **_kwargs)
         self.jobs.append(job)
         self.num_real_jobs += 1
         self.named_jobs[job.name] = job
         return job
-
-    def add_header_command(self, command):
-        self.header_commands.append(command)
 
     def order_jobs(self):
         """
@@ -612,14 +626,14 @@ class SlurmQueue(base_queue.Queue):
         homevar = '$HOME'
         commands.append(f'mkdir -p "{self.log_dpath.shrinkuser(homevar)}"')
         jobname_to_varname = {}
+        global_preamble = self.preamble
         for job in new_order:
             if exclude_tags and exclude_tags.intersection(job.tags):
                 continue
             # args = job._build_sbatch_args(jobname_to_varname)
             # command = ' '.join(args)
-            command = job._build_command(jobname_to_varname)
-            if self.header_commands:
-                command = ' && '.join(self.header_commands + [command])
+            command = job._build_command(
+                jobname_to_varname, global_preamble=global_preamble)
             if 1:
                 varname = 'JOB_{:03d}'.format(len(jobname_to_varname))
                 command = f'{varname}=$({command} --parsable)'

@@ -38,6 +38,27 @@ class Queue(ub.NiceRepr):
         self.num_real_jobs = 0
         self.all_depends = None
         self.named_jobs = {}
+        self.preamble = []
+
+    @property
+    def header_commands(self):
+        return self.preamble
+
+    def add_header_command(self, command):
+        ub.schedule_deprecation(
+            modname='cmd_queue',
+            name='add_header_command',
+            type='function',
+            migration='use preamble kwarg or add_preamble_command instead',
+            deprecate='now',
+        )
+        self.add_preamble_command(command)
+
+    def add_preamble_command(self, command):
+        if isinstance(command, list):
+            self.preamble.extend(command)
+        else:
+            self.preamble.append(command)
 
     def change_backend(self, backend, **kwargs):
         """

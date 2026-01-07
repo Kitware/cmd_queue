@@ -7,6 +7,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version 0.3.0 - Unreleased
 
+### Fixed:
+* cwd will now handle failures if the directory doesnt exist in the bash queue
+* general improvements to bash script construction with per-job preamble commands
+* slurm now correctly respects header/preamble commands
+
+### Changed
+* deprecate `header_commands` for `preamble`
+
 
 ## Version 0.2.3 - Released 2025-12-09
 

@@ -24,3 +24,11 @@ def main():
     queue.print_commands()
 
     queue.run()
+
+
+if __name__ == '__main__':
+    """
+    CommandLine:
+        python ~/code/cmd_queue/examples/slurm_example.py
+    """
+    main()
