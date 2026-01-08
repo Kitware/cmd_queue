@@ -46,8 +46,6 @@ def test_primary_bash_job_text_variants():
 
         finalize_kwargs = ub.udict(variant) & {'with_status', 'with_gaurds'}
 
-        # Demo witht the works.
-        # conditionals = {'on_skip': ['echo "CUSTOM MESSAGE FOR WHEN WE SKIP A JOB"']}
         command = 'echo hi'
         self = BashJob(command, name='job2', **job_kwargs)
         self.log = variant['log']
@@ -98,8 +96,6 @@ def test_bash_job_variants_syntax_grided():
 
         finalize_kwargs = ub.udict(variant) & {'with_status', 'with_gaurds'}
 
-        # Demo witht the works.
-        # conditionals = {'on_skip': ['echo "CUSTOM MESSAGE FOR WHEN WE SKIP A JOB"']}
         self = BashJob('echo hi', name='job2', **job_kwargs)
         self.log = variant['log']
 

@@ -138,7 +138,7 @@ def parse_version(fpath):
     return visitor.version
 
 project = 'cmd_queue'
-copyright = '2025, Kitware Inc. Jon Crall'
+copyright = '2026, Kitware Inc. Jon Crall'
 author = 'Kitware Inc. Jon Crall'
 modname = 'cmd_queue'
 

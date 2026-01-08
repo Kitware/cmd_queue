@@ -85,7 +85,7 @@ Additional usage examples – including tmux and slurm execution – live in the
 module docstrings (``cmd_queue.__init__``) and the online documentation.
 
 
-Notice the ``--backend`` arugment. There are 3 backends with increasing levels
+Notice the ``--backend`` argument. There are 3 backends with increasing levels
 of complexity: serial, tmux, and slurm.
 
 In serial mode, a single bash script gets written that executes your jobs in
@@ -438,7 +438,7 @@ This prints the bash commands in an appropriate order to resolve dependencies.
     echo bazbiz && sleep 0.5
 
 
-The same code can be run in parallel by chosing a more powerful backend.
+The same code can be run in parallel by choosing a more powerful backend.
 The tmux backend is the lightest weight parallel backend.
 
 .. code:: python
@@ -543,7 +543,7 @@ This prints the sequence of bash commands that will be executed in each tmux ses
 
 
 Slurm mode is the real deal. But you need slurm installed on your machint to
-use it. Asking for tmux is a might ligher weight tool. We can specify slurm
+use it. Asking for tmux is a might lighter weight tool. We can specify slurm
 options here
 
 .. code:: python
@@ -551,7 +551,7 @@ options here
    import cmd_queue
    self = cmd_queue.Queue.create(name='demo_queue', backend='slurm')
    job1 = self.submit('echo hello && sleep 0.5', cpus=4, mem='8GB')
-   job2 = self.submit('echo world && sleep 0.5', depends=[job1], parition='default')
+   job2 = self.submit('echo world && sleep 0.5', depends=[job1], partition='default')
    job3 = self.submit('echo foo && sleep 0.5')
    job4 = self.submit('echo bar && sleep 0.5')
    job5 = self.submit('echo spam && sleep 0.5', depends=[job1])

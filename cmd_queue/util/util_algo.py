@@ -1,7 +1,11 @@
+from __future__ import annotations
+
+from typing import List
+
 import numpy as np
 
 
-def balanced_number_partitioning(items, num_parts):
+def balanced_number_partitioning(items: np.ndarray, num_parts: int) -> List[np.ndarray]:
     """
     Greedy approximation to multiway number partitioning
 
@@ -11,12 +15,12 @@ def balanced_number_partitioning(items, num_parts):
 
     Args:
         items (np.ndarray): list of numbers (i.e. weights) to split
-            between paritions.
+            between partitions
         num_parts (int): number of partitions
 
     Returns:
         List[np.ndarray]:
-            A list for each parition that contains the index of the items
+            A list for each partition that contains the index of the items
             assigned to it.
 
     References:
@@ -36,7 +40,7 @@ def balanced_number_partitioning(items, num_parts):
     item_weights = np.asanyarray(items)
     sortx = np.argsort(item_weights)[::-1]
 
-    bin_assignments = [[] for _ in range(num_parts)]
+    bin_assignments: List[List[int]] = [[] for _ in range(num_parts)]
     bin_sums = np.zeros(num_parts)
 
     for item_index in sortx:
@@ -46,5 +50,5 @@ def balanced_number_partitioning(items, num_parts):
         bin_assignments[bin_index].append(item_index)
         bin_sums[bin_index] += item_weight
 
-    bin_assignments = [np.array(p, dtype=int) for p in bin_assignments]
-    return bin_assignments
+    result: List[np.ndarray] = [np.array(p, dtype=int) for p in bin_assignments]
+    return result

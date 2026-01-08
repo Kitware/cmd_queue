@@ -1,4 +1,6 @@
 # flake8: noqa
+from __future__ import annotations
+
 """
 An automatic lazy textual API
 
@@ -6,12 +8,18 @@ Example:
     from cmd_queue.util import texter
 """
 
+from typing import Any, Callable, Dict, Iterable
+
 __mkinit__ = """
 mkinit textual --noattrs --lazy > ~/code/cmd_queue/cmd_queue/util/texter.py
 """
 
 
-def lazy_import(module_name, submodules, submod_attrs):
+def lazy_import(
+    module_name: str,
+    submodules: Iterable[str],
+    submod_attrs: Dict[str, Iterable[str]],
+) -> Callable[[str], Any]:
     import importlib
     import os
     name_to_submod = {
@@ -19,7 +27,7 @@ def lazy_import(module_name, submodules, submod_attrs):
         for func in funcs
     }
 
-    def __getattr__(name):
+    def __getattr__(name: str) -> Any:
         if name in submodules:
             attr = importlib.import_module(
                 '{module_name}.{name}'.format(
@@ -81,10 +89,10 @@ __getattr__ = lazy_import(
 )
 
 
-def __dir__():
+def __dir__() -> list[str]:
     return __all__
 
-__all__ = [
+__all__: list[str] = [
     'actions', 'app', 'background', 'binding', 'case', 'driver',
     'drivers', 'events', 'geometry', 'keys', 'layout', 'layout_map',
     'layouts', 'message', 'message_pump', 'messages', 'page',

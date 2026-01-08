@@ -31,7 +31,7 @@ class SlurmifyCLI(scfg.DataConfig):
         Specifies the bash command to queue.
         Care must be taken when specifying this argument.  If specifying as a
         key/value pair argument, it is important to quote and escape the bash
-        command properly.  A more convinient way to specify this command is as
+        command properly.  A more convenient way to specify this command is as
         a positional argument. End all of the options to this CLI with `--` and
         then specify your full command.
         '''))
@@ -47,19 +47,19 @@ class SlurmifyCLI(scfg.DataConfig):
     cpus_per_task = scfg.Value(None, help='')
 
     @classmethod
-    def main(cls, cmdline=1, **kwargs):
+    def main(cls, argv=1, **kwargs):
         """
         Example:
             >>> # xdoctest: +SKIP
             >>> from cmd_queue.slurmify import *  # NOQA
-            >>> cmdline = 0
+            >>> argv = 0
             >>> kwargs = dict()
             >>> cls = SlurmifyCLI
-            >>> cls.main(cmdline=cmdline, **kwargs)
+            >>> cls.main(argv=argv, **kwargs)
         """
         import rich
         from rich.markup import escape
-        config = cls.cli(cmdline=cmdline, data=kwargs, strict=True)
+        config = cls.cli(argv=argv, data=kwargs, strict=True)
         rich.print('config = ' + escape(ub.urepr(config, nl=1)))
 
         # import json

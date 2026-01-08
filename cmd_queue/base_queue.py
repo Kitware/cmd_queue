@@ -1,3 +1,8 @@
+from __future__ import annotations
+# mypy: ignore-errors
+
+from typing import Any, Dict, Iterable, List, Optional, Union
+
 import ubelt as ub
 
 
@@ -13,7 +18,13 @@ class Job(ub.NiceRepr):
     """
     Base class for a job
     """
-    def __init__(self, command=None, name=None, depends=None, **kwargs):
+    def __init__(
+        self,
+        command: Optional[str] = None,
+        name: Optional[str] = None,
+        depends: Optional[Iterable[Job]] = None,
+        **kwargs: Any,
+    ) -> None:
         # This is unused, should the slurm and bash job reuse this?
         if depends is not None and not ub.iterable(depends):
             depends = [depends]
@@ -22,7 +33,7 @@ class Job(ub.NiceRepr):
         self.depends = depends
         self.kwargs = kwargs
 
-    def __nice__(self):
+    def __nice__(self) -> str:
         return self.name
 
 
@@ -34,17 +45,21 @@ class Queue(ub.NiceRepr):
     available backend.
     """
 
-    def __init__(self):
-        self.num_real_jobs = 0
-        self.all_depends = None
-        self.named_jobs = {}
-        self.preamble = []
+    def __init__(self) -> None:
+        self.num_real_jobs: int = 0
+        self.all_depends: Optional[List[Job]] = None
+        self.named_jobs: Dict[str, Job] = {}
+        self.preamble: List[str] = []
+        self.jobs: List[Job] = []
+        self.job_info_dpath: Any = None
+        self.name: str = ''
+        self.fpath: Any = None
 
     @property
-    def header_commands(self):
+    def header_commands(self) -> List[str]:
         return self.preamble
 
-    def add_header_command(self, command):
+    def add_header_command(self, command: Union[str, List[str]]) -> None:
         ub.schedule_deprecation(
             modname='cmd_queue',
             name='add_header_command',
@@ -54,13 +69,13 @@ class Queue(ub.NiceRepr):
         )
         self.add_preamble_command(command)
 
-    def add_preamble_command(self, command):
+    def add_preamble_command(self, command: Union[str, List[str]]) -> None:
         if isinstance(command, list):
             self.preamble.extend(command)
         else:
             self.preamble.append(command)
 
-    def change_backend(self, backend, **kwargs):
+    def change_backend(self, backend: str, **kwargs: Any) -> Queue:
         """
         Create a new version of this queue with a different backend.
 
@@ -102,10 +117,10 @@ class Queue(ub.NiceRepr):
             new.submit(job.commands)
             pass
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self.num_real_jobs
 
-    def sync(self):
+    def sync(self) -> Queue:
         """
         Mark that all future jobs will depend on the current sink jobs
 
@@ -120,7 +135,7 @@ class Queue(ub.NiceRepr):
         self.all_depends = sink_jobs
         return self
 
-    def write(self):
+    def write(self) -> Any:
         """
         Writes the underlying files that defines the queue for whatever program
         will ingest it to run it.
@@ -135,10 +150,10 @@ class Queue(ub.NiceRepr):
             stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP))
         return self.fpath
 
-    def submit(self, command, **kwargs):
+    def submit(self, command: Union[str, Job], **kwargs: Any) -> Job:
         """
         Args:
-            command (str): The command to execute
+            command (str | Job): The command to execute
             name: specify the name of the job
             **kwargs: passed to :class:`cmd_queue.serial_queue.BashJob`
         """
@@ -183,10 +198,11 @@ class Queue(ub.NiceRepr):
                     print('self.named_jobs = {}'.format(ub.urepr(self.named_jobs, nl=1)))
                     raise
             job = serial_queue.BashJob(command, depends=depends, **kwargs)
-        else:
-            assert isinstance(command, Job)
+        elif isinstance(command, Job):
             # Assume job is already a bash job
             job = command
+        else:
+            raise TypeError(type(command))
         self.jobs.append(job)
 
         try:
@@ -216,13 +232,13 @@ class Queue(ub.NiceRepr):
         return lut
 
     @classmethod
-    def available_backends(cls):
+    def available_backends(cls) -> List[str]:
         lut = cls._backend_classes()
         available = [name for name, qcls in lut.items() if qcls.is_available()]
         return available
 
     @classmethod
-    def create(cls, backend='serial', **kwargs):
+    def create(cls, backend: str = 'serial', **kwargs: Any) -> Queue:
         """
         Main entry point to create a queue
 
@@ -253,7 +269,12 @@ class Queue(ub.NiceRepr):
             raise UnknownBackendError(backend)
         return self
 
-    def write_network_text(self, reduced=True, rich='auto', vertical_chains=False):
+    def write_network_text(
+        self,
+        reduced: bool = True,
+        rich: Union[bool, str] = 'auto',
+        vertical_chains: bool = False,
+    ) -> None:
         # TODO: change rich to style
         try:
             import rich as rich_mod
@@ -283,13 +304,15 @@ class Queue(ub.NiceRepr):
             nx.write_network_text(graph, path=print_, end='',
                                   vertical_chains=vertical_chains)
 
-    def print_commands(self,
-                       with_status=False,
-                       with_gaurds=False,
-                       with_locks=1,
-                       exclude_tags=None,
-                       style='colors',
-                       **kwargs):
+    def print_commands(
+        self,
+        with_status: bool = False,
+        with_gaurds: bool = False,
+        with_locks: bool = True,
+        exclude_tags: Optional[List[str]] = None,
+        style: str = 'colors',
+        **kwargs: Any,
+    ) -> None:
         """
         Args:
             with_status (bool):
@@ -356,14 +379,14 @@ class Queue(ub.NiceRepr):
         else:
             raise KeyError(f'Unknown style={style}')
 
-    def rprint(self, **kwargs):
+    def rprint(self, **kwargs: Any) -> None:
         ub.schedule_deprecation(
             'cmd_queue', name='rprint', type='arg',
             migration='print_commands',
         )
         self.print_commands(**kwargs)
 
-    def print_graph(self, reduced=True, vertical_chains=False):
+    def print_graph(self, reduced: bool = True, vertical_chains: bool = False) -> None:
         """
         Renders the dependency graph to an "network text"
 
@@ -372,7 +395,7 @@ class Queue(ub.NiceRepr):
         """
         self.write_network_text(reduced=reduced, vertical_chains=vertical_chains)
 
-    def _dependency_graph(self):
+    def _dependency_graph(self) -> Any:
         """
         Builds a networkx dependency graph for the current jobs
 
@@ -394,7 +417,7 @@ class Queue(ub.NiceRepr):
         graph = nx.DiGraph()
         duplicate_names = ub.find_duplicates(self.jobs, key=lambda x: x.name)
         if duplicate_names:
-            print('duplicate_names = {}'.format(ub.repr2(duplicate_names, nl=1)))
+            print('duplicate_names = {}'.format(ub.urepr(duplicate_names, nl=1)))
             raise Exception('Job names must be unique')
 
         for index, job in enumerate(self.jobs):
@@ -406,10 +429,15 @@ class Queue(ub.NiceRepr):
                         graph.add_edge(dep.name, job.name)
         return graph
 
-    def monitor(self):
+    def monitor(self) -> None:
         print('monitor not implemented')
 
-    def _coerce_style(self, style='auto', with_rich=None, colors=1):
+    def _coerce_style(
+        self,
+        style: str = 'auto',
+        with_rich: Optional[bool] = None,
+        colors: bool = True,
+    ) -> str:
         # Helper
         if with_rich is not None:
             ub.schedule_deprecation(
