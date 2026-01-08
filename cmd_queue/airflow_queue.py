@@ -192,6 +192,22 @@ class AirflowQueue(base_queue.Queue):
         )
         return env
 
+    def _default_job_name(self) -> str:
+        return f'J{len(self.jobs):04d}-{self.queue_id}'
+
+    def _new_job(
+        self,
+        command: str,
+        depends: Optional[Iterable[base_queue.Job]] = None,
+        **kwargs: Any,
+    ) -> AirflowJob:
+        name = kwargs.get('name', None)
+        if 'output_fpath' not in kwargs and name is not None:
+            kwargs['output_fpath'] = self.log_dpath / (name + '.log')
+        if self.shell is not None:
+            kwargs.setdefault('shell', self.shell)
+        return AirflowJob(command, depends=depends, **kwargs)
+
     @contextlib.contextmanager
     def _patched_env(self, env):
         original = {}
@@ -372,38 +388,6 @@ class AirflowQueue(base_queue.Queue):
         text = '\n'.join(parts)
         return text
         # pass
-
-    def submit(self, command: str, **kwargs: Any) -> AirflowJob:
-        name = kwargs.get('name', None)
-        if name is None:
-            name = kwargs['name'] = f'J{len(self.jobs):04d}-{self.queue_id}'
-        if 'output_fpath' not in kwargs:
-            kwargs['output_fpath'] = self.log_dpath / (name + '.log')
-        if self.shell is not None:
-            kwargs['shell'] = kwargs.get('shell', self.shell)
-        if self.all_depends:
-            depends = kwargs.get('depends', None)
-            if depends is None:
-                depends = self.all_depends
-            else:
-                if not ub.iterable(depends):
-                    depends = [depends]
-                depends = self.all_depends + depends
-            kwargs['depends'] = depends
-
-        depends = kwargs.pop('depends', None)
-        if depends is not None:
-            # Resolve any strings to job objects
-            if isinstance(depends, str) or not ub.iterable(depends):
-                depends = [depends]
-            depends = [
-                self.named_jobs[dep] if isinstance(dep, str) else dep
-                for dep in depends]
-        job = AirflowJob(command, depends=depends, **kwargs)
-        self.jobs.append(job)
-        self.num_real_jobs += 1
-        self.named_jobs[job.name] = job
-        return job
 
     def print_commands(
         self,

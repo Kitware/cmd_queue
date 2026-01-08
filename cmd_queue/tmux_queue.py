@@ -259,6 +259,19 @@ class TMUXMultiQueue(base_queue.Queue):
         """
         return ub.find_exe('tmux')
 
+    def _new_job(
+        self,
+        command: str,
+        depends: Optional[Iterable[base_queue.Job]] = None,
+        **kwargs: Any,
+    ) -> serial_queue.BashJob:
+        name = kwargs.get('name', None)
+        if name is not None and ':' in name:
+            raise ValueError('Name must be path-safe')
+        if 'info_dpath' not in kwargs:
+            kwargs['info_dpath'] = self.job_info_dpath
+        return serial_queue.BashJob(command, depends=depends, **kwargs)
+
     def _new_workers(self, start: int = 0) -> List[serial_queue.SerialQueue]:
         import itertools as it
         per_worker_environs = [self.environ] * self.size

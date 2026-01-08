@@ -488,6 +488,23 @@ class SlurmQueue(base_queue.Queue):
     def __nice__(self) -> str:
         return self.queue_id
 
+    def _default_job_name(self) -> str:
+        return f'J{len(self.jobs):04d}-{self.queue_id}'
+
+    def _new_job(
+        self,
+        command: str,
+        depends: Optional[Iterable[base_queue.Job]] = None,
+        **kwargs: Any,
+    ) -> SlurmJob:
+        name = kwargs.get('name', None)
+        if 'output_fpath' not in kwargs and name is not None:
+            kwargs['output_fpath'] = self.log_dpath / (name + '.sh')
+        if self.shell is not None:
+            kwargs.setdefault('shell', self.shell)
+        _kwargs = self._sbatch_kvargs | kwargs
+        return SlurmJob(command, depends=depends, **_kwargs)
+
     @staticmethod
     def _slurm_checks() -> None:
         status = {}
@@ -571,62 +588,6 @@ class SlurmQueue(base_queue.Queue):
                                 return True
 
         return False
-
-    def submit(
-        self,
-        command: str,
-        preamble: Optional[Union[str, List[str]]] = None,
-        **kwargs: Any,
-    ) -> SlurmJob:
-        """
-        Submit a command to this slurm queue
-
-        Args:
-            command (str): command line to execute.
-            preamble (str | List[str] | None):
-                job specific setup steps(s) to execute before the command
-            **kwargs:
-                name (str | None): name of job
-                shell (str | None): shell to use, defaults to bash
-                depends (str | List[str] | None): name of jobs to depend on
-                **slurm_options:see SLURM_SBATCH_KVARGS and SLURM_SBATCH_FLAGS
-
-        Returns:
-            SlurmJob
-        """
-        name = kwargs.get('name', None)
-        if name is None:
-            name = kwargs['name'] = f'J{len(self.jobs):04d}-{self.queue_id}'
-            # + '-job-{}'.format(len(self.jobs))
-        if 'output_fpath' not in kwargs:
-            kwargs['output_fpath'] = self.log_dpath / (name + '.sh')
-        if self.shell is not None:
-            kwargs['shell'] = kwargs.get('shell', self.shell)
-        if self.all_depends:
-            depends = kwargs.get('depends', None)
-            if depends is None:
-                depends = self.all_depends
-            else:
-                if not ub.iterable(depends):
-                    depends = [depends]
-                depends = self.all_depends + depends
-            kwargs['depends'] = depends
-
-        depends = kwargs.pop('depends', None)
-        if depends is not None:
-            # Resolve any strings to job objects
-            if not ub.iterable(depends):
-                depends = [depends]
-            depends = [
-                self.named_jobs[dep] if isinstance(dep, str) else dep
-                for dep in depends]
-
-        _kwargs = self._sbatch_kvargs | kwargs
-        job = SlurmJob(command, depends=depends, preamble=preamble, **_kwargs)
-        self.jobs.append(job)
-        self.num_real_jobs += 1
-        self.named_jobs[job.name] = job
-        return job
 
     def order_jobs(self) -> List[SlurmJob]:
         """

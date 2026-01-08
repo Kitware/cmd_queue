@@ -150,71 +150,81 @@ class Queue(ub.NiceRepr):
             stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP))
         return self.fpath
 
+    def _new_job(
+        self,
+        command: str,
+        depends: Optional[Iterable[Job]] = None,
+        **kwargs: Any,
+    ) -> Job:
+        """
+        Backend hook: create and return a Job instance appropriate for this backend.
+        Must be implemented by backend queues.
+        """
+        raise NotImplementedError
+
+    def _default_job_name(self) -> str:
+        return self.name + '-job-{}'.format(self.num_real_jobs)
+
+    def _normalize_depends(
+        self,
+        depends: Optional[Union[Job, str, Iterable[Union[Job, str]]]],
+    ) -> List[Job]:
+        if depends is None:
+            return []
+        if isinstance(depends, str) or not ub.iterable(depends):
+            depends = [depends]
+        try:
+            return [
+                self.named_jobs[dep] if isinstance(dep, str) else dep
+                for dep in depends
+            ]
+        except Exception:
+            print('self.named_jobs = {}'.format(ub.urepr(self.named_jobs, nl=1)))
+            raise
+
+    def _apply_all_depends(
+        self,
+        depends: Optional[Union[Job, str, Iterable[Union[Job, str]]]],
+    ) -> List[Job]:
+        if self.all_depends:
+            if depends is None:
+                depends = list(self.all_depends)
+            else:
+                if isinstance(depends, str) or not ub.iterable(depends):
+                    depends = [depends]
+                depends = list(self.all_depends) + list(depends)
+        return self._normalize_depends(depends)
+
+    def _register_job(self, job: Job) -> None:
+        self.jobs.append(job)
+        if job.name in self.named_jobs:
+            raise DuplicateJobError(f'duplicate key {job.name}')
+        self.named_jobs[job.name] = job
+        if not getattr(job, 'bookkeeper', False):
+            self.num_real_jobs += 1
+
     def submit(self, command: Union[str, Job], **kwargs: Any) -> Job:
         """
         Args:
             command (str | Job): The command to execute
             name: specify the name of the job
-            **kwargs: passed to :class:`cmd_queue.serial_queue.BashJob`
+            **kwargs: backend-specific job arguments
         """
         # TODO: we could accept additional args here that modify how we handle
         # the command in the bash script we build (i.e. if the script is
         # allowed to fail or not)
         # self.commands.append(command)
-        # hack
-        from cmd_queue import serial_queue
-
-        if 'info_dpath' not in kwargs:
-            kwargs['info_dpath'] = self.job_info_dpath
-
-        if isinstance(command, str):
+        if isinstance(command, Job):
+            job = command
+        elif isinstance(command, str):
             name = kwargs.get('name', None)
             if name is None:
-                name = kwargs['name'] = self.name + '-job-{}'.format(self.num_real_jobs)
-
-            # TODO: make sure name is path safe.
-            if ':' in name:
-                raise ValueError('Name must be path-safe')
-
-            if self.all_depends:
-                depends = kwargs.get('depends', None)
-                if depends is None:
-                    depends = self.all_depends
-                else:
-                    if not ub.iterable(depends):
-                        depends = [depends]
-                    depends = self.all_depends + depends
-                kwargs['depends'] = depends
-            depends = kwargs.pop('depends', None)
-            if depends is not None:
-                # Resolve any strings to job objects
-                if not ub.iterable(depends):
-                    depends = [depends]
-                try:
-                    depends = [
-                        self.named_jobs[dep] if isinstance(dep, str) else dep
-                        for dep in depends]
-                except Exception:
-                    print('self.named_jobs = {}'.format(ub.urepr(self.named_jobs, nl=1)))
-                    raise
-            job = serial_queue.BashJob(command, depends=depends, **kwargs)
-        elif isinstance(command, Job):
-            # Assume job is already a bash job
-            job = command
+                kwargs['name'] = self._default_job_name()
+            depends = self._apply_all_depends(kwargs.pop('depends', None))
+            job = self._new_job(command=command, depends=depends, **kwargs)
         else:
             raise TypeError(type(command))
-        self.jobs.append(job)
-
-        try:
-            if job.name in self.named_jobs:
-                raise DuplicateJobError(f'duplicate key {job.name}')
-        except Exception:
-            raise
-
-        self.named_jobs[job.name] = job
-
-        if not job.bookkeeper:
-            self.num_real_jobs += 1
+        self._register_job(job)
         return job
 
     @classmethod
