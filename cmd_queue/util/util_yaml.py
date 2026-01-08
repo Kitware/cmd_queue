@@ -1,15 +1,20 @@
+from __future__ import annotations
+
 import io
 import os
+from typing import Any, Dict, List, Optional, Union, cast
+
 import ubelt as ub
 
 
 NEW_RUAMEL = 1
+YAML_WIDTH = 10 ** 9
 
 
 class _YamlRepresenter:
 
     @staticmethod
-    def str_presenter(dumper, data):
+    def str_presenter(dumper: Any, data: str) -> Any:
         # https://stackoverflow.com/questions/8640959/how-can-i-control-what-scalar-form-pyyaml-uses-for-my-data
         if len(data.splitlines()) > 1 or '\n' in data:
             text_list = [line.rstrip() for line in data.splitlines()]
@@ -19,7 +24,7 @@ class _YamlRepresenter:
 
 
 @ub.memoize
-def _custom_ruaml_loader():
+def _custom_ruaml_loader() -> Any:
     """
     old method
 
@@ -46,7 +51,7 @@ def _custom_ruaml_loader():
 
 
 @ub.memoize
-def _custom_ruaml_dumper():
+def _custom_ruaml_dumper() -> Any:
     """
     References:
         https://stackoverflow.com/questions/59635900/ruamel-yaml-custom-commentedmapping-for-custom-tags
@@ -59,8 +64,8 @@ def _custom_ruaml_dumper():
 
 
 @ub.memoize
-def _custom_pyaml_dumper():
-    import yaml
+def _custom_pyaml_dumper() -> Any:
+    import yaml  # type: ignore[import-untyped]
 
     class Dumper(yaml.Dumper):
         pass
@@ -74,7 +79,7 @@ def _custom_pyaml_dumper():
 
 
 # @ub.memoize
-def _custom_new_ruaml_yaml_obj():
+def _custom_new_ruaml_yaml_obj() -> Any:
     """
     new method
 
@@ -139,7 +144,7 @@ def _custom_new_ruaml_yaml_obj():
     yaml_obj.Constructor = CustomConstructor
     yaml_obj.Representer = CustomRepresenter
     yaml_obj.preserve_quotes = True
-    yaml_obj.width = float('inf')
+    yaml_obj.width = YAML_WIDTH
     return yaml_obj
 
 
@@ -149,7 +154,7 @@ class Yaml:
     """
 
     @staticmethod
-    def dumps(data, backend='ruamel'):
+    def dumps(data: Any, backend: str = 'ruamel') -> str:
         """
         Dump yaml to a string representation
         (and account for some of our use-cases)
@@ -181,18 +186,18 @@ class Yaml:
             else:
                 import ruamel.yaml
                 Dumper = _custom_ruaml_dumper()
-                ruamel.yaml.round_trip_dump(data, file, Dumper=Dumper, width=float("inf"))
+                ruamel.yaml.round_trip_dump(data, file, Dumper=Dumper, width=YAML_WIDTH)
         elif backend == 'pyyaml':
-            import yaml
+            import yaml  # type: ignore[import-untyped]
             Dumper = _custom_pyaml_dumper()
-            yaml.dump(data, file, Dumper=Dumper, sort_keys=False, width=float("inf"))
+            yaml.dump(data, file, Dumper=Dumper, sort_keys=False, width=YAML_WIDTH)
         else:
             raise KeyError(backend)
         text = file.getvalue()
         return text
 
     @staticmethod
-    def load(file, backend='ruamel'):
+    def load(file: Union[io.TextIOBase, os.PathLike, str], backend: str = 'ruamel') -> object:
         """
         Load yaml from a file
 
@@ -239,7 +244,7 @@ class Yaml:
                     data = ruamel.yaml.load(file, Loader=Loader, preserve_quotes=True)
                     # data = ruamel.yaml.load(file, Loader=ruamel.yaml.RoundTripLoader, preserve_quotes=True)
             elif backend == 'pyyaml':
-                import yaml
+                import yaml  # type: ignore[import-untyped]
                 # data = yaml.load(file, Loader=yaml.SafeLoader)
                 data = yaml.load(file, Loader=yaml.Loader)
             else:
@@ -247,7 +252,7 @@ class Yaml:
             return data
 
     @staticmethod
-    def loads(text, backend='ruamel'):
+    def loads(text: str, backend: str = 'ruamel') -> object:
         """
         Load yaml from a text
 
@@ -280,7 +285,7 @@ class Yaml:
         return Yaml.load(file, backend=backend)
 
     @staticmethod
-    def coerce(data, backend='ruamel'):
+    def coerce(data: Any, backend: str = 'ruamel') -> object:
         """
         Attempt to convert input into a parsed yaml / json data structure.
         If the data looks like a path, it tries to load and parse file contents.
@@ -362,7 +367,7 @@ class Yaml:
             maybe_path = None
             if '\n' not in data and len(data.strip()) > 0:
                 # Ambiguous case: might this be path-like?
-                maybe_path = ub.Path(data)
+                maybe_path = cast(Any, ub.Path)(data)
                 try:
                     if not maybe_path.is_file():
                         maybe_path = None
@@ -383,7 +388,7 @@ class Yaml:
         return result
 
     @staticmethod
-    def InlineList(items):
+    def InlineList(items: List[Any]) -> Any:
         """
         References:
             .. [SO56937691] https://stackoverflow.com/questions/56937691/making-yaml-ruamel-yaml-always-dump-lists-inline
@@ -394,7 +399,7 @@ class Yaml:
         return ret
 
     @staticmethod
-    def Dict(data):
+    def Dict(data: Dict[Any, Any]) -> Any:
         """
         Get a ruamel-enhanced dictionary
 
@@ -412,6 +417,6 @@ class Yaml:
         return ret
 
     @staticmethod
-    def CodeBlock(text):
+    def CodeBlock(text: str) -> Any:
         import ruamel.yaml
         return ruamel.yaml.scalarstring.LiteralScalarString(ub.codeblock(text))

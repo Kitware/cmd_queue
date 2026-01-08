@@ -1,4 +1,6 @@
 # flake8: noqa
+from __future__ import annotations
+
 """
 An automatic lazy rich API
 
@@ -6,13 +8,19 @@ Example:
     from cmd_queue.util import richer as rich
 """
 
+from typing import Any, Callable, Dict, Iterable
+
 __mkinit__ = """
 mkinit rich --noattrs --lazy > ~/code/cmd_queue/cmd_queue/util/richer.py
 """
 
 
 # Global console used by alternative print
-def lazy_import(module_name, submodules, submod_attrs):
+def lazy_import(
+    module_name: str,
+    submodules: Iterable[str],
+    submod_attrs: Dict[str, Iterable[str]],
+) -> Callable[[str], Any]:
     import importlib
     import os
     name_to_submod = {
@@ -20,7 +28,7 @@ def lazy_import(module_name, submodules, submod_attrs):
         for func in funcs
     }
 
-    def __getattr__(name):
+    def __getattr__(name: str) -> Any:
         if name in submodules:
             attr = importlib.import_module(
                 '{module_name}.{name}'.format(
@@ -114,10 +122,10 @@ __getattr__ = lazy_import(
 )
 
 
-def __dir__():
+def __dir__() -> list[str]:
     return __all__
 
-__all__ = ['abc', 'align', 'ansi', 'bar', 'box', 'cells', 'color',
+__all__: list[str] = ['abc', 'align', 'ansi', 'bar', 'box', 'cells', 'color',
            'color_triplet', 'columns', 'console', 'constrain', 'containers',
            'control', 'default_styles', 'diagnose', 'emoji', 'errors',
            'file_proxy', 'filesize', 'get_console', 'highlighter', 'inspect',

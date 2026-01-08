@@ -1,3 +1,6 @@
+from __future__ import annotations
+# mypy: ignore-errors
+
 """
 This file defines a helper scriptconfig base config that can be used to help
 make cmd_queue CLIs so cmd_queue options are standardized and present at the
@@ -95,6 +98,8 @@ Example:
     >>> print('----------------')
     >>> my_cli_main(cmdline=0, run=1, print_queue=0, print_commands=0)
 """
+from typing import Any, Dict, Optional
+
 import scriptconfig as scfg
 import ubelt as ub
 
@@ -179,11 +184,11 @@ class CMDQueueConfig(scfg.DataConfig):
         partition / etc...
         '''), group='cmd-queue')
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         from cmd_queue.util.util_yaml import Yaml
         self.slurm_options = Yaml.coerce(self.slurm_options) or {}
 
-    def create_queue(config, **kwargs):
+    def create_queue(config, **kwargs: Any) -> "cmd_queue.Queue":
         """
         Create an empty queue based on options specified in this config
 
@@ -223,7 +228,12 @@ class CMDQueueConfig(scfg.DataConfig):
                 queue.add_header_command(virtualenv_cmd)
         return queue
 
-    def run_queue(config, queue, print_kwargs=None, **kwargs):
+    def run_queue(
+        config,
+        queue: "cmd_queue.Queue",
+        print_kwargs: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
+    ) -> None:
         """
         Execute a queue with options based on this config.
 

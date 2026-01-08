@@ -1,3 +1,6 @@
+from __future__ import annotations
+# mypy: ignore-errors
+
 """
 A very simple queue based on tmux and bash
 
@@ -48,9 +51,11 @@ Example:
     >>>     queue.run()
 
 """
+import uuid
+from typing import Any, Dict, Iterable, List, Optional
+
 import ubelt as ub
 # import itertools as it
-import uuid
 
 from cmd_queue import base_queue
 from cmd_queue import serial_queue
@@ -194,8 +199,17 @@ class TMUXMultiQueue(base_queue.Queue):
         >>> if self.is_available():
         >>>     self.run(with_textual=False, check_other_sessions=0)
     """
-    def __init__(self, size=1, name=None, dpath=None, rootid=None, environ=None,
-                 preamble=None, gpus=None, gres=None):
+    def __init__(
+        self,
+        size: int = 1,
+        name: Optional[str] = None,
+        dpath: Optional[Any] = None,
+        rootid: Optional[str] = None,
+        environ: Optional[Dict[str, str]] = None,
+        preamble: Optional[List[str]] = None,
+        gpus: Optional[Any] = None,
+        gres: Optional[Any] = None,
+    ) -> None:
         super().__init__()
 
         if rootid is None:
@@ -239,13 +253,13 @@ class TMUXMultiQueue(base_queue.Queue):
             self.add_preamble_commands(preamble)
 
     @classmethod
-    def is_available(cls):
+    def is_available(cls) -> bool:
         """
         Determines if we can run the tmux queue or not.
         """
         return ub.find_exe('tmux')
 
-    def _new_workers(self, start=0):
+    def _new_workers(self, start: int = 0) -> List[serial_queue.SerialQueue]:
         import itertools as it
         per_worker_environs = [self.environ] * self.size
         if self.gpus:
@@ -268,10 +282,10 @@ class TMUXMultiQueue(base_queue.Queue):
         ]
         return workers
 
-    def __nice__(self):
+    def __nice__(self) -> str:
         return ub.repr2(self.jobs)
 
-    def _semaphore_wait_command(self, flag_fpaths, msg):
+    def _semaphore_wait_command(self, flag_fpaths: Iterable[str], msg: str) -> str:
         r"""
         TODO: use flock? or inotify?
 
@@ -323,7 +337,7 @@ class TMUXMultiQueue(base_queue.Queue):
             '''
         )
 
-    def order_jobs(self):
+    def order_jobs(self) -> None:
         """
         TODO: ability to shuffle jobs subject to graph constraints
 
@@ -559,7 +573,7 @@ class TMUXMultiQueue(base_queue.Queue):
                 worker.add_preamble_command(header_command)
         self.workers = queue_workers
 
-    def finalize_text(self, **kwargs):
+    def finalize_text(self, **kwargs: Any) -> str:
         self.order_jobs()
         # Create a driver script
         driver_lines = [ub.codeblock(
@@ -585,13 +599,13 @@ class TMUXMultiQueue(base_queue.Queue):
         driver_text = '\n\n'.join(driver_lines)
         return driver_text
 
-    def write(self):
+    def write(self) -> Any:
         self.order_jobs()
         for queue in self.workers:
             queue.write()
         super().write()
 
-    def kill_other_queues(self, ask_first=True):
+    def kill_other_queues(self, ask_first: bool = True) -> None:
         """
         Find other tmux sessions that look like they were started with
         cmd_queue and kill them.
@@ -619,7 +633,7 @@ class TMUXMultiQueue(base_queue.Queue):
                 for command in kill_commands:
                     ub.cmd(command, verbose=self.cmd_verbose)
 
-    def handle_other_sessions(self, other_session_handler):
+    def handle_other_sessions(self, other_session_handler: str) -> None:
         if other_session_handler == 'auto':
             from cmd_queue.tmux_queue import has_stdin
             if has_stdin():
@@ -635,9 +649,17 @@ class TMUXMultiQueue(base_queue.Queue):
         else:
             raise KeyError(other_session_handler)
 
-    def run(self, block=True, onfail='kill', onexit='', system=False,
-            with_textual='auto', check_other_sessions=None,
-            other_session_handler='auto', **kw):
+    def run(
+        self,
+        block: bool = True,
+        onfail: str = 'kill',
+        onexit: str = '',
+        system: bool = False,
+        with_textual: str = 'auto',
+        check_other_sessions: Optional[bool] = None,
+        other_session_handler: str = 'auto',
+        **kw: Any,
+    ) -> None:
         """
         Execute the queue.
 
@@ -677,7 +699,7 @@ class TMUXMultiQueue(base_queue.Queue):
                     self.kill()
             return agg_state
 
-    def read_state(self):
+    def read_state(self) -> Any:
         agg_state = {}
         worker_states = []
         for worker in self.workers:
@@ -696,7 +718,7 @@ class TMUXMultiQueue(base_queue.Queue):
             pass
         return agg_state
 
-    def serial_run(self):
+    def serial_run(self) -> None:
         """
         Hack to run everything without tmux. This really should be a different
         "queue" backend.
@@ -712,7 +734,7 @@ class TMUXMultiQueue(base_queue.Queue):
         for fpath in queue_fpaths:
             ub.cmd(f'{fpath}', verbose=self.cmd_verbose, check=True)
 
-    def monitor(self, refresh_rate=0.4, with_textual='auto'):
+    def monitor(self, refresh_rate: float = 0.4, with_textual: str = 'auto') -> None:
         """
         Monitor progress until the jobs are done
 
@@ -884,7 +906,7 @@ class TMUXMultiQueue(base_queue.Queue):
             )
         return table, finished, agg_state
 
-    def print_commands(self, *args, **kwargs):
+    def print_commands(self, *args: Any, **kwargs: Any) -> None:
         r"""
         Print info about the commands, optionally with rich
 
@@ -937,7 +959,7 @@ class TMUXMultiQueue(base_queue.Queue):
             queue.print_commands(*args, **kwargs)
         super().print_commands(*args, **kwargs)
 
-    def current_output(self):
+    def current_output(self) -> None:
         for queue in self.workers:
             print('\n\nqueue = {!r}'.format(queue))
             # First print out the contents for debug
@@ -954,11 +976,11 @@ class TMUXMultiQueue(base_queue.Queue):
             command2 = tmux._kill_session_command(target_session=queue.pathid)
             yield command2
 
-    def capture(self):
+    def capture(self) -> None:
         for command in self._print_commands():
             ub.cmd(command, verbose=self.cmd_verbose)
 
-    def kill(self):
+    def kill(self) -> None:
         # Kills all the tmux panes
         for command in self._kill_commands():
             ub.cmd(command, verbose=self.cmd_verbose)
@@ -968,7 +990,7 @@ class TMUXMultiQueue(base_queue.Queue):
         return sessions
 
 
-def has_stdin():
+def has_stdin() -> bool:
     import sys
     try:
         sys.stdin.fileno()

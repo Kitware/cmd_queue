@@ -1,3 +1,8 @@
+from __future__ import annotations
+# mypy: ignore-errors
+
+from typing import Any
+
 # from typing import Any
 
 
@@ -42,7 +47,7 @@ class class_or_instancemethod(classmethod):
         >>> print(X().foo())
         bound to the instance
     """
-    def __get__(self, instance, type_):
+    def __get__(self, instance: Any, type_: Any) -> Any:
         descr_get = super().__get__ if instance is None else self.__func__.__get__
         return descr_get(instance, type_)
 
@@ -82,11 +87,11 @@ class InstanceRunnableApp(App):
     @classmethod
     def _run_as_cls(
         cls,
-        console=None,
+        console: Any = None,
         screen: bool = True,
-        driver=None,
+        driver: Any = None,
         **kwargs,
-    ):
+    ) -> None:
         """
         Original classmethod logic
         """
@@ -98,11 +103,11 @@ class InstanceRunnableApp(App):
 
     def _run_as_instance(
         self,
-        console=None,
+        console: Any = None,
         screen: bool = True,
-        driver=None,
+        driver: Any = None,
         **kwargs,
-    ):
+    ) -> None:
         """
         New instancemethod logic
         """
@@ -128,11 +133,11 @@ class InstanceRunnableApp(App):
     @class_or_instancemethod
     def run(
         cls_or_self,
-        console=None,
+        console: Any = None,
         screen: bool = True,
-        driver=None,
+        driver: Any = None,
         **kwargs,
-    ):
+    ) -> None:
         """Run the app.
         Args:
             console (Console, optional): Console object. Defaults to None.
@@ -157,7 +162,7 @@ try:
             self,
             *,
             tall: bool = True,
-            style="white on dark_green",
+            style: str = "white on dark_green",
             clock: bool = True,
         ) -> None:
             """
@@ -201,7 +206,7 @@ try:
             header = Panel(header_table, style=self.style) if self.tall else header_table
             return header
 
-        async def on_mount(self, event) -> None:
+        async def on_mount(self, event: Any) -> None:
             """
             Args:
                 event (events.Mount):
@@ -217,7 +222,7 @@ try:
             watch(self.app, "title", set_title)
             watch(self.app, "sub_title", set_sub_title)
 
-        async def on_click(self, event) -> None:
+        async def on_click(self, event: Any) -> None:
             """
             Args:
                 event (events.Click):

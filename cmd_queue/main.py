@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 # PYTHON_ARGCOMPLETE_OK
+from __future__ import annotations
+# mypy: ignore-errors
+
 """
 This is the main script for the cmd_queue CLI. The :class:`CmdQueueConfig`
 defines the available options and its docstring provides a quick tutorial.
@@ -10,9 +13,11 @@ For help run:
     cmd_queue --help
 
 """
+from typing import Any, Callable
+
+import rich
 import scriptconfig as scfg
 import ubelt as ub
-import rich
 
 __todo__ = """
 
@@ -74,12 +79,12 @@ class CommonConfig(scfg.DataConfig):
 
     verbose = scfg.Value(1, help='verbosity level')
 
-    def __post_init__(config):
+    def __post_init__(config) -> None:
         if config['dpath'] == 'auto':
             config['dpath'] = str(ub.Path.appdir('cmd_queue/cli'))
 
     @classmethod
-    def main(cls, cmdline=1, **kwargs):
+    def main(cls, cmdline: int = 1, **kwargs: Any) -> None:
         config = cls.cli(cmdline=cmdline, data=kwargs, strict=True)
         if config.verbose:
             rich.print('config = ' + ub.urepr(config, nl=1))
@@ -96,7 +101,7 @@ class CommonShowRun(CommonConfig):
 
     gpus = scfg.Value(None, help='a comma separated list of the gpu numbers to spread across. tmux backend only.')
 
-    def _build_queue(config):
+    def _build_queue(config) -> "cmd_queue.Queue":
         import cmd_queue
         import json
         queue = cmd_queue.Queue.create(size=max(1, config['workers']),
@@ -251,7 +256,7 @@ class CmdQueueCLI(scfg.ModalCLI):
         yes = scfg.Value(False, isflag=True, help='if True say yes to prompts', short_alias=['y'])
 
         __command__ = 'cleanup'
-        def run(config):
+        def run(config) -> None:
             from cmd_queue.util.util_tmux import tmux
             sessions = tmux.list_sessions()
             print('sessions = {}'.format(ub.urepr(sessions, nl=1)))
@@ -272,7 +277,7 @@ class CmdQueueCLI(scfg.ModalCLI):
         run a queue
         """
         __command__ = 'run'
-        def run(config):
+        def run(config) -> None:
             """
             """
             queue = config._build_queue()
@@ -284,7 +289,7 @@ class CmdQueueCLI(scfg.ModalCLI):
         """
         __command__ = 'show'
 
-        def run(config):
+        def run(config) -> None:
             queue = config._build_queue()
             queue.print_commands()
             queue.print_graph()
@@ -308,7 +313,7 @@ class CmdQueueCLI(scfg.ModalCLI):
             then specify your full command.
             '''))
 
-        def run(config):
+        def run(config) -> None:
             r"""
             Example:
                 from cmd_queue.main import *  # NOQA
@@ -372,7 +377,7 @@ class CmdQueueCLI(scfg.ModalCLI):
         __command__ = 'new'
         header = scfg.Value(None, help='a header command to execute in every session (e.g. activating a virtualenv). Only used when action is new')
 
-        def run(config):
+        def run(config) -> None:
             import json
             # Start a new CLI queue
             data = []
@@ -389,11 +394,11 @@ class CmdQueueCLI(scfg.ModalCLI):
         display available queues
         """
         __command__ = 'list'
-        def run(config):
+        def run(config) -> None:
             print(ub.urepr(list(config.cli_queue_dpath.glob('*.cmd_queue.json'))))
 
 
-main = CmdQueueCLI.main
+main: Callable[..., Any] = CmdQueueCLI.main
 
 
 if __name__ == '__main__':

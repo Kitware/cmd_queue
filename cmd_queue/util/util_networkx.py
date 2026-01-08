@@ -1,4 +1,9 @@
-def is_topological_order(graph, node_order):
+from __future__ import annotations
+
+from typing import Any, Iterable, Hashable
+
+
+def is_topological_order(graph: Any, node_order: Iterable[Hashable]) -> bool:
     """
     A topological ordering of nodes is an ordering of the nodes such that for
     every edge (u,v) in G, u appears earlier than v in the ordering

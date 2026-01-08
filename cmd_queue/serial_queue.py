@@ -1,15 +1,19 @@
+from __future__ import annotations
+# mypy: ignore-errors
+
 """
 References:
     https://jmmv.dev/2018/03/shell-readability-strict-mode.html
     https://stackoverflow.com/questions/13195655/bash-set-x-without-it-being-printed
 """
-import ubelt as ub
 import uuid
-from cmd_queue import base_queue
-from cmd_queue.util import util_tags
-from cmd_queue.util import util_bash
+from typing import Any, Dict, Iterable, List, Optional
 
-from typing import Optional, List
+import ubelt as ub
+
+from cmd_queue import base_queue
+from cmd_queue.util import util_bash
+from cmd_queue.util import util_tags
 
 
 class BashJob(base_queue.Job):
@@ -100,9 +104,23 @@ class BashJob(base_queue.Job):
         self = BashJob('echo hi', 'myjob', cwd='/foo/bar')
         self.print_commands(with_status=1, with_gaurds=1)
     """
-    def __init__(self, command, name=None, depends=None, gpus=None, cpus=None,
-                 mem=None, bookkeeper=0, info_dpath=None, log=False, tags=None,
-                 allow_indent=True, cwd=None, preamble=None, **kwargs):
+    def __init__(
+        self,
+        command: str,
+        name: Optional[str] = None,
+        depends: Optional[Iterable[base_queue.Job]] = None,
+        gpus: Optional[Any] = None,
+        cpus: Optional[Any] = None,
+        mem: Optional[Any] = None,
+        bookkeeper: int = 0,
+        info_dpath: Optional[Any] = None,
+        log: bool = False,
+        tags: Optional[Any] = None,
+        allow_indent: bool = True,
+        cwd: Optional[str] = None,
+        preamble: Optional[List[str]] = None,
+        **kwargs: Any,
+    ) -> None:
 
         if depends is not None and not ub.iterable(depends):
             depends = [depends]
@@ -114,7 +132,7 @@ class BashJob(base_queue.Job):
             preamble = [preamble]
         self.preamble: Optional[List[str]] = preamble
         self.command = command
-        self.depends: list[base_queue.Job] = depends
+        self.depends: List[base_queue.Job] = list(depends) if depends else []
         self.bookkeeper = bookkeeper
         self.log = log
         if info_dpath is None:
@@ -127,7 +145,7 @@ class BashJob(base_queue.Job):
         self.tags = util_tags.Tags.coerce(tags)
         self.allow_indent = allow_indent
 
-    def _test_bash_syntax_errors(self):
+    def _test_bash_syntax_errors(self) -> None:
         """
         Check for bash syntax errors
 
@@ -142,8 +160,13 @@ class BashJob(base_queue.Job):
         bash_text = self.finalize_text()
         _check_bash_text_for_syntax_errors(bash_text)
 
-    def finalize_text(self, with_status=True, with_gaurds=True,
-                      conditionals=None, **kwargs):
+    def finalize_text(
+        self,
+        with_status: bool = True,
+        with_gaurds: bool = True,
+        conditionals: Optional[Dict[str, List[str]]] = None,
+        **kwargs: Any,
+    ) -> str:
 
         # Note: with_gaurds are the +- e and +-x bash behaviors, it is not a
         # great name. with_status is used to dump extra metadata out. These add
@@ -337,8 +360,14 @@ class BashJob(base_queue.Job):
         text = '\n'.join(script)
         return text
 
-    def print_commands(self, with_status=False, with_gaurds=False,
-                       with_rich=None, style='colors', **kwargs):
+    def print_commands(
+        self,
+        with_status: bool = False,
+        with_gaurds: bool = False,
+        with_rich: Optional[bool] = None,
+        style: str = 'colors',
+        **kwargs: Any,
+    ) -> None:
         r"""
         Print info about the commands, optionally with rich
 
@@ -424,7 +453,16 @@ class SerialQueue(base_queue.Queue):
         >>> self.read_state()
     """
 
-    def __init__(self, name='', dpath=None, rootid=None, environ=None, cwd=None, preamble=None, **kwargs):
+    def __init__(
+        self,
+        name: str = '',
+        dpath: Optional[Any] = None,
+        rootid: Optional[str] = None,
+        environ: Optional[Dict[str, str]] = None,
+        cwd: Optional[str] = None,
+        preamble: Optional[List[str]] = None,
+        **kwargs: Any,
+    ) -> None:
         """
         Args:
             name (str):
@@ -483,22 +521,22 @@ class SerialQueue(base_queue.Queue):
             self.add_preamble_command(preamble)
 
     @property
-    def pathid(self):
+    def pathid(self) -> str:
         """ A path-safe identifier for file names """
         return '{}_{}'.format(self.name, self.rootid)
 
-    def __nice__(self):
+    def __nice__(self) -> str:
         return f'{self.pathid} - {self.num_real_jobs}'
 
     @classmethod
-    def is_available(cls):
+    def is_available(cls) -> bool:
         """
         This queue is always available.
         """
         # TODO: get this working
         return True
 
-    def order_jobs(self):
+    def order_jobs(self) -> None:
         """
         Ensure jobs within a serial queue are topologically ordered.
         Attempts to preserve input ordering.
@@ -519,8 +557,13 @@ class SerialQueue(base_queue.Queue):
                 new_order.extend(original_order & gen)
             self.jobs = [self.named_jobs[n] for n in new_order]
 
-    def finalize_text(self, with_status=True, with_gaurds=True,
-                      with_locks=True, exclude_tags=None):
+    def finalize_text(
+        self,
+        with_status: bool = True,
+        with_gaurds: bool = True,
+        with_locks: bool = True,
+        exclude_tags: Optional[Any] = None,
+    ) -> str:
         """
         Create the bash script that will:
 
@@ -675,7 +718,7 @@ class SerialQueue(base_queue.Queue):
         text = '\n'.join(script)
         return text
 
-    def add_header_command(self, command):
+    def add_header_command(self, command: str) -> None:
         ub.schedule_deprecation(
             modname='cmd_queue',
             name='add_header_command',
@@ -685,13 +728,13 @@ class SerialQueue(base_queue.Queue):
         )
         self.add_preamble_command.append(command)
 
-    def add_preamble_command(self, command):
+    def add_preamble_command(self, command: Any) -> None:
         if isinstance(command, list):
             self.preamble.extend(command)
         else:
             self.preamble.append(command)
 
-    def print_commands(self, *args, **kwargs):
+    def print_commands(self, *args: Any, **kwargs: Any) -> None:
         r"""
         Print info about the commands, optionally with rich
 
@@ -744,7 +787,16 @@ class SerialQueue(base_queue.Queue):
 
     rprint = print_commands
 
-    def run(self, block=True, system=False, shell=1, capture=True, mode='bash', verbose=3, **kw):
+    def run(
+        self,
+        block: bool = True,
+        system: bool = False,
+        shell: int = 1,
+        capture: bool = True,
+        mode: str = 'bash',
+        verbose: int = 3,
+        **kw: Any,
+    ) -> None:
         self.write()
         # TODO: can implement a monitor here for non-blocking mode
         detach = not block
@@ -759,7 +811,7 @@ class SerialQueue(base_queue.Queue):
                    capture=capture, shell=shell, system=system, detach=detach)
             # raise KeyError
 
-    def job_details(self):
+    def job_details(self) -> None:
         import json
         for job in self.jobs:
             print('+--------')
@@ -770,7 +822,7 @@ class SerialQueue(base_queue.Queue):
                 print(job.log_fpath.read_text())
             print('L________')
 
-    def read_state(self):
+    def read_state(self) -> Dict[str, Any]:
         import json
         import time
         max_attempts = 100
@@ -799,7 +851,7 @@ class SerialQueue(base_queue.Queue):
         return state
 
 
-def indent(text, prefix='    '):
+def indent(text: Any, prefix: str = '    ') -> str:
     r"""
     Indents a block of text
 
@@ -823,7 +875,7 @@ def indent(text, prefix='    '):
         return prefix + text.replace('\n', '\n' + prefix)
 
 
-def _check_bash_text_for_syntax_errors(bash_text):
+def _check_bash_text_for_syntax_errors(bash_text: str) -> None:
     import tempfile
     tmpdir = tempfile.TemporaryDirectory()
     with tmpdir:
