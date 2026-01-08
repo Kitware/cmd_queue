@@ -518,6 +518,19 @@ class SerialQueue(base_queue.Queue):
         # TODO: get this working
         return True
 
+    def _new_job(
+        self,
+        command: str,
+        depends: Optional[Iterable[base_queue.Job]] = None,
+        **kwargs: Any,
+    ) -> BashJob:
+        name = kwargs.get('name', None)
+        if name is not None and ':' in name:
+            raise ValueError('Name must be path-safe')
+        if 'info_dpath' not in kwargs:
+            kwargs['info_dpath'] = self.job_info_dpath
+        return BashJob(command, depends=depends, **kwargs)
+
     def order_jobs(self) -> None:
         """
         Ensure jobs within a serial queue are topologically ordered.
