@@ -11,10 +11,11 @@ repo_name = "cmd_queue"
 author = "Kitware Inc., Jon Crall"
 author_email = "kitware@kitware.com, jon.crall@kitware.com"
 description = "The cmd_queue module for a DAG of bash commands"
-min_python = "3.8"
+min_python = "3.9"
 url = "https://gitlab.kitware.com/computer-vision/cmd_queue"
 license = "Apache 2"
 dev_status = "beta"
+use_uv = true
 
 [tool.xcookie.entry_points]
 # the console_scripts entry point creates the xdoctest executable

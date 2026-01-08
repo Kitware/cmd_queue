@@ -14,6 +14,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 * deprecate `header_commands` for `preamble`
+* Dropped support for 3.8
+* Transition from stubs to type annotations.
 
 
 ## Version 0.2.3 - Released 2025-12-09
