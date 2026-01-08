@@ -31,7 +31,7 @@ class SlurmifyCLI(scfg.DataConfig):
         Specifies the bash command to queue.
         Care must be taken when specifying this argument.  If specifying as a
         key/value pair argument, it is important to quote and escape the bash
-        command properly.  A more convinient way to specify this command is as
+        command properly.  A more convenient way to specify this command is as
         a positional argument. End all of the options to this CLI with `--` and
         then specify your full command.
         '''))

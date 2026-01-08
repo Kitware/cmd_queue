@@ -15,12 +15,12 @@ def balanced_number_partitioning(items: np.ndarray, num_parts: int) -> List[np.n
 
     Args:
         items (np.ndarray): list of numbers (i.e. weights) to split
-            between paritions.
+            between partitions
         num_parts (int): number of partitions
 
     Returns:
         List[np.ndarray]:
-            A list for each parition that contains the index of the items
+            A list for each partition that contains the index of the items
             assigned to it.
 
     References:

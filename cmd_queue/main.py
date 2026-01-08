@@ -22,7 +22,7 @@ import ubelt as ub
 __todo__ = """
 
 - [ ] Currently any operation on a CLI queue will read and rewrite an entire
-      json file. This is noticably slugginsh when working in bash. Instead we
+      json file. This is noticeably sluggish when working in bash. Instead we
       should abstract this with the concept of a CLIQueueDatabase. Its initial
       implementation would effectively do the same thing, but then we could
       test and compare alternative implementations of this API. For instance,
@@ -213,7 +213,7 @@ class CmdQueueCLI(scfg.ModalCLI):
 
         cmd_queue submit "my_cli_queue" --  echo hello world
         cmd_queue submit "my_cli_queue" --  echo "hello world"
-        cmd_queue submit "my_cli_queue" -- cowsay hellow world
+        cmd_queue submit "my_cli_queue" -- cowsay hello world
         # Quotes are necessary if we are using bash constructs like &&
         cmd_queue submit "my_cli_queue" -- 'cowsay MOO && sleep 1'
         cmd_queue submit "my_cli_queue" -- 'cowsay MOOOO && sleep 2'
@@ -311,7 +311,7 @@ class CmdQueueCLI(scfg.ModalCLI):
             Specifies the bash command to queue.
             Care must be taken when specifying this argument.  If specifying as a
             key/value pair argument, it is important to quote and escape the bash
-            command properly.  A more convinient way to specify this command is as
+            command properly.  A more convenient way to specify this command is as
             a positional argument. End all of the options to this CLI with `--` and
             then specify your full command.
             '''))

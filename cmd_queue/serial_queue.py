@@ -29,7 +29,7 @@ class BashJob(base_queue.Job):
 
         depends (List[BashJob] | None):
             the jobs that this job depends on. This job will only run once all
-            the dependencies have succesfully run.
+            the dependencies have successfully run.
 
         bookkeeper (bool): flag indicating if this is a bookkeeping job or not
 
@@ -161,7 +161,7 @@ class BashJob(base_queue.Job):
         if with_status:
             # Base conditionals
             _job_conditionals = {
-                # when the job runs and succeedes
+                # when the job runs and succeeds
                 'on_pass': [
                     f'mkdir -p {self.pass_fpath.parent}',
                     f'printf "pass" > {self.pass_fpath}',

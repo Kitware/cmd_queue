@@ -34,3 +34,9 @@ branch = true
 [tool.coverage.report]
 exclude_lines = [ "pragma: no cover", ".*  # pragma: no cover", ".*  # nocover", "def __repr__", "raise AssertionError", "raise NotImplementedError", "if 0:", "if trace is not None", "verbose = .*", "^ *raise", "^ *pass *$", "if _debug:", "if __name__ == .__main__.:", ".*if six.PY2:",]
 omit = [ "cmd_queue/__main__.py", "*/setup.py",]
+
+[tool.codespell]
+skip = ['./docs/build', './*.egg-info', './build', './htmlcov']
+count = true
+quiet-level = 3
+ignore-words-list = ['wont', 'cant', 'ANS', 'doesnt', 'arent', 'ans', 'thats', 'datas', 'isnt']

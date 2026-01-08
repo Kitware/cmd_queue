@@ -58,7 +58,7 @@ except ImportError:
 def _unit_registery() -> Any:
     import sys
     if sys.version_info[0:2] == (3, 9):
-        # backwards compatability support for numpy 2.0 and pint on cp39
+        # backwards compatibility support for numpy 2.0 and pint on cp39
         try:
             import numpy as np
         except ImportError:

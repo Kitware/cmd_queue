@@ -40,7 +40,7 @@ class tmux:
 
     @staticmethod
     def _capture_pane_command(target_session: str) -> str:
-        # Relly should take a target pane argument
+        # Really should take a target pane argument
         return f'tmux capture-pane -p -t "{target_session}:0.0"'
 
     @staticmethod

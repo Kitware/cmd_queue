@@ -8,7 +8,7 @@ It should be possible to add more functionality, such as:
 
     - [x] A linear job queue - via one tmux shell
 
-    - [x] Mulitple linear job queues - via multiple tmux shells
+    - [x] Multiple linear job queues - via multiple tmux shells
 
     - [x] Ability to query status of jobs - tmux script writes status to a
           file, secondary thread reads is.
@@ -64,7 +64,7 @@ from cmd_queue.util.util_tmux import tmux
 
 class TMUXMultiQueue(base_queue.Queue):
     """
-    Create multiple sets of jobs to start in detatched tmux sessions
+    Create multiple sets of jobs to start in detached tmux sessions
 
     CommandLine:
         xdoctest -m cmd_queue.tmux_queue TMUXMultiQueue:0
@@ -467,7 +467,7 @@ class TMUXMultiQueue(base_queue.Queue):
         # Get all the node groups disconnected by the cuts
         condensed = nx.condensation(reduced_graph, nx.weakly_connected_components(cut_graph))
 
-        # TODO: can we use nx.topological_generations for a more ellegant
+        # TODO: can we use nx.topological_generations for a more elegant
         # solution here?
 
         # Rank each condensed group, which defines
@@ -1063,7 +1063,7 @@ if 0:
     export MYVAR1=123
     tmux new-session -d -s my_session_id -e "MYVAR1=$MYVAR1" -- "bash"
 
-    # Show the environment of the new sesssion
+    # Show the environment of the new session
     tmux show-env -t my_session_id
 
     tmux ls
