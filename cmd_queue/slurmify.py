@@ -47,19 +47,19 @@ class SlurmifyCLI(scfg.DataConfig):
     cpus_per_task = scfg.Value(None, help='')
 
     @classmethod
-    def main(cls, cmdline=1, **kwargs):
+    def main(cls, argv=1, **kwargs):
         """
         Example:
             >>> # xdoctest: +SKIP
             >>> from cmd_queue.slurmify import *  # NOQA
-            >>> cmdline = 0
+            >>> argv = 0
             >>> kwargs = dict()
             >>> cls = SlurmifyCLI
-            >>> cls.main(cmdline=cmdline, **kwargs)
+            >>> cls.main(argv=argv, **kwargs)
         """
         import rich
         from rich.markup import escape
-        config = cls.cli(cmdline=cmdline, data=kwargs, strict=True)
+        config = cls.cli(argv=argv, data=kwargs, strict=True)
         rich.print('config = ' + escape(ub.urepr(config, nl=1)))
 
         # import json

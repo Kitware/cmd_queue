@@ -40,7 +40,7 @@ Example:
     >>>     else:
     >>>         print('output does not exist')
 """
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Union
 
 import ubelt as ub
 
@@ -71,7 +71,7 @@ def _unit_registery() -> Any:
     return reg
 
 
-def _coerce_mem_megabytes(mem: Any) -> int:
+def _coerce_mem_megabytes(mem: Union[int, str]) -> int:
     """
     Transform input into an integer representing amount of megabytes.
 
@@ -575,7 +575,7 @@ class SlurmQueue(base_queue.Queue):
     def submit(
         self,
         command: str,
-        preamble: Optional[List[str]] = None,
+        preamble: Optional[Union[str, List[str]]] = None,
         **kwargs: Any,
     ) -> SlurmJob:
         """

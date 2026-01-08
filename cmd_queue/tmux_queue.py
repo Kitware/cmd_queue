@@ -283,7 +283,7 @@ class TMUXMultiQueue(base_queue.Queue):
         return workers
 
     def __nice__(self) -> str:
-        return ub.repr2(self.jobs)
+        return ub.urepr(self.jobs)
 
     def _semaphore_wait_command(self, flag_fpaths: Iterable[str], msg: str) -> str:
         r"""
@@ -434,14 +434,14 @@ class TMUXMultiQueue(base_queue.Queue):
             print('ex = {!r}'.format(ex))
             print('graph = {!r}'.format(graph))
             print(len(graph.nodes))
-            print('graph.nodes = {}'.format(ub.repr2(graph.nodes, nl=1)))
-            print('graph.edges = {}'.format(ub.repr2(graph.edges, nl=1)))
+            print('graph.nodes = {}'.format(ub.urepr(graph.nodes, nl=1)))
+            print('graph.edges = {}'.format(ub.urepr(graph.edges, nl=1)))
             print(len(graph.edges))
             print(graph.is_directed())
             print(nx.is_forest(graph))
             print(nx.is_directed_acyclic_graph(graph))
             simple_cycles = list(nx.cycles.simple_cycles(graph))
-            print('simple_cycles = {}'.format(ub.repr2(simple_cycles, nl=1)))
+            print('simple_cycles = {}'.format(ub.urepr(simple_cycles, nl=1)))
             nx.write_network_text(graph, print, end="")
             raise
 

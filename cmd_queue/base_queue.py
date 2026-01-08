@@ -20,7 +20,7 @@ class Job(ub.NiceRepr):
     """
     def __init__(
         self,
-        command: Any = None,
+        command: Optional[str] = None,
         name: Optional[str] = None,
         depends: Optional[Iterable[Job]] = None,
         **kwargs: Any,
@@ -59,7 +59,7 @@ class Queue(ub.NiceRepr):
     def header_commands(self) -> List[str]:
         return self.preamble
 
-    def add_header_command(self, command: str) -> None:
+    def add_header_command(self, command: Union[str, List[str]]) -> None:
         ub.schedule_deprecation(
             modname='cmd_queue',
             name='add_header_command',
@@ -69,7 +69,7 @@ class Queue(ub.NiceRepr):
         )
         self.add_preamble_command(command)
 
-    def add_preamble_command(self, command: Any) -> None:
+    def add_preamble_command(self, command: Union[str, List[str]]) -> None:
         if isinstance(command, list):
             self.preamble.extend(command)
         else:
@@ -150,10 +150,10 @@ class Queue(ub.NiceRepr):
             stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP))
         return self.fpath
 
-    def submit(self, command: Any, **kwargs: Any) -> Job:
+    def submit(self, command: Union[str, Job], **kwargs: Any) -> Job:
         """
         Args:
-            command (str): The command to execute
+            command (str | Job): The command to execute
             name: specify the name of the job
             **kwargs: passed to :class:`cmd_queue.serial_queue.BashJob`
         """
@@ -198,10 +198,11 @@ class Queue(ub.NiceRepr):
                     print('self.named_jobs = {}'.format(ub.urepr(self.named_jobs, nl=1)))
                     raise
             job = serial_queue.BashJob(command, depends=depends, **kwargs)
-        else:
-            assert isinstance(command, Job)
+        elif isinstance(command, Job):
             # Assume job is already a bash job
             job = command
+        else:
+            raise TypeError(type(command))
         self.jobs.append(job)
 
         try:
@@ -271,7 +272,7 @@ class Queue(ub.NiceRepr):
     def write_network_text(
         self,
         reduced: bool = True,
-        rich: str = 'auto',
+        rich: Union[bool, str] = 'auto',
         vertical_chains: bool = False,
     ) -> None:
         # TODO: change rich to style
@@ -307,7 +308,7 @@ class Queue(ub.NiceRepr):
         self,
         with_status: bool = False,
         with_gaurds: bool = False,
-        with_locks: Union[int, bool] = 1,
+        with_locks: bool = True,
         exclude_tags: Optional[List[str]] = None,
         style: str = 'colors',
         **kwargs: Any,
@@ -416,7 +417,7 @@ class Queue(ub.NiceRepr):
         graph = nx.DiGraph()
         duplicate_names = ub.find_duplicates(self.jobs, key=lambda x: x.name)
         if duplicate_names:
-            print('duplicate_names = {}'.format(ub.repr2(duplicate_names, nl=1)))
+            print('duplicate_names = {}'.format(ub.urepr(duplicate_names, nl=1)))
             raise Exception('Job names must be unique')
 
         for index, job in enumerate(self.jobs):
@@ -435,7 +436,7 @@ class Queue(ub.NiceRepr):
         self,
         style: str = 'auto',
         with_rich: Optional[bool] = None,
-        colors: int = 1,
+        colors: bool = True,
     ) -> str:
         # Helper
         if with_rich is not None:

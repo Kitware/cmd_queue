@@ -13,7 +13,7 @@ For help run:
     cmd_queue --help
 
 """
-from typing import Any, Callable
+from typing import Any, Callable, TYPE_CHECKING
 
 import rich
 import scriptconfig as scfg
@@ -66,6 +66,9 @@ def _testcase():
 
     """
 
+if TYPE_CHECKING:
+    import cmd_queue
+
 
 class CommonConfig(scfg.DataConfig):
 
@@ -84,8 +87,8 @@ class CommonConfig(scfg.DataConfig):
             config['dpath'] = str(ub.Path.appdir('cmd_queue/cli'))
 
     @classmethod
-    def main(cls, cmdline: int = 1, **kwargs: Any) -> None:
-        config = cls.cli(cmdline=cmdline, data=kwargs, strict=True)
+    def main(cls, argv: int = 1, **kwargs: Any) -> None:
+        config = cls.cli(argv=argv, data=kwargs, strict=True)
         if config.verbose:
             rich.print('config = ' + ub.urepr(config, nl=1))
         cli_queue_name = config['qname']
@@ -145,7 +148,7 @@ class CommonShowRun(CommonConfig):
 
 
 class CmdQueueCLI(scfg.ModalCLI):
-    """
+    r"""
     The cmd_queue CLI for building, executing, and managing queues from bash.
 
     This is a modal CLI where "action" will specify the main behavior.
@@ -317,16 +320,16 @@ class CmdQueueCLI(scfg.ModalCLI):
             r"""
             Example:
                 from cmd_queue.main import *  # NOQA
-                CmdQueueCLI.new.main(cmdline=0, qname='test-queue')
-                CmdQueueCLI.submit.main(cmdline=0, qname='test-queue', command=['echo', 'hello', 'world'])
-                CmdQueueCLI.show.main(cmdline=0, qname='test-queue')
-                CmdQueueCLI.run.main(cmdline=0, qname='test-queue')
+                CmdQueueCLI.new.main(argv=0, qname='test-queue')
+                CmdQueueCLI.submit.main(argv=0, qname='test-queue', command=['echo', 'hello', 'world'])
+                CmdQueueCLI.show.main(argv=0, qname='test-queue')
+                CmdQueueCLI.run.main(argv=0, qname='test-queue')
 
-                CmdQueueCLI.new.main(cmdline='test-queue')
-                CmdQueueCLI.submit.main(cmdline='test-queue echo hello world')
-                CmdQueueCLI.submit.main(cmdline='test-queue -- echo hello world')
-                CmdQueueCLI.show.main(cmdline='test-queue')
-                CmdQueueCLI.run.main(cmdline='test-queue')
+                CmdQueueCLI.new.main(argv='test-queue')
+                CmdQueueCLI.submit.main(argv='test-queue echo hello world')
+                CmdQueueCLI.submit.main(argv='test-queue -- echo hello world')
+                CmdQueueCLI.show.main(argv='test-queue')
+                CmdQueueCLI.run.main(argv='test-queue')
 
                 ub.cmd('cmd_queue new test-queue', system=True, verbose=3)
                 ub.cmd('cmd_queue submit test-queue hello world', system=True, verbose=3)

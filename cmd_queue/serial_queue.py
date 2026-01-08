@@ -71,11 +71,6 @@ class BashJob(base_queue.Job):
         >>> self.print_commands(with_status=0, with_gaurds=0)
         >>> self.print_commands(with_status=True, with_gaurds=True)
 
-        >>> self = BashJob('echo hi', 'myjob')
-        >>> self.log = True
-        >>> conditionals = {'on_skip': ['echo "CUSTOM MESSAGE FOR WHEN WE SKIP A JOB"']}
-        >>> self.print_commands(with_status=1, with_gaurds=1, conditionals=conditionals)
-
     Example:
         >>> from cmd_queue.serial_queue import *  # NOQA
         >>> # Demo full boilerplate for a job with dependencies
@@ -90,19 +85,6 @@ class BashJob(base_queue.Job):
         >>> # Dead simple job
         >>> self = BashJob('echo hi', 'myjob')
         >>> self.print_commands(with_status=True, with_gaurds=True)
-
-    Example:
-        # Demo witht the works.
-        dep = BashJob('echo hi', name='job1')
-        conditionals = {'on_skip': ['echo "CUSTOM MESSAGE FOR WHEN WE SKIP A JOB"']}
-        self = BashJob('echo hi', name='job2', depends=[dep], cwd='/foo/bar', preamble=['export SETUP_LINE1=1', 'export SETUP_LINE2=2'])
-        self.log = True
-        self.print_commands(with_status=True, with_gaurds=True)
-
-
-        # Just cwd
-        self = BashJob('echo hi', 'myjob', cwd='/foo/bar')
-        self.print_commands(with_status=1, with_gaurds=1)
     """
     def __init__(
         self,
@@ -128,9 +110,6 @@ class BashJob(base_queue.Job):
         self.pathid = self.name + '_' + ub.hash_data(uuid.uuid4())[0:8]
         self.kwargs = kwargs  # unused kwargs
         self.cwd = cwd
-        if isinstance(preamble, str):
-            preamble = [preamble]
-        self.preamble: Optional[List[str]] = preamble
         self.command = command
         self.depends: List[base_queue.Job] = list(depends) if depends else []
         self.bookkeeper = bookkeeper
@@ -144,6 +123,9 @@ class BashJob(base_queue.Job):
         self.log_fpath = self.info_dpath / f'status/{self.pathid}.logs'
         self.tags = util_tags.Tags.coerce(tags)
         self.allow_indent = allow_indent
+        if isinstance(preamble, str):
+            preamble = [preamble]
+        self.preamble: Optional[List[str]] = preamble
 
     def _test_bash_syntax_errors(self) -> None:
         """
@@ -434,7 +416,7 @@ class SerialQueue(base_queue.Queue):
         >>> self.print_commands(1, 1)
         >>> self.run()
         >>> state = self.read_state()
-        >>> print('state = {}'.format(ub.repr2(state, nl=1)))
+        >>> print('state = {}'.format(ub.urepr(state, nl=1)))
 
     Example:
         >>> # Test case where a job fails
@@ -817,7 +799,7 @@ class SerialQueue(base_queue.Queue):
             print('+--------')
             print(f'job={job}')
             job_status = json.loads(job.stat_fpath.read_text())
-            print('job_status = {}'.format(ub.repr2(job_status, nl=1)))
+            print('job_status = {}'.format(ub.urepr(job_status, nl=1)))
             if job.log_fpath.exists():
                 print(job.log_fpath.read_text())
             print('L________')
