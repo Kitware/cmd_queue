@@ -1,5 +1,8 @@
-# from __future__ import annotations
+from __future__ import annotations
+# mypy: ignore-errors
+
 from types import ModuleType
+from typing import Any, Callable, Optional, Tuple
 
 try:
     from textual import events
@@ -27,15 +30,19 @@ except ImportError:
 
 class JobTable(Widget):
 
-    def __init__(self, table_fn=None, **kwargs):
+    def __init__(
+        self,
+        table_fn: Optional[Callable[[], Tuple[Any, bool, Any]]] = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self.table_fn = table_fn
 
-    def on_mount(self):
+    def on_mount(self) -> None:
         refresh_rate = 0.5
         self.set_interval(refresh_rate, self.refresh)
 
-    def render(self):
+    def render(self) -> Any:
         table_fn = self.table_fn
         table, finished, agg_state = table_fn()
         # self.app.post_message_no_wait('quit')
@@ -53,7 +60,12 @@ class CmdQueueMonitorApp(InstanceRunnableApp):
     A Textual App to monitor jobs
     """
 
-    def __init__(self, table_fn, kill_fn=None, **kwargs):
+    def __init__(
+        self,
+        table_fn: Callable[[], Tuple[Any, bool, Any]],
+        kill_fn: Optional[Callable[[], Any]] = None,
+        **kwargs: Any,
+    ) -> None:
         self.job_table = JobTable(table_fn)
         self.kill_fn = kill_fn
         self.graceful_exit = False
@@ -61,7 +73,7 @@ class CmdQueueMonitorApp(InstanceRunnableApp):
         self._title = 'Command Queue'
 
     @classmethod
-    def demo(CmdQueueMonitorApp):
+    def demo(CmdQueueMonitorApp) -> CmdQueueMonitorApp:
         """
         This creates an app instance that we can run
 
@@ -100,13 +112,13 @@ class CmdQueueMonitorApp(InstanceRunnableApp):
             return table, finished, agg_state
         return CmdQueueMonitorApp(demo_table_fn)
 
-    async def on_load(self, event) -> None:
+    async def on_load(self, event: Any) -> None:
         await self.bind("q", "quit", "Quit")
 
     async def action_quit(self) -> None:
         await self.shutdown()
 
-    async def on_mount(self, event) -> None:
+    async def on_mount(self, event: Any) -> None:
         # from textual.layouts.vertical import VerticalLayout
 
         view: DockView = await self.push_view(DockView())

@@ -1,10 +1,18 @@
+from __future__ import annotations
+
+from typing import Iterable, Optional, Union
+
+
 class Tags(list):
     """
     A glorified List[str] with special extra methods
     """
 
     @classmethod
-    def coerce(cls, tags):
+    def coerce(
+        cls,
+        tags: Optional[Union[str, Tags, list[str]]],
+    ) -> Optional[Tags]:
         """
         Coerce the tags to a list of strings or None
         """
@@ -20,7 +28,7 @@ class Tags(list):
             raise TypeError(type(tags))
         return self
 
-    def intersection(self, other):
+    def intersection(self, other: Optional[Iterable[str]]) -> Optional[Tags]:
         import ubelt as ub
         if other is None:
             return None

@@ -1,6 +1,10 @@
+from __future__ import annotations
+
+from typing import Any, Callable
+
 from . import main as main_mod
 
-main = main_mod.main
+main: Callable[..., Any] = main_mod.main
 
 if __name__ == '__main__':
     """

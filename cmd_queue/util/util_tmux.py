@@ -1,6 +1,10 @@
+from __future__ import annotations
+
 """
 Generic tmux helpers
 """
+from typing import Any, Dict, List
+
 import ubelt as ub
 
 
@@ -17,7 +21,7 @@ class tmux:
     """
 
     @staticmethod
-    def list_sessions():
+    def list_sessions() -> List[Dict[str, str]]:
         info = ub.cmd('tmux list-sessions')
         sessions = []
         for line in info['out'].split('\n'):
@@ -31,28 +35,28 @@ class tmux:
         return sessions
 
     @staticmethod
-    def _kill_session_command(target_session):
+    def _kill_session_command(target_session: str) -> str:
         return f'tmux kill-session -t {target_session}'
 
     @staticmethod
-    def _capture_pane_command(target_session):
-        # Relly should take a target pane argument
+    def _capture_pane_command(target_session: str) -> str:
+        # Really should take a target pane argument
         return f'tmux capture-pane -p -t "{target_session}:0.0"'
 
     @staticmethod
-    def capture_pane(target_session, verbose=3):
+    def capture_pane(target_session: str, verbose: int = 3) -> Any:
         return ub.cmd(tmux._capture_pane_command(target_session), verbose=verbose)
 
     @staticmethod
-    def kill_session(target_session, verbose=3):
+    def kill_session(target_session: str, verbose: int = 3) -> Any:
         return ub.cmd(tmux._kill_session_command(target_session), verbose=verbose)
 
     @staticmethod
-    def kill_pane(pane_id, verbose=3):
+    def kill_pane(pane_id: str, verbose: int = 3) -> Any:
         return ub.cmd(f'tmux kill-pane -t {pane_id}', verbose=verbose)
 
     @staticmethod
-    def list_panes(target_session):
+    def list_panes(target_session: str) -> List[Dict[str, str]]:
         """
         Ignore:
             from cmd_queue.util.util_tmux import tmux
@@ -107,7 +111,7 @@ class tmux:
         ]
         format_code = json.dumps({k: '#{' + k + '}' for k in PANE_FORMATS})
         rows = []
-        out = ub.cmd(['tmux', 'list-panes', '-t', str(target_session), '-F', format_code], verbose=0)
+        out: Any = ub.cmd(['tmux', 'list-panes', '-t', str(target_session), '-F', format_code], verbose=0)
         for line in out.stdout.strip().split('\n'):
             row = json.loads(line)
             rows.append(row)

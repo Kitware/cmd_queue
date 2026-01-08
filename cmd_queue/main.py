@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 # PYTHON_ARGCOMPLETE_OK
+from __future__ import annotations
+# mypy: ignore-errors
+
 """
 This is the main script for the cmd_queue CLI. The :class:`CmdQueueConfig`
 defines the available options and its docstring provides a quick tutorial.
@@ -10,14 +13,16 @@ For help run:
     cmd_queue --help
 
 """
+from typing import Any, Callable, TYPE_CHECKING
+
+import rich
 import scriptconfig as scfg
 import ubelt as ub
-import rich
 
 __todo__ = """
 
 - [ ] Currently any operation on a CLI queue will read and rewrite an entire
-      json file. This is noticably slugginsh when working in bash. Instead we
+      json file. This is noticeably sluggish when working in bash. Instead we
       should abstract this with the concept of a CLIQueueDatabase. Its initial
       implementation would effectively do the same thing, but then we could
       test and compare alternative implementations of this API. For instance,
@@ -61,6 +66,9 @@ def _testcase():
 
     """
 
+if TYPE_CHECKING:
+    import cmd_queue
+
 
 class CommonConfig(scfg.DataConfig):
 
@@ -74,13 +82,13 @@ class CommonConfig(scfg.DataConfig):
 
     verbose = scfg.Value(1, help='verbosity level')
 
-    def __post_init__(config):
+    def __post_init__(config) -> None:
         if config['dpath'] == 'auto':
             config['dpath'] = str(ub.Path.appdir('cmd_queue/cli'))
 
     @classmethod
-    def main(cls, cmdline=1, **kwargs):
-        config = cls.cli(cmdline=cmdline, data=kwargs, strict=True)
+    def main(cls, argv: int = 1, **kwargs: Any) -> None:
+        config = cls.cli(argv=argv, data=kwargs, strict=True)
         if config.verbose:
             rich.print('config = ' + ub.urepr(config, nl=1))
         cli_queue_name = config['qname']
@@ -96,7 +104,7 @@ class CommonShowRun(CommonConfig):
 
     gpus = scfg.Value(None, help='a comma separated list of the gpu numbers to spread across. tmux backend only.')
 
-    def _build_queue(config):
+    def _build_queue(config) -> "cmd_queue.Queue":
         import cmd_queue
         import json
         queue = cmd_queue.Queue.create(size=max(1, config['workers']),
@@ -140,7 +148,7 @@ class CommonShowRun(CommonConfig):
 
 
 class CmdQueueCLI(scfg.ModalCLI):
-    """
+    r"""
     The cmd_queue CLI for building, executing, and managing queues from bash.
 
     This is a modal CLI where "action" will specify the main behavior.
@@ -205,7 +213,7 @@ class CmdQueueCLI(scfg.ModalCLI):
 
         cmd_queue submit "my_cli_queue" --  echo hello world
         cmd_queue submit "my_cli_queue" --  echo "hello world"
-        cmd_queue submit "my_cli_queue" -- cowsay hellow world
+        cmd_queue submit "my_cli_queue" -- cowsay hello world
         # Quotes are necessary if we are using bash constructs like &&
         cmd_queue submit "my_cli_queue" -- 'cowsay MOO && sleep 1'
         cmd_queue submit "my_cli_queue" -- 'cowsay MOOOO && sleep 2'
@@ -251,7 +259,7 @@ class CmdQueueCLI(scfg.ModalCLI):
         yes = scfg.Value(False, isflag=True, help='if True say yes to prompts', short_alias=['y'])
 
         __command__ = 'cleanup'
-        def run(config):
+        def run(config) -> None:
             from cmd_queue.util.util_tmux import tmux
             sessions = tmux.list_sessions()
             print('sessions = {}'.format(ub.urepr(sessions, nl=1)))
@@ -272,7 +280,7 @@ class CmdQueueCLI(scfg.ModalCLI):
         run a queue
         """
         __command__ = 'run'
-        def run(config):
+        def run(config) -> None:
             """
             """
             queue = config._build_queue()
@@ -284,7 +292,7 @@ class CmdQueueCLI(scfg.ModalCLI):
         """
         __command__ = 'show'
 
-        def run(config):
+        def run(config) -> None:
             queue = config._build_queue()
             queue.print_commands()
             queue.print_graph()
@@ -303,25 +311,25 @@ class CmdQueueCLI(scfg.ModalCLI):
             Specifies the bash command to queue.
             Care must be taken when specifying this argument.  If specifying as a
             key/value pair argument, it is important to quote and escape the bash
-            command properly.  A more convinient way to specify this command is as
+            command properly.  A more convenient way to specify this command is as
             a positional argument. End all of the options to this CLI with `--` and
             then specify your full command.
             '''))
 
-        def run(config):
+        def run(config) -> None:
             r"""
             Example:
                 from cmd_queue.main import *  # NOQA
-                CmdQueueCLI.new.main(cmdline=0, qname='test-queue')
-                CmdQueueCLI.submit.main(cmdline=0, qname='test-queue', command=['echo', 'hello', 'world'])
-                CmdQueueCLI.show.main(cmdline=0, qname='test-queue')
-                CmdQueueCLI.run.main(cmdline=0, qname='test-queue')
+                CmdQueueCLI.new.main(argv=0, qname='test-queue')
+                CmdQueueCLI.submit.main(argv=0, qname='test-queue', command=['echo', 'hello', 'world'])
+                CmdQueueCLI.show.main(argv=0, qname='test-queue')
+                CmdQueueCLI.run.main(argv=0, qname='test-queue')
 
-                CmdQueueCLI.new.main(cmdline='test-queue')
-                CmdQueueCLI.submit.main(cmdline='test-queue echo hello world')
-                CmdQueueCLI.submit.main(cmdline='test-queue -- echo hello world')
-                CmdQueueCLI.show.main(cmdline='test-queue')
-                CmdQueueCLI.run.main(cmdline='test-queue')
+                CmdQueueCLI.new.main(argv='test-queue')
+                CmdQueueCLI.submit.main(argv='test-queue echo hello world')
+                CmdQueueCLI.submit.main(argv='test-queue -- echo hello world')
+                CmdQueueCLI.show.main(argv='test-queue')
+                CmdQueueCLI.run.main(argv='test-queue')
 
                 ub.cmd('cmd_queue new test-queue', system=True, verbose=3)
                 ub.cmd('cmd_queue submit test-queue hello world', system=True, verbose=3)
@@ -372,7 +380,7 @@ class CmdQueueCLI(scfg.ModalCLI):
         __command__ = 'new'
         header = scfg.Value(None, help='a header command to execute in every session (e.g. activating a virtualenv). Only used when action is new')
 
-        def run(config):
+        def run(config) -> None:
             import json
             # Start a new CLI queue
             data = []
@@ -389,11 +397,11 @@ class CmdQueueCLI(scfg.ModalCLI):
         display available queues
         """
         __command__ = 'list'
-        def run(config):
+        def run(config) -> None:
             print(ub.urepr(list(config.cli_queue_dpath.glob('*.cmd_queue.json'))))
 
 
-main = CmdQueueCLI.main
+main: Callable[..., Any] = CmdQueueCLI.main
 
 
 if __name__ == '__main__':

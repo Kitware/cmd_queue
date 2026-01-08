@@ -1,3 +1,6 @@
+from __future__ import annotations
+# mypy: ignore-errors
+
 r"""
 Work in progress. The idea is to provide a TMUX queue and a SLURM queue that
 provide a common high level API, even though functionality might diverge, the
@@ -37,6 +40,8 @@ Example:
     >>>     else:
     >>>         print('output does not exist')
 """
+from typing import Any, Dict, Iterable, List, Optional, Union
+
 import ubelt as ub
 
 from cmd_queue import base_queue  # NOQA
@@ -50,10 +55,10 @@ except ImportError:
 
 
 @cache
-def _unit_registery():
+def _unit_registery() -> Any:
     import sys
     if sys.version_info[0:2] == (3, 9):
-        # backwards compatability support for numpy 2.0 and pint on cp39
+        # backwards compatibility support for numpy 2.0 and pint on cp39
         try:
             import numpy as np
         except ImportError:
@@ -66,7 +71,7 @@ def _unit_registery():
     return reg
 
 
-def _coerce_mem_megabytes(mem):
+def _coerce_mem_megabytes(mem: Union[int, str]) -> int:
     """
     Transform input into an integer representing amount of megabytes.
 
@@ -229,9 +234,21 @@ class SlurmJob(base_queue.Job):
         >>> command = self._build_command()
         >>> print(command)
     """
-    def __init__(self, command, name=None, output_fpath=None, depends=None,
-                 cpus=None, gpus=None, mem=None, begin=None, shell=None,
-                 tags=None, **kwargs):
+    def __init__(
+        self,
+        command: str,
+        name: Optional[str] = None,
+        output_fpath: Optional[Any] = None,
+        depends: Optional[Iterable[base_queue.Job]] = None,
+        cpus: Optional[Any] = None,
+        gpus: Optional[Any] = None,
+        mem: Optional[Any] = None,
+        begin: Optional[Any] = None,
+        shell: Optional[Any] = None,
+        tags: Optional[Any] = None,
+        preamble: Optional[List[str]] = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__()
         if name is None:
             import uuid
@@ -252,20 +269,30 @@ class SlurmJob(base_queue.Job):
         # Extra arguments for sbatch
         self._sbatch_kvargs = ub.udict(kwargs) & SLURM_SBATCH_KVARGS
         self._sbatch_flags = ub.udict(kwargs) & SLURM_SBATCH_FLAGS
+        self.preamble = preamble
         # if shell not in {None, 'bash'}:
         #     raise NotImplementedError(shell)
 
         self.jobid = None  # only set once this is run (maybe)
         # --partition=community --cpus-per-task=5 --mem=30602 --gres=gpu:1
 
-    def __nice__(self):
+    def __nice__(self) -> str:
         return repr(self.command)
 
-    def _build_command(self, jobname_to_varname=None):
-        args = self._build_sbatch_args(jobname_to_varname=jobname_to_varname)
+    def _build_command(
+        self,
+        jobname_to_varname: Optional[Dict[str, str]] = None,
+        global_preamble: Optional[List[str]] = None,
+    ) -> str:
+        args = self._build_sbatch_args(jobname_to_varname=jobname_to_varname,
+                                       global_preamble=global_preamble)
         return ' \\\n    '.join(args)
 
-    def _build_sbatch_args(self, jobname_to_varname=None):
+    def _build_sbatch_args(
+        self,
+        jobname_to_varname: Optional[Dict[str, str]] = None,
+        global_preamble: Optional[List[str]] = None,
+    ) -> List[str]:
         sbatch_args = ['sbatch']
         if self.name:
             sbatch_args.append(f'--job-name="{self.name}"')
@@ -356,7 +383,16 @@ class SlurmJob(base_queue.Job):
                 sbatch_args.append(f'"--begin={self.begin}"')
 
         import shlex
-        wrp_command = shlex.quote(self.command)
+        _preamble = []
+        if global_preamble:
+            _preamble.extend(global_preamble)
+        if self.preamble:
+            _preamble.append(self.preamble)
+
+        if _preamble:
+            wrp_command = shlex.quote(' && '.join(_preamble + [self.command]))
+        else:
+            wrp_command = shlex.quote(self.command)
 
         if self.shell:
             wrp_command = shlex.quote(self.shell + ' -c ' + wrp_command)
@@ -403,7 +439,7 @@ class SlurmQueue(base_queue.Queue):
     Example:
         >>> from cmd_queue.slurm_queue import *  # NOQA
         >>> self = SlurmQueue(shell='/bin/bash')
-        >>> self.add_header_command('export FOO=bar')
+        >>> self.add_preamble_command('export FOO=bar')
         >>> job0 = self.submit('echo "$FOO"')
         >>> job1 = self.submit('echo "$FOO"', depends=job0)
         >>> job2 = self.submit('echo "$FOO"')
@@ -414,7 +450,13 @@ class SlurmQueue(base_queue.Queue):
         >>> job5 = self.submit('echo "$FOO"')
         >>> self.print_commands()
     """
-    def __init__(self, name=None, shell=None, **kwargs):
+    def __init__(
+        self,
+        name: Optional[str] = None,
+        shell: Optional[str] = None,
+        preamble: Optional[List[str]] = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__()
         import uuid
         import time
@@ -433,18 +475,21 @@ class SlurmQueue(base_queue.Queue):
         self.log_dpath = self.dpath / 'logs'
         self.fpath = self.dpath / (self.queue_id + '.sh')
         self.shell = shell
-        self.header_commands = []
+        self.preamble = []
         self.all_depends = None
         self._sbatch_kvargs = ub.udict(kwargs) & SLURM_SBATCH_KVARGS
         self._sbatch_flags = ub.udict(kwargs) & SLURM_SBATCH_FLAGS
         self._include_monitor_metadata = True
         self.jobid_fpath = None
 
-    def __nice__(self):
+        if preamble:
+            self.add_preamble_command(preamble)
+
+    def __nice__(self) -> str:
         return self.queue_id
 
     @staticmethod
-    def _slurm_checks():
+    def _slurm_checks() -> None:
         status = {}
         info = {}
         info['squeue_fpath'] = ub.find_exe('squeue')
@@ -477,7 +522,7 @@ class SlurmQueue(base_queue.Queue):
             status['has_working_nodes'] = has_working_nodes
 
     @staticmethod
-    def is_available():
+    def is_available() -> bool:
         """
         Determines if we can run the slurm queue or not.
         """
@@ -527,12 +572,19 @@ class SlurmQueue(base_queue.Queue):
 
         return False
 
-    def submit(self, command, **kwargs):
+    def submit(
+        self,
+        command: str,
+        preamble: Optional[Union[str, List[str]]] = None,
+        **kwargs: Any,
+    ) -> SlurmJob:
         """
         Submit a command to this slurm queue
 
         Args:
             command (str): command line to execute.
+            preamble (str | List[str] | None):
+                job specific setup steps(s) to execute before the command
             **kwargs:
                 name (str | None): name of job
                 shell (str | None): shell to use, defaults to bash
@@ -570,16 +622,13 @@ class SlurmQueue(base_queue.Queue):
                 for dep in depends]
 
         _kwargs = self._sbatch_kvargs | kwargs
-        job = SlurmJob(command, depends=depends, **_kwargs)
+        job = SlurmJob(command, depends=depends, preamble=preamble, **_kwargs)
         self.jobs.append(job)
         self.num_real_jobs += 1
         self.named_jobs[job.name] = job
         return job
 
-    def add_header_command(self, command):
-        self.header_commands.append(command)
-
-    def order_jobs(self):
+    def order_jobs(self) -> List[SlurmJob]:
         """
         Get a topological sorting of the jobs in this DAG.
 
@@ -596,7 +645,7 @@ class SlurmQueue(base_queue.Queue):
             new_order.append(job)
         return new_order
 
-    def finalize_text(self, exclude_tags=None, **kwargs):
+    def finalize_text(self, exclude_tags: Optional[Any] = None, **kwargs: Any) -> str:
         """
         Serialize the state of the queue into a bash script.
 
@@ -612,14 +661,14 @@ class SlurmQueue(base_queue.Queue):
         homevar = '$HOME'
         commands.append(f'mkdir -p "{self.log_dpath.shrinkuser(homevar)}"')
         jobname_to_varname = {}
+        global_preamble = self.preamble
         for job in new_order:
             if exclude_tags and exclude_tags.intersection(job.tags):
                 continue
             # args = job._build_sbatch_args(jobname_to_varname)
             # command = ' '.join(args)
-            command = job._build_command(jobname_to_varname)
-            if self.header_commands:
-                command = ' && '.join(self.header_commands + [command])
+            command = job._build_command(
+                jobname_to_varname, global_preamble=global_preamble)
             if 1:
                 varname = 'JOB_{:03d}'.format(len(jobname_to_varname))
                 command = f'{varname}=$({command} --parsable)'
@@ -643,7 +692,7 @@ class SlurmQueue(base_queue.Queue):
         text = '\n'.join(commands)
         return text
 
-    def run(self, block=True, system=False, **kw):
+    def run(self, block: bool = True, system: bool = False, **kw: Any) -> Optional[Any]:
         if not self.is_available():
             raise Exception('slurm backend is not available')
         self.log_dpath.ensuredir()
@@ -652,7 +701,7 @@ class SlurmQueue(base_queue.Queue):
         if block:
             return self.monitor()
 
-    def monitor(self, refresh_rate=0.4):
+    def monitor(self, refresh_rate: float = 0.4) -> Optional[Any]:
         """
         Monitor progress until the jobs are done
 
@@ -849,19 +898,19 @@ class SlurmQueue(base_queue.Queue):
             if flag:
                 self.kill()
 
-    def kill(self):
+    def kill(self) -> None:
         cancel_commands = []
         for job in self.jobs:
             cancel_commands.append(f'scancel --name="{job.name}"')
         for cmd in cancel_commands:
             ub.cmd(cmd, verbose=2)
 
-    def read_state(self):
+    def read_state(self) -> Dict[str, Any]:
         # Not possible to get full info, but we probably could do better than
         # this
         return {}
 
-    def print_commands(self, *args, **kwargs):
+    def print_commands(self, *args: Any, **kwargs: Any) -> None:
         r"""
         Print info about the commands, optionally with rich
 

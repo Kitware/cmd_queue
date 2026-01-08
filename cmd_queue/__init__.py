@@ -22,7 +22,7 @@ Example:
     >>> # is the easiest, just install it, no configuration needed).
     >>> import cmd_queue
     >>> print(cmd_queue.Queue.available_backends())  # xdoctest: +IGNORE_WANT
-    ['serial', 'tmux', 'slurm']
+    ['serial', 'tmux', 'slurm', 'airflow']
 
 Example:
     >>> # The API to submit jobs is the same regardless of the backend.
@@ -306,7 +306,7 @@ Example:
 __mkinit__ = """
 mkinit -m cmd_queue
 """
-__version__ = '0.2.3'
+__version__ = '0.3.0'
 
 
 __submodules__ = {

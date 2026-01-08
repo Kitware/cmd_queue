@@ -1,3 +1,6 @@
+from __future__ import annotations
+# mypy: ignore-errors
+
 r"""Airflow backend.
 
 Note:
@@ -29,8 +32,10 @@ import contextlib
 import os
 import time
 import uuid
+from typing import Any, Dict, Iterable, List, Optional
 
 import ubelt as ub
+
 from cmd_queue import base_queue  # NOQA
 
 
@@ -38,9 +43,20 @@ class AirflowJob(base_queue.Job):
     """
     Represents a airflow job that hasn't been executed yet
     """
-    def __init__(self, command, name=None, output_fpath=None, depends=None,
-                 partition=None, cpus=None, gpus=None, mem=None, begin=None,
-                 shell=None, **kwargs):
+    def __init__(
+        self,
+        command: str,
+        name: Optional[str] = None,
+        output_fpath: Optional[Any] = None,
+        depends: Optional[Iterable[base_queue.Job]] = None,
+        partition: Optional[Any] = None,
+        cpus: Optional[Any] = None,
+        gpus: Optional[Any] = None,
+        mem: Optional[Any] = None,
+        begin: Optional[Any] = None,
+        shell: Optional[Any] = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__()
         if name is None:
             name = 'job-' + str(uuid.uuid4())
@@ -57,10 +73,11 @@ class AirflowJob(base_queue.Job):
         self.begin = begin
         self.shell = shell
 
-    def __nice__(self):
+    def __nice__(self) -> str:
         return repr(self.command)
 
-    def finalize_text(self):
+    def finalize_text(self) -> str:
+        # TODO: handle preamble
         dagvar = 'dag'
         return f'jobs[{self.name!r}] = BashOperator(task_id={self.name!r}, bash_command={self.command!r}, dag={dagvar})'
 
@@ -99,8 +116,15 @@ class AirflowQueue(base_queue.Queue):
         cd /home/joncrall/.cache/cmd_queue/SQ-20220711T180827-12f2905e
     """
 
-    def __init__(self, name=None, shell=None, dpath=None, airflow_home=None,
-                 **kwargs):
+    def __init__(
+        self,
+        name: Optional[str] = None,
+        shell: Optional[str] = None,
+        dpath: Optional[Any] = None,
+        airflow_home: Optional[Any] = None,
+        preamble: Optional[List[str]] = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__()
         self.jobs = []
         if name is None:
@@ -115,11 +139,13 @@ class AirflowQueue(base_queue.Queue):
         self.log_dpath = (self.dpath / 'logs').ensuredir()
         self.fpath = self.dags_dpath / (self.name + '.py')
         self.shell = shell
-        self.header_commands = []
+        self.preamble = []
         self.all_depends = None
         self.job_info_dpath = self.dpath / 'job_info'
         home = ub.Path(airflow_home) if airflow_home is not None else (self.dpath / 'airflow_home')
         self.airflow_home = home.ensuredir()
+        if preamble is not None:
+            self.add_preamble_command(preamble)
 
         # from airflow import DAG
         # from datetime import timedelta
@@ -144,7 +170,7 @@ class AirflowQueue(base_queue.Queue):
         # )
 
     @classmethod
-    def is_available(cls):
+    def is_available(cls) -> bool:
         """
         Determines if the airflow queue can run.
         """
@@ -181,7 +207,7 @@ class AirflowQueue(base_queue.Queue):
                 else:
                     os.environ[key] = value
 
-    def run(self, block=True, system=False):
+    def run(self, block: bool = True, system: bool = False) -> None:
         del system  # unused, kept for API parity
         self.write()
         env = self._airflow_env()
@@ -304,7 +330,7 @@ class AirflowQueue(base_queue.Queue):
                 })
         return summary
 
-    def finalize_text(self):
+    def finalize_text(self) -> str:
         import networkx as nx
 
         graph = self._dependency_graph()
@@ -347,7 +373,7 @@ class AirflowQueue(base_queue.Queue):
         return text
         # pass
 
-    def submit(self, command, **kwargs):
+    def submit(self, command: str, **kwargs: Any) -> AirflowJob:
         name = kwargs.get('name', None)
         if name is None:
             name = kwargs['name'] = f'J{len(self.jobs):04d}-{self.queue_id}'
@@ -379,9 +405,17 @@ class AirflowQueue(base_queue.Queue):
         self.named_jobs[job.name] = job
         return job
 
-    def print_commands(self, with_status=False, with_gaurds=False,
-                       with_locks=1, exclude_tags=None, style='auto',
-                       with_rich=None, colors=1, **kwargs):
+    def print_commands(
+        self,
+        with_status: bool = False,
+        with_gaurds: bool = False,
+        with_locks: int = 1,
+        exclude_tags: Optional[Any] = None,
+        style: str = 'auto',
+        with_rich: Optional[bool] = None,
+        colors: int = 1,
+        **kwargs: Any,
+    ) -> None:
         r"""
         Print info about the commands, optionally with rich
 
@@ -418,7 +452,7 @@ class AirflowQueue(base_queue.Queue):
     rprint = print_commands  # backwards compat
 
 
-def demo():
+def demo() -> None:
     """
     Airflow requires initialization:
         airflow db init

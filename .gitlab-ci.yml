@@ -117,7 +117,7 @@ stages:
   - echo "INSTALL_EXTRAS=$INSTALL_EXTRAS"
   - echo "UV_RESOLUTION=$UV_RESOLUTION"
   - echo "MOD_VERSION=$MOD_VERSION"
-  - python -m uv pip install "cmd_queue[$INSTALL_EXTRAS]==$MOD_VERSION" -f dist
+  - python -m pip install --prefer-binary "cmd_queue[$INSTALL_EXTRAS]==$MOD_VERSION" -f dist
   - echo "Install finished."
   - echo "Creating test sandbox directory"
   - export WORKSPACE_DNAME="sandbox"
@@ -187,7 +187,7 @@ stages:
   - echo "INSTALL_EXTRAS=$INSTALL_EXTRAS"
   - echo "UV_RESOLUTION=$UV_RESOLUTION"
   - echo "MOD_VERSION=$MOD_VERSION"
-  - python -m uv pip install "cmd_queue[$INSTALL_EXTRAS]==$MOD_VERSION" -f dist
+  - python -m pip install --prefer-binary "cmd_queue[$INSTALL_EXTRAS]==$MOD_VERSION" -f dist
   - echo "Install finished."
   - echo "Creating test sandbox directory"
   - export WORKSPACE_DNAME="sandbox"
@@ -257,7 +257,7 @@ stages:
   - echo "INSTALL_EXTRAS=$INSTALL_EXTRAS"
   - echo "UV_RESOLUTION=$UV_RESOLUTION"
   - echo "MOD_VERSION=$MOD_VERSION"
-  - python -m uv pip install "cmd_queue[$INSTALL_EXTRAS]==$MOD_VERSION" -f dist
+  - python -m pip install --prefer-binary "cmd_queue[$INSTALL_EXTRAS]==$MOD_VERSION" -f dist
   - echo "Install finished."
   - echo "Creating test sandbox directory"
   - export WORKSPACE_DNAME="sandbox"
@@ -327,7 +327,7 @@ stages:
   - echo "INSTALL_EXTRAS=$INSTALL_EXTRAS"
   - echo "UV_RESOLUTION=$UV_RESOLUTION"
   - echo "MOD_VERSION=$MOD_VERSION"
-  - python -m uv pip install "cmd_queue[$INSTALL_EXTRAS]==$MOD_VERSION" -f dist
+  - python -m pip install --prefer-binary "cmd_queue[$INSTALL_EXTRAS]==$MOD_VERSION" -f dist
   - echo "Install finished."
   - echo "Creating test sandbox directory"
   - export WORKSPACE_DNAME="sandbox"
@@ -359,29 +359,6 @@ test/sdist/minimal-loose/cp314-linux-x86_64:
   image: python:3.14
   needs:
   - build/sdist
-build/cp38-linux-x86_64:
-  <<: *build_wheel_template
-  image: python:3.8
-test/minimal-loose/cp38-linux-x86_64:
-  <<: *test_minimal-loose_template
-  image: python:3.8
-  needs:
-  - build/cp38-linux-x86_64
-test/full-loose/cp38-linux-x86_64:
-  <<: *test_full-loose_template
-  image: python:3.8
-  needs:
-  - build/cp38-linux-x86_64
-test/minimal-strict/cp38-linux-x86_64:
-  <<: *test_minimal-strict_template
-  image: python:3.8
-  needs:
-  - build/cp38-linux-x86_64
-test/full-strict/cp38-linux-x86_64:
-  <<: *test_full-strict_template
-  image: python:3.8
-  needs:
-  - build/cp38-linux-x86_64
 build/cp39-linux-x86_64:
   <<: *build_wheel_template
   image: python:3.9
@@ -584,8 +561,6 @@ gpgsign/wheels:
   - ots stamp dist/*.whl dist/*.asc dist/*.tar.gz
   needs:
   - job: build/sdist
-    artifacts: true
-  - job: build/cp38-linux-x86_64
     artifacts: true
   - job: build/cp39-linux-x86_64
     artifacts: true
