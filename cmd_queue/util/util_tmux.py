@@ -3,7 +3,7 @@ from __future__ import annotations
 """
 Generic tmux helpers
 """
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import ubelt as ub
 
@@ -54,6 +54,80 @@ class tmux:
     @staticmethod
     def kill_pane(pane_id: str, verbose: int = 3) -> Any:
         return ub.cmd(f'tmux kill-pane -t {pane_id}', verbose=verbose)
+
+    @staticmethod
+    def is_inside() -> bool:
+        """True if the current process is running inside a tmux session."""
+        import os
+        return bool(os.environ.get('TMUX'))
+
+    @staticmethod
+    def has_session(target_session: str) -> bool:
+        info = ub.cmd(['tmux', 'has-session', '-t', target_session])
+        return info['ret'] == 0
+
+    @staticmethod
+    def spawn_monitor_session(
+        session_name: str,
+        manifest_path: Any,
+        attach: bool = True,
+        verbose: int = 0,
+        extra_args: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Start ``cmd_queue monitor --manifest=<path>`` in a detached tmux
+        session and (optionally) attach the user to it.
+
+        Returns a dict describing what was created and how to reattach.
+        """
+        import os
+        import shlex
+        import sys
+        if not ub.find_exe('tmux'):
+            raise RuntimeError('tmux is not available')
+
+        # Always invoke the same Python interpreter that started run() — a
+        # globally-installed older ``cmd_queue`` binary on PATH would not
+        # know about the monitor subcommand.
+        cmd_parts = [
+            sys.executable, '-m', 'cmd_queue', 'monitor',
+            '--manifest=' + str(manifest_path),
+        ]
+        if extra_args:
+            cmd_parts.extend(extra_args)
+        # Wrap in a small shell script so the pane stays open after the
+        # monitor exits, letting the user see the final table.
+        inner = ' '.join(shlex.quote(p) for p in cmd_parts)
+        bash_payload = (
+            f'{inner}; '
+            'echo; echo "[cmd_queue monitor exited] press enter to close"; '
+            'read -r _'
+        )
+        new_session_cmd = [
+            'tmux', 'new-session', '-d', '-s', session_name,
+            'bash', '-lc', bash_payload,
+        ]
+        ub.cmd(new_session_cmd, verbose=verbose, check=True)
+
+        info: Dict[str, Any] = {
+            'session_name': session_name,
+            'attach_command': f'tmux attach -t {session_name}',
+        }
+        if attach:
+            inside = bool(os.environ.get('TMUX'))
+            if inside:
+                # Switching the current client is the in-tmux equivalent of
+                # attach; spawning a nested attach is rejected by tmux.
+                ub.cmd(['tmux', 'switch-client', '-t', session_name],
+                       verbose=verbose, check=True)
+                info['attached_via'] = 'switch-client'
+            else:
+                # ``attach-session`` is interactive, so let the foreground
+                # process inherit the tty.
+                ub.cmd(['tmux', 'attach-session', '-t', session_name],
+                       verbose=verbose, check=False)
+                info['attached_via'] = 'attach-session'
+        return info
 
     @staticmethod
     def list_panes(target_session: str) -> List[Dict[str, str]]:

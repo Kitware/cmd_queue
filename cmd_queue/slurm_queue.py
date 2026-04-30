@@ -699,16 +699,86 @@ class SlurmQueue(base_queue.Queue):
         system: bool = False,
         onfail: str = '',
         onexit: str = '',
+        monitor: str = 'inline',
         **kw: Any,
     ) -> Optional[Any]:
+        """
+        Execute the queue.
+
+        Args:
+            monitor (str): where the live status UI runs while
+                ``block=True``. ``'inline'`` (default) renders in the
+                current shell. ``'tmux'`` spawns ``cmd_queue monitor``
+                in a detached tmux session so the UI survives the
+                calling shell closing — useful for slurm jobs whose
+                workers run on the cluster long after the submit shell
+                might be gone. ``'none'`` skips the UI but still blocks
+                when ``block=True``.
+        """
         if not self.is_available():
             raise Exception('slurm backend is not available')
         self.log_dpath.ensuredir()
         self.write()
-        self._write_monitor_manifest()
+        manifest_path = self._write_monitor_manifest()
         ub.cmd(f'bash {self.fpath}', verbose=3, check=True, system=system)
-        if block:
+        if not block:
+            return None
+        if monitor == 'inline':
             return self.monitor(onfail=onfail, onexit=onexit)
+        if monitor == 'none':
+            from rich import print as rich_print
+            rich_print(
+                '[bold]Queue running detached.[/bold] '
+                f'Reattach with: cmd_queue monitor --manifest={manifest_path}'
+            )
+            return None
+        if monitor == 'tmux':
+            if not ub.find_exe('tmux'):
+                import warnings
+                warnings.warn(
+                    "monitor='tmux' requested but tmux not found; "
+                    "falling back to inline monitor.")
+                return self.monitor(onfail=onfail, onexit=onexit)
+            from cmd_queue.tmux_queue import has_stdin
+            from cmd_queue.util.util_tmux import tmux as _tmux
+            extra_args = []
+            if onfail:
+                extra_args.append(f'--onfail={onfail}')
+            if onexit:
+                extra_args.append(f'--onexit={onexit}')
+            session_name = f'cmdq-monitor-{self.queue_id}'
+            from rich import print as rich_print
+            rich_print(
+                f'[bold]Launching monitor in tmux session[/bold] {session_name}'
+            )
+            _tmux.spawn_monitor_session(
+                session_name=session_name,
+                manifest_path=manifest_path,
+                attach=has_stdin(),
+                verbose=0,
+                extra_args=extra_args,
+            )
+            return self._headless_block_until_done()
+        raise ValueError(
+            f"monitor must be one of 'inline', 'tmux', 'none'; got {monitor!r}"
+        )
+
+    def _headless_block_until_done(self, refresh_rate: float = 5.0) -> None:
+        """Poll squeue until none of this queue's job names are still queued."""
+        import time
+        job_names = {job.name for job in self.jobs}
+        if not job_names:
+            return None
+        while True:
+            info = ub.cmd('squeue --format="%j"')
+            still_queued = {
+                line.strip()
+                for line in info['out'].splitlines()
+                if line.strip() in job_names
+            }
+            if not still_queued:
+                return None
+            time.sleep(refresh_rate)
 
     def monitor(
         self,

@@ -658,6 +658,7 @@ class TMUXMultiQueue(base_queue.Queue):
         with_textual: str = 'auto',
         check_other_sessions: Optional[bool] = None,
         other_session_handler: str = 'auto',
+        monitor: str = 'inline',
         **kw: Any,
     ) -> None:
         """
@@ -669,6 +670,19 @@ class TMUXMultiQueue(base_queue.Queue):
                 with the same queue name.  Can be 'kill', 'ask', or 'ignore',
                 or 'auto' - which defaults to 'ask' if stdin is available and
                 'kill' if it is not.
+
+            monitor (str):
+                Where the live status UI runs while ``block=True``.
+
+                * ``'inline'`` (default): renders in the current shell, just
+                  like today. Closing the shell loses the view.
+                * ``'tmux'``: spawns ``cmd_queue monitor --manifest=...``
+                  in a detached tmux session and (when interactive) attaches
+                  the user to it. The current process still blocks until
+                  jobs finish (and runs the post-run cleanup), so detaching
+                  the tmux UI does not return control to the caller.
+                * ``'none'``: no UI; the call still blocks via a headless
+                  state-file poll when ``block=True``.
         """
 
         if not self.is_available():
@@ -688,15 +702,87 @@ class TMUXMultiQueue(base_queue.Queue):
                 self.kill_other_queues(ask_first=True)
 
         self.write()
-        self._write_monitor_manifest()
+        manifest_path = self._write_monitor_manifest()
         ub.cmd(f'bash {self.fpath}', verbose=self.cmd_verbose, check=True,
                system=system)
-        if block:
+        if not block:
+            return None
+        return self._dispatch_monitor(
+            monitor=monitor,
+            manifest_path=manifest_path,
+            onfail=onfail,
+            onexit=onexit,
+            with_textual=with_textual,
+        )
+
+    def _dispatch_monitor(
+        self,
+        monitor: str,
+        manifest_path: Any,
+        onfail: str,
+        onexit: str,
+        with_textual: str = 'auto',
+    ) -> Any:
+        if monitor == 'inline':
             return self.monitor(
                 with_textual=with_textual,
                 onfail=onfail,
                 onexit=onexit,
             )
+        if monitor == 'none':
+            from rich import print as rich_print
+            rich_print(
+                '[bold]Queue running detached.[/bold] '
+                f'Reattach with: cmd_queue monitor --manifest={manifest_path}'
+            )
+            return self._headless_block_until_done()
+        if monitor == 'tmux':
+            if not ub.find_exe('tmux'):
+                import warnings
+                warnings.warn(
+                    "monitor='tmux' requested but tmux not found; "
+                    "falling back to inline monitor.")
+                return self.monitor(
+                    with_textual=with_textual,
+                    onfail=onfail,
+                    onexit=onexit,
+                )
+            extra_args = []
+            if onfail:
+                extra_args.append(f'--onfail={onfail}')
+            if onexit:
+                extra_args.append(f'--onexit={onexit}')
+            session_name = f'cmdq-monitor-{self.pathid}'
+            from rich import print as rich_print
+            rich_print(
+                f'[bold]Launching monitor in tmux session[/bold] {session_name}'
+            )
+            tmux.spawn_monitor_session(
+                session_name=session_name,
+                manifest_path=manifest_path,
+                attach=has_stdin(),
+                verbose=0,
+                extra_args=extra_args,
+            )
+            # The tmux session now owns the UI and the post-run cleanup.
+            # The caller still blocks here so block=True keeps its meaning.
+            return self._headless_block_until_done()
+        raise ValueError(
+            f"monitor must be one of 'inline', 'tmux', 'none'; got {monitor!r}"
+        )
+
+    def _headless_block_until_done(self, refresh_rate: float = 1.0) -> Any:
+        """Poll the per-worker state files until all workers are finished.
+
+        Used as the parent-side block-wait when the visible monitor is
+        running elsewhere (in a tmux session, or not at all).
+        """
+        import time
+        while True:
+            table, finished, agg_state = self._build_status_table()
+            if finished:
+                return agg_state
+            time.sleep(refresh_rate)
 
     def read_state(self) -> Any:
         agg_state = {}
