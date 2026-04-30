@@ -8,7 +8,7 @@ repo_name = "cmd_queue"
 author = "Kitware Inc., Jon Crall"
 author_email = "kitware@kitware.com, jon.crall@kitware.com"
 description = "The cmd_queue module for a DAG of bash commands"
-min_python = "3.9"
+min_python = "3.10"
 url = "https://gitlab.kitware.com/computer-vision/cmd_queue"
 license = "Apache 2"
 dev_status = "beta"
@@ -50,7 +50,7 @@ unresolved-import = "ignore"
 
 [tool.ruff]
 line-length = 80
-target-version = "py38"
+target-version = "py310"
 
 [tool.ruff.lint]
 # Enable Flake8 (E, F) and isort (I) rules.
