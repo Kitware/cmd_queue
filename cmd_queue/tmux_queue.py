@@ -715,6 +715,25 @@ class TMUXMultiQueue(base_queue.Queue):
             with_textual=with_textual,
         )
 
+    @staticmethod
+    def _print_done_summary(agg_state: Dict[str, Any]) -> None:
+        from rich import print as rich_print
+        failed = agg_state.get('failed', 0)
+        passed = agg_state.get('passed', 0)
+        skipped = agg_state.get('skipped', 0)
+        total = agg_state.get('total', 0)
+        if failed:
+            status_str = '[bold red]FAILED[/bold red]'
+        else:
+            status_str = '[bold green]PASSED[/bold green]'
+        rich_print(
+            f'\nQueue complete: {status_str}  '
+            f'passed=[green]{passed}[/green]  '
+            f'failed=[red]{failed}[/red]  '
+            f'skipped=[yellow]{skipped}[/yellow]  '
+            f'total={total}'
+        )
+
     def _dispatch_monitor(
         self,
         monitor: str,
@@ -735,7 +754,9 @@ class TMUXMultiQueue(base_queue.Queue):
                 '[bold]Queue running detached.[/bold] '
                 f'Reattach with: cmd_queue monitor --manifest={manifest_path}'
             )
-            return self._headless_block_until_done()
+            agg_state = self._headless_block_until_done()
+            self._print_done_summary(agg_state)
+            return agg_state
         if monitor == 'tmux':
             if not ub.find_exe('tmux'):
                 import warnings
@@ -776,6 +797,7 @@ class TMUXMultiQueue(base_queue.Queue):
                 label=f'queue {self.name}',
             )
             _, _, agg_state = self._build_status_table()
+            self._print_done_summary(agg_state)
             return agg_state
         raise ValueError(
             f"monitor must be one of 'inline', 'tmux', 'none'; got {monitor!r}"
