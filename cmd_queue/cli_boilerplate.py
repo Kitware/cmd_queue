@@ -99,14 +99,13 @@ Example:
     >>> my_cli_main(cmdline=0, run=1, print_queue=0, print_commands=0)
 """
 from typing import Any, Dict, Optional
+import typing
 
 import scriptconfig as scfg
 import ubelt as ub
 
-
-__docstubs__ = """
-import cmd_queue
-"""
+if typing.TYPE_CHECKING:
+    import cmd_queue
 
 
 class CMDQueueConfig(scfg.DataConfig):
@@ -158,6 +157,8 @@ class CMDQueueConfig(scfg.DataConfig):
     run = scfg.Value(False, isflag=True, help='if False, only prints the commands, otherwise executes them', group='cmd-queue')
 
     backend = scfg.Value('tmux', help=('The cmd_queue backend. Can be tmux, slurm, or serial'), group='cmd-queue')
+
+    monitor = scfg.Value('inline', help=('where the live status UI runs while'), group='cmd-queue', choices=['inline', 'tmux'])
 
     queue_name = scfg.Value(None, help='overwrite the default queue name', group='cmd-queue')
 
@@ -271,4 +272,5 @@ class CMDQueueConfig(scfg.DataConfig):
         if config.run:
             queue.run(with_textual=config.with_textual,
                       other_session_handler=config.other_session_handler,
+                      monitor=config.monitor,
                       **kwargs)

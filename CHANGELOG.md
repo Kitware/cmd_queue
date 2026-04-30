@@ -7,6 +7,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version 0.3.0 - Unreleased
 
+### Added:
+* generalized the monitor so it can be launched in an independent process and reports errors better.
+
 ### Fixed:
 * cwd will now handle failures if the directory doesnt exist in the bash queue
 * general improvements to bash script construction with per-job preamble commands
@@ -14,7 +17,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 * deprecate `header_commands` for `preamble`
-* Dropped support for 3.8
+* Dropped support for 3.8 and 3.9
 * Transition from stubs to type annotations.
 
 
