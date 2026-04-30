@@ -910,6 +910,55 @@ class SlurmQueue(base_queue.Queue):
         # this
         return {}
 
+    def _build_monitor_manifest(self) -> Dict[str, Any]:
+        """Snapshot enough state for an out-of-process monitor to reattach."""
+        return {
+            'backend': 'slurm',
+            'name': self.name if hasattr(self, 'name') else self.queue_id,
+            'queue_id': self.queue_id,
+            'dpath': str(self.dpath),
+            'fpath': str(self.fpath),
+            'jobid_fpath': str(self.jobid_fpath) if self.jobid_fpath else None,
+            'job_names': [job.name for job in self.jobs],
+        }
+
+    def _write_monitor_manifest(self) -> Any:
+        """Persist the monitor manifest to ``<dpath>/monitor_manifest.json``."""
+        from cmd_queue import monitor_manifest as mm
+        path = mm.manifest_path_for_dpath(self.dpath)
+        manifest = self._build_monitor_manifest()
+        mm.write_manifest(manifest, path)
+        # Use queue_id as the active-index name; SlurmQueue does not require a
+        # human name, so this lets `cmd_queue monitor <queue_id>` work too.
+        mm.update_active_index(manifest['name'], path)
+        return path
+
+    @classmethod
+    def _from_manifest(cls, manifest: Dict[str, Any]) -> "SlurmQueue":
+        """Reconstruct a queue suitable for ``monitor()`` / ``kill()`` only."""
+        self = cls.__new__(cls)
+        base_queue.Queue.__init__(self)
+        self.queue_id = manifest['queue_id']
+        self.name = manifest.get('name', self.queue_id)
+        self.dpath = ub.Path(manifest['dpath'])
+        self.fpath = ub.Path(manifest['fpath'])
+        self.log_dpath = self.dpath / 'logs'
+        self.shell = None
+        self.preamble = []
+        self.all_depends = None
+        self._sbatch_kvargs = ub.udict()
+        self._sbatch_flags = ub.udict()
+        self._include_monitor_metadata = False
+        jobid_fpath = manifest.get('jobid_fpath')
+        self.jobid_fpath = ub.Path(jobid_fpath) if jobid_fpath else None
+        self.unused_kwargs = {}
+        # The reconstructed jobs only need a name for kill() (scancel --name).
+        self.jobs = [
+            SlurmJob(command='', name=name)
+            for name in manifest.get('job_names', [])
+        ]
+        return self
+
     def print_commands(self, *args: Any, **kwargs: Any) -> None:
         r"""
         Print info about the commands, optionally with rich

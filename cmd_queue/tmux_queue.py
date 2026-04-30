@@ -989,6 +989,71 @@ class TMUXMultiQueue(base_queue.Queue):
         sessions = tmux.list_sessions()
         return sessions
 
+    def _build_monitor_manifest(self) -> Dict[str, Any]:
+        """Snapshot enough state for an out-of-process monitor to reattach."""
+        workers_info = []
+        for worker in self.workers:
+            workers_info.append({
+                'name': worker.name,
+                'rootid': worker.rootid,
+                'dpath': str(worker.dpath),
+                'pathid': worker.pathid,
+                'state_fpath': str(worker.state_fpath),
+                'fpath': str(worker.fpath),
+                'environ': dict(worker.environ or {}),
+            })
+        return {
+            'backend': 'tmux',
+            'name': self.name,
+            'rootid': self.rootid,
+            'pathid': self.pathid,
+            'dpath': str(self.dpath),
+            'fpath': str(self.fpath),
+            'size': self.size,
+            'gpus': self.gpus,
+            'tmux_session_prefix': self._tmux_session_prefix,
+            'workers': workers_info,
+        }
+
+    def _write_monitor_manifest(self) -> Any:
+        """Persist the monitor manifest to ``<dpath>/monitor_manifest.json``."""
+        from cmd_queue import monitor_manifest as mm
+        path = mm.manifest_path_for_dpath(self.dpath)
+        manifest = self._build_monitor_manifest()
+        mm.write_manifest(manifest, path)
+        mm.update_active_index(self.name, path)
+        return path
+
+    @classmethod
+    def _from_manifest(cls, manifest: Dict[str, Any]) -> "TMUXMultiQueue":
+        """Reconstruct a queue suitable for ``monitor()`` / ``kill()`` only."""
+        self = cls.__new__(cls)
+        # Initialize the base Queue state without re-creating workers / dpaths.
+        base_queue.Queue.__init__(self)
+        self.name = manifest['name']
+        self.rootid = manifest['rootid']
+        self.pathid = manifest.get('pathid', '{}_{}'.format(self.name, self.rootid))
+        self.dpath = ub.Path(manifest['dpath'])
+        self.fpath = ub.Path(manifest['fpath'])
+        self.size = manifest['size']
+        self.gpus = manifest.get('gpus')
+        self.environ = {}
+        self.cmd_verbose = 2
+        self._tmux_session_prefix = manifest.get('tmux_session_prefix', 'cmdq_')
+        self.job_info_dpath = self.dpath / 'job_info'
+        self.preamble = []
+        self.jobs = []
+        self.workers = [
+            serial_queue.SerialQueue(
+                name=w['name'],
+                rootid=w['rootid'],
+                dpath=ub.Path(w['dpath']),
+                environ=w.get('environ') or {},
+            )
+            for w in manifest.get('workers', [])
+        ]
+        return self
+
 
 def has_stdin() -> bool:
     import sys
