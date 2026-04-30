@@ -732,32 +732,38 @@ class TMUXMultiQueue(base_queue.Queue):
             f'skipped=[yellow]{skipped}[/yellow]  '
             f'total={total}'
         )
-        if failed:
-            failed_jobs = []
-            for worker in self.workers:
-                for job in getattr(worker, 'jobs', []):
-                    fail_fpath = getattr(job, 'fail_fpath', None)
-                    if fail_fpath is not None and fail_fpath.exists():
-                        failed_jobs.append(job)
-            if failed_jobs:
-                rich_print('[bold red]Failed jobs:[/bold red]')
-                any_log_missing = False
-                for job in failed_jobs:
-                    log_fpath = getattr(job, 'log_fpath', None)
-                    if (getattr(job, 'log', False) and log_fpath is not None
-                            and log_fpath.exists()):
-                        rich_print(
-                            f'  [red]{job.name}[/red]  log: {log_fpath}'
-                        )
-                    else:
-                        any_log_missing = True
-                        rich_print(f'  [red]{job.name}[/red]')
-                if any_log_missing:
+        failed_jobs, skipped_jobs, status_by_name = (
+            self._collect_failed_and_skipped()
+        )
+        if failed_jobs:
+            rich_print('[bold red]Failed jobs:[/bold red]')
+            any_log_missing = False
+            for job in failed_jobs:
+                log_fpath = getattr(job, 'log_fpath', None)
+                if (getattr(job, 'log', False) and log_fpath is not None
+                        and log_fpath.exists()):
                     rich_print(
-                        '[yellow]Note:[/yellow] failure logs are not '
-                        'enabled for some jobs (pass log=True at '
-                        'submit time to capture stdout/stderr to disk).'
+                        f'  [red]{job.name}[/red]  log: {log_fpath}'
                     )
+                else:
+                    any_log_missing = True
+                    rich_print(f'  [red]{job.name}[/red]  [dim](no log)[/dim]')
+            if any_log_missing:
+                rich_print(
+                    '[yellow]Note:[/yellow] failure logs are not '
+                    'enabled for some failed jobs (pass log=True at '
+                    'submit time to capture stdout/stderr to disk).'
+                )
+        if skipped_jobs:
+            rich_print('[bold yellow]Skipped jobs:[/bold yellow]')
+            for job in skipped_jobs:
+                reason = self._skip_reason(job, status_by_name)
+                if reason:
+                    rich_print(
+                        f'  [yellow]{job.name}[/yellow]  ({reason})'
+                    )
+                else:
+                    rich_print(f'  [yellow]{job.name}[/yellow]')
 
     def _dispatch_monitor(
         self,
@@ -987,49 +993,111 @@ class TMUXMultiQueue(base_queue.Queue):
                     self.kill()
                     is_running = False
 
-    def _build_failed_jobs_renderable(self) -> Any:
-        """Renderable summary of currently-failed jobs, or None.
+    def _collect_failed_and_skipped(self):
+        """Walk worker.jobs and partition into failed / skipped lists.
 
-        Used by the live monitor to surface failures (and their log
-        paths, when available) as soon as they happen, rather than only
-        in the post-run summary.
+        A job is *failed* if its fail_fpath exists, and *skipped* if its
+        skip_fpath exists. The two are mutually exclusive: the bash
+        boilerplate writes one or the other but never both.
         """
-        failed_jobs = []
+        failed = []
+        skipped = []
+        # Map job name -> status so we can fill in skip reasons.
+        status_by_name: Dict[str, str] = {}
         for worker in self.workers:
             for job in getattr(worker, 'jobs', []):
                 fail_fpath = getattr(job, 'fail_fpath', None)
+                skip_fpath = getattr(job, 'skip_fpath', None)
                 if fail_fpath is not None and fail_fpath.exists():
-                    failed_jobs.append(job)
-        if not failed_jobs:
+                    failed.append(job)
+                    if getattr(job, 'name', None):
+                        status_by_name[job.name] = 'failed'
+                elif skip_fpath is not None and skip_fpath.exists():
+                    skipped.append(job)
+                    if getattr(job, 'name', None):
+                        status_by_name[job.name] = 'skipped'
+        return failed, skipped, status_by_name
+
+    @staticmethod
+    def _skip_reason(job: Any, status_by_name: Dict[str, str]) -> str:
+        """Best-effort explanation of why a job was skipped.
+
+        Looks at the job's recorded dependency names and reports the
+        first one whose status is not 'passed'. Returns a short string
+        like 'dep proc-A failed' or '' if no clear reason.
+        """
+        depends = getattr(job, 'depends', None) or []
+        bad = []
+        for dep_name in depends:
+            if not dep_name:
+                continue
+            st = status_by_name.get(dep_name)
+            if st in ('failed', 'skipped'):
+                bad.append((dep_name, st))
+        if not bad:
+            return ''
+        if len(bad) == 1:
+            name, st = bad[0]
+            return f'dep {name} {st}'
+        names = ', '.join(f'{n} {s}' for n, s in bad)
+        return f'deps: {names}'
+
+    def _build_failed_jobs_renderable(self) -> Any:
+        """Renderable summary of failed and skipped jobs, or None.
+
+        Used by the live monitor to surface failures and skips (and the
+        reason for each skip) as soon as they happen, rather than only
+        in the post-run summary.
+        """
+        failed, skipped, status_by_name = self._collect_failed_and_skipped()
+        if not failed and not skipped:
             return None
         from rich.table import Table
         from rich.console import Group
         from rich.text import Text
-        ftable = Table(
-            title='Failed jobs', title_style='bold red',
-            show_header=True, header_style='red',
-        )
-        ftable.add_column('name', style='red')
-        ftable.add_column('log')
+
+        renderables = []
         any_log_missing = False
-        for job in failed_jobs:
-            log_fpath = getattr(job, 'log_fpath', None)
-            if (getattr(job, 'log', False) and log_fpath is not None
-                    and log_fpath.exists()):
-                ftable.add_row(job.name, str(log_fpath))
-            else:
-                any_log_missing = True
-                ftable.add_row(job.name, '[dim](no log)[/dim]')
-        if any_log_missing:
-            return Group(
-                ftable,
-                Text(
-                    'Note: failure logs are not enabled for some jobs '
-                    '(pass log=True at submit time).',
-                    style='yellow',
-                ),
+
+        if failed:
+            ftable = Table(
+                title='Failed jobs', title_style='bold red',
+                show_header=True, header_style='red',
             )
-        return ftable
+            ftable.add_column('name', style='red')
+            ftable.add_column('log')
+            for job in failed:
+                log_fpath = getattr(job, 'log_fpath', None)
+                if (getattr(job, 'log', False) and log_fpath is not None
+                        and log_fpath.exists()):
+                    ftable.add_row(job.name, str(log_fpath))
+                else:
+                    any_log_missing = True
+                    ftable.add_row(job.name, '[dim](no log)[/dim]')
+            renderables.append(ftable)
+
+        if skipped:
+            stable = Table(
+                title='Skipped jobs', title_style='bold yellow',
+                show_header=True, header_style='yellow',
+            )
+            stable.add_column('name', style='yellow')
+            stable.add_column('reason')
+            for job in skipped:
+                reason = self._skip_reason(job, status_by_name)
+                stable.add_row(job.name, reason or '[dim](unknown)[/dim]')
+            renderables.append(stable)
+
+        if any_log_missing:
+            renderables.append(Text(
+                'Note: failure logs are not enabled for some failed '
+                'jobs (pass log=True at submit time).',
+                style='yellow',
+            ))
+
+        if len(renderables) == 1:
+            return renderables[0]
+        return Group(*renderables)
 
     def _build_live_renderable(self):
         from rich.console import Group
@@ -1215,12 +1283,20 @@ class TMUXMultiQueue(base_queue.Queue):
             jobs_info = []
             for job in getattr(worker, 'jobs', []):
                 fail_fpath = getattr(job, 'fail_fpath', None)
+                skip_fpath = getattr(job, 'skip_fpath', None)
                 log_fpath = getattr(job, 'log_fpath', None)
+                depends = getattr(job, 'depends', None) or []
+                depends_names = [
+                    getattr(d, 'name', None) for d in depends
+                    if d is not None and getattr(d, 'name', None)
+                ]
                 jobs_info.append({
                     'name': getattr(job, 'name', None),
                     'log': bool(getattr(job, 'log', False)),
                     'fail_fpath': str(fail_fpath) if fail_fpath else None,
+                    'skip_fpath': str(skip_fpath) if skip_fpath else None,
                     'log_fpath': str(log_fpath) if log_fpath else None,
+                    'depends': depends_names,
                 })
             workers_info.append({
                 'name': worker.name,
@@ -1291,7 +1367,9 @@ class TMUXMultiQueue(base_queue.Queue):
                     name=j.get('name'),
                     log=bool(j.get('log', False)),
                     fail_fpath=ub.Path(j['fail_fpath']) if j.get('fail_fpath') else None,
+                    skip_fpath=ub.Path(j['skip_fpath']) if j.get('skip_fpath') else None,
                     log_fpath=ub.Path(j['log_fpath']) if j.get('log_fpath') else None,
+                    depends=list(j.get('depends') or []),
                 ))
             worker.jobs = stubs
             workers.append(worker)

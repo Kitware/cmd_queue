@@ -119,6 +119,7 @@ class BashJob(base_queue.Job):
         self.info_dpath = info_dpath
         self.pass_fpath = self.info_dpath / f'passed/{self.pathid}.pass'
         self.fail_fpath = self.info_dpath / f'failed/{self.pathid}.fail'
+        self.skip_fpath = self.info_dpath / f'skipped/{self.pathid}.skip'
         self.stat_fpath = self.info_dpath / f'status/{self.pathid}.stat'
         self.log_fpath = self.info_dpath / f'status/{self.pathid}.logs'
         self.tags = util_tags.Tags.coerce(tags)
@@ -172,7 +173,10 @@ class BashJob(base_queue.Job):
                     f'printf "fail" > {self.fail_fpath}',
                 ],
                 # when dependencies are unmet
-                'on_skip': [ ]
+                'on_skip': [
+                    f'mkdir -p {self.skip_fpath.parent}',
+                    f'printf "skip" > {self.skip_fpath}',
+                ]
             }
 
             # Append custom conditionals
@@ -326,9 +330,14 @@ class BashJob(base_queue.Job):
 
             on_pass_part = indent(_job_conditionals['on_pass'])
             on_fail_part = indent(_job_conditionals['on_fail'])
+            # RETURN_CODE=126 means dependencies were unmet; on_skip
+            # already ran in the deps-failed branch above, so we don't
+            # want to also mark the job as failed here.
             conditional_body = '\n'.join([
                 'if [[ "$RETURN_CODE" == "0" ]]; then',
                 on_pass_part,
+                'elif [[ "$RETURN_CODE" == "126" ]]; then',
+                '    : # job was skipped; on_skip already handled',
                 'else',
                 on_fail_part,
                 'fi'

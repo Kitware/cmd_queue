@@ -329,6 +329,7 @@ def test_bashjob_exec_depends_unmet_skips():
         job.stat_fpath = tmp_path / "job2.status.json"
         job.pass_fpath = tmp_path / "job2.pass"
         job.fail_fpath = tmp_path / "job2.fail"
+        job.skip_fpath = tmp_path / "job2.skip"
 
         text = job.finalize_text(with_status=True, with_gaurds=True)
         subprocess.run(['bash', '-n'], input=text, text=True, check=True)
@@ -343,8 +344,10 @@ def test_bashjob_exec_depends_unmet_skips():
         )
 
         assert not outfile.exists(), "command should not run if dependency is unmet"
-        # With current semantics, skip sets RETURN_CODE=126, which counts as fail
-        assert job.fail_fpath.exists(), "skipped job should be marked as fail (ret=126)"
+        # Skipped jobs (deps unmet, RC=126) write skip_fpath only — they
+        # are NOT also marked as failed.
+        assert job.skip_fpath.exists(), "skipped job should be marked as skip"
+        assert not job.fail_fpath.exists(), "skipped job should not be marked as fail"
         assert not job.pass_fpath.exists()
 
         status = kwutil.Json.load(job.stat_fpath)
