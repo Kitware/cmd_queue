@@ -167,11 +167,11 @@ class tmux:
             f'tmux switch-client -t {session_name}' if inside_tmux
             else f'tmux attach -t {session_name}'
         )
-        print(
-            f'Watching {label}. Press [a] to attach to monitor session '
-            f'({session_name}), [q] to stop watching (queue keeps running).'
-        )
-        print(f'Manual reattach anytime from another shell: {attach_cmd}')
+        print(f'Watching {label}.')
+        import rich
+        rich.print(rf'[bold]Press \[a][/bold] to attach to monitor session ({session_name})')
+        rich.print(r'[bold]Press \[q][/bold] to stop watching (queue keeps running).')
+        print(f'Manual reattach anytime from another shell:\n{attach_cmd}')
 
         fd = sys.stdin.fileno()
         old_settings = termios.tcgetattr(fd)

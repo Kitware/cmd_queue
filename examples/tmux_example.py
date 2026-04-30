@@ -16,7 +16,9 @@ Three modes are illustrated:
       jobs finish. Useful in non-interactive scripts. The reattach hint
       is still printed so a human can attach via ``cmd_queue monitor``.
 
-The job DAG has four levels and shows meaningful parallel execution:
+The job DAG has four logical levels and shows meaningful parallel execution.
+Each logical job is split into a serial chain of smaller one-second jobs.
+This creates more queue jobs while keeping the total runtime roughly the same.
 
     Level 1 (prep):      prep-A  prep-B  prep-C  prep-D   (parallel, 5-8s)
     Level 2 (process):   proc-A  proc-B  proc-C  proc-D   (each after one prep, 3-5s)
@@ -41,40 +43,36 @@ CommandLine:
     # Force a clean run (no injected failures)
     python ~/code/cmd_queue/examples/tmux_example.py --failures=0
 """
-import argparse
+import ubelt as ub
+import scriptconfig as scfg
+
+
+class TmuxExampleConfig(scfg.DataConfig):
+    """
+    Automatically created module for IPython interactive environment
+    """
+    mode = scfg.Value('tmux', help='Where the monitor UI runs.', choices=['inline', 'tmux', 'none'])
+    name = scfg.Value('tmux-example', help=ub.paragraph(
+            '''
+            Queue name; also doubles as the lookup key for `cmd_queue
+            monitor <name>`.
+            '''))
+    workers = scfg.Value(4, type=int, help='Number of parallel tmux workers.')
+    failures = scfg.Value(6, type=int, help=ub.paragraph(
+            '''
+            Number of proc-* logical jobs to force into failure (0-4).
+            The failures cascade: dependent merge/final jobs are skipped.
+            '''))
+    logs = scfg.Value(True, isflag=True, help=ub.paragraph(
+            '''
+            Set to False to disable per-job log capture (default: enabled).
+            '''))
 
 
 def main():
     import cmd_queue
 
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        '--mode',
-        choices=['inline', 'tmux', 'none'],
-        default='tmux',
-        help='Where the monitor UI runs.',
-    )
-    parser.add_argument(
-        '--name',
-        default='tmux-example',
-        help='Queue name; also doubles as the lookup key for '
-             '`cmd_queue monitor <name>`.',
-    )
-    parser.add_argument(
-        '--workers', type=int, default=4,
-        help='Number of parallel tmux workers.',
-    )
-    parser.add_argument(
-        '--failures', type=int, default=1,
-        help='Number of proc-* jobs to force into failure (0-4). The '
-             'failures cascade: dependent merge/final jobs are skipped.',
-    )
-    parser.add_argument(
-        '--no-logs', dest='logs', action='store_false',
-        help='Disable per-job log capture (default: enabled).',
-    )
-    parser.set_defaults(logs=True)
-    args = parser.parse_args()
+    args = TmuxExampleConfig.cli()
 
     queue = cmd_queue.Queue.create(
         backend='tmux',
@@ -85,54 +83,86 @@ def main():
     proc_names = ['proc-A', 'proc-B', 'proc-C', 'proc-D']
     fail_set = set(proc_names[:max(0, min(args.failures, len(proc_names)))])
 
-    def proc_cmd(name: str, sleep: int) -> str:
-        body = f'echo "[{name}] start"; sleep {sleep}'
-        if name in fail_set:
-            return (
-                f'{body}; echo "[{name}] FORCED FAILURE" >&2; '
-                f'exit 1'
-            )
-        return f'{body}; echo "[{name}] done"'
-
     submit_kw = {'log': args.logs}
 
+    def submit_sleep_chain(base_name, total_sleep, depends=None, fail=False):
+        """
+        Submit a logical sleep job as a chain of smaller queue jobs.
+
+        This keeps the logical runtime roughly equal to ``total_sleep``,
+        but gives the tmux monitor more individual jobs to display.
+
+        Example:
+            ``submit_sleep_chain('prep-A', 5)`` creates:
+
+                prep-A-01 -> prep-A-02 -> prep-A-03 -> prep-A-04 -> prep-A-05
+
+            Each part sleeps for one second, so the total duration is still
+            about five seconds, plus a small amount of scheduling overhead.
+        """
+        if total_sleep <= 0:
+            raise ValueError('total_sleep must be positive')
+
+        prev_depends = list(depends or [])
+        last_job = None
+
+        for idx in range(total_sleep):
+            part = idx + 1
+            name = f'{base_name}-{part:02d}'
+            is_final_part = part == total_sleep
+
+            cmd = (
+                f'echo "[{name}] start"; '
+                f'sleep 1; '
+            )
+
+            if is_final_part and fail:
+                cmd += (
+                    f'echo "[{base_name}] FORCED FAILURE" >&2; '
+                    f'exit 1'
+                )
+            elif is_final_part:
+                cmd += f'echo "[{base_name}] done"'
+            else:
+                cmd += f'echo "[{name}] done"'
+
+            last_job = queue.submit(
+                cmd,
+                name=name,
+                depends=prev_depends,
+                **submit_kw,
+            )
+            prev_depends = [last_job]
+
+        return last_job
+
     # Level 1: four independent prep jobs — run fully in parallel.
-    prep_a = queue.submit(
-        'echo "[prep-A] start"; sleep 5; echo "[prep-A] done"',
-        name='prep-A', **submit_kw)
-    prep_b = queue.submit(
-        'echo "[prep-B] start"; sleep 7; echo "[prep-B] done"',
-        name='prep-B', **submit_kw)
-    prep_c = queue.submit(
-        'echo "[prep-C] start"; sleep 6; echo "[prep-C] done"',
-        name='prep-C', **submit_kw)
-    prep_d = queue.submit(
-        'echo "[prep-D] start"; sleep 8; echo "[prep-D] done"',
-        name='prep-D', **submit_kw)
+    # Each logical prep job is split into a serial chain of smaller jobs.
+    prep_a = submit_sleep_chain('prep-A', 5)
+    prep_b = submit_sleep_chain('prep-B', 7)
+    prep_c = submit_sleep_chain('prep-C', 6)
+    prep_d = submit_sleep_chain('prep-D', 8)
 
     # Level 2: each process job depends on exactly one prep job; some
     # may be forced to fail by --failures.
-    proc_a = queue.submit(
-        proc_cmd('proc-A', 3), name='proc-A', depends=[prep_a], **submit_kw)
-    proc_b = queue.submit(
-        proc_cmd('proc-B', 4), name='proc-B', depends=[prep_b], **submit_kw)
-    proc_c = queue.submit(
-        proc_cmd('proc-C', 5), name='proc-C', depends=[prep_c], **submit_kw)
-    proc_d = queue.submit(
-        proc_cmd('proc-D', 3), name='proc-D', depends=[prep_d], **submit_kw)
+    proc_a = submit_sleep_chain(
+        'proc-A', 3, depends=[prep_a], fail='proc-A' in fail_set)
+    proc_b = submit_sleep_chain(
+        'proc-B', 4, depends=[prep_b], fail='proc-B' in fail_set)
+    proc_c = submit_sleep_chain(
+        'proc-C', 5, depends=[prep_c], fail='proc-C' in fail_set)
+    proc_d = submit_sleep_chain(
+        'proc-D', 3, depends=[prep_d], fail='proc-D' in fail_set)
 
     # Level 3: two merge jobs, each waiting on a pair of proc jobs.
-    merge_x = queue.submit(
-        'echo "[merge-X] start"; sleep 4; echo "[merge-X] done"',
-        name='merge-X', depends=[proc_a, proc_b], **submit_kw)
-    merge_y = queue.submit(
-        'echo "[merge-Y] start"; sleep 3; echo "[merge-Y] done"',
-        name='merge-Y', depends=[proc_c, proc_d], **submit_kw)
+    merge_x = submit_sleep_chain(
+        'merge-X', 4, depends=[proc_a, proc_b])
+    merge_y = submit_sleep_chain(
+        'merge-Y', 3, depends=[proc_c, proc_d])
 
     # Level 4: single finalize job — the whole pipeline converges here.
-    queue.submit(
-        'echo "[final] start"; sleep 2; echo "[final] done"',
-        name='final', depends=[merge_x, merge_y], **submit_kw)
+    submit_sleep_chain(
+        'final', 2, depends=[merge_x, merge_y])
 
     queue.print_graph()
 
@@ -148,7 +178,7 @@ def main():
         block=True,
         monitor=args.mode,
         onfail='kill',
-        other_session_handler='kill',
+        other_session_handler='auto',
     )
 
     print(f'\nrun() returned: {result}')
