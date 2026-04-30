@@ -32,7 +32,7 @@ import contextlib
 import os
 import time
 import uuid
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Iterable, List, Optional
 
 import ubelt as ub
 
@@ -61,7 +61,7 @@ class AirflowJob(base_queue.Job):
         if name is None:
             name = 'job-' + str(uuid.uuid4())
         if depends is not None and not ub.iterable(depends):
-            depends = [depends]
+            depends = [depends]  # type: ignore
         self.unused_kwargs = kwargs
         self.command = command
         self.name = name
@@ -465,7 +465,8 @@ def demo() -> None:
     from datetime import timezone
     from datetime import datetime as datetime_cls
     from airflow.operators.bash import BashOperator
-    now = datetime_cls.utcnow().replace(tzinfo=timezone.utc)
+    now = datetime_cls.now(timezone.utc)
+    # now = datetime_cls.utcnow().replace(tzinfo=timezone.utc)
     dag = DAG(
         'mycustomdag',
         start_date=now,
@@ -475,7 +476,7 @@ def demo() -> None:
     t1 = BashOperator(task_id='task1', bash_command='date', dag=dag)
     t2 = BashOperator(task_id='task2', bash_command='echo hi 1 && true', dag=dag)
     t2.set_upstream(t1)
-    dag.run(verbose=True, local=True)
+    dag.run(verbose=True, local=True)  # type: ignore
 
 
 if __name__ == '__main__':

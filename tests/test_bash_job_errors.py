@@ -48,10 +48,10 @@ def test_bash_job_errors():
     pyexe = sys.executable
 
     self = BashJob(f'{pyexe} {script_fpath} --failflag --steps=4', 'myjob', log=True)
-    self.print_commands(1, 1)
+    self.print_commands(True, True)
 
     self = BashJob(f'{pyexe} {script_fpath}  --failflag --steps=4', 'myjob', log=False)
-    self.print_commands(1, 1)
+    self.print_commands(True, True)
 
 
 def test_tmux_queue_errors():
@@ -71,7 +71,7 @@ def test_tmux_queue_errors():
     job3 = queue.submit(f'{pyexe} {script_fpath} --steps=2 --steptime=0.5', log=log, depends=job2)
     job4 = queue.submit(f'{pyexe} {script_fpath} --steps=2 --steptime=0.5', log=log)
     # queue.submit(f'{pyexe} {script_fpath} --steps=2', log=log)
-    queue.print_commands(1, 1)
+    queue.print_commands(True, True)
     queue.write()
 
     if not queue.is_available():

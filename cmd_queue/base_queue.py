@@ -27,7 +27,7 @@ class Job(ub.NiceRepr):
     ) -> None:
         # This is unused, should the slurm and bash job reuse this?
         if depends is not None and not ub.iterable(depends):
-            depends = [depends]
+            depends = [depends]  # type: ignore
         self.name = name
         self.command = command
         self.depends = depends
@@ -279,7 +279,7 @@ class Queue(ub.NiceRepr):
         try:
             import rich as rich_mod
         except ImportError:
-            rich_mod = None
+            rich_mod = None  # type: ignore
         if rich == 'auto':
             rich = rich_mod is not None
 
@@ -429,14 +429,18 @@ class Queue(ub.NiceRepr):
                         graph.add_edge(dep.name, job.name)
         return graph
 
-    def monitor(self) -> None:
+    def monitor(self,
+                refresh_rate: float = 0.4,
+                with_textual: str | bool = 'auto',
+                onfail: str = '',
+                onexit: str = '') -> None:
         print('monitor not implemented')
 
     def _coerce_style(
         self,
         style: str = 'auto',
         with_rich: Optional[bool] = None,
-        colors: bool = True,
+        colors: bool | int = True,
     ) -> str:
         # Helper
         if with_rich is not None:

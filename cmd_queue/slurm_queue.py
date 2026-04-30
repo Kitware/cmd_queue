@@ -783,6 +783,9 @@ class SlurmQueue(base_queue.Queue):
     def monitor(
         self,
         refresh_rate: float = 0.4,
+        # TODO: use or document as unused or make the signature sane across
+        # clsses
+        with_textual: str | bool = 'auto',
         onfail: str = '',
         onexit: str = '',
     ) -> Optional[Any]:

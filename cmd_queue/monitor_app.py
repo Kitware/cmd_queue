@@ -1,6 +1,4 @@
 from __future__ import annotations
-# mypy: ignore-errors
-
 from types import ModuleType
 from typing import Any, Callable, Optional, Tuple
 
@@ -18,17 +16,17 @@ try:
     from cmd_queue.util import texter as textual
     # import ubelt as ub
 except ImportError:
-    rich: ModuleType = None
-    textual: ModuleType = None
-    events: ModuleType = None
-    ScrollView: type = object
-    Widget: type = object
-    DockView: type = object
-    InstanceRunnableApp: type = object
-    ExtHeader: type = object
+    rich: ModuleType = None  # type: ignore
+    textual: ModuleType = None  # type: ignore
+    events: ModuleType = None  # type: ignore
+    ScrollView: type = object  # type: ignore
+    Widget: type = object  # type: ignore
+    DockView: type = object  # type: ignore
+    InstanceRunnableApp: type = object  # type: ignore
+    ExtHeader: type = object  # type: ignore
 
 
-class JobTable(Widget):
+class JobTable(Widget):  # type: ignore
 
     def __init__(
         self,

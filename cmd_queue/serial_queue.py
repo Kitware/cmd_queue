@@ -105,8 +105,9 @@ class BashJob(base_queue.Job):
     ) -> None:
 
         if depends is not None and not ub.iterable(depends):
-            depends = [depends]
+            depends = [depends]  # type: ignore
         self.name = name
+        assert self.name is not None
         self.pathid = self.name + '_' + ub.hash_data(uuid.uuid4())[0:8]
         self.kwargs = kwargs  # unused kwargs
         self.cwd = cwd
@@ -186,7 +187,7 @@ class BashJob(base_queue.Job):
                         v2 = conditionals.get(k)
                         if not ub.iterable(v2):
                             v2 = [v2]
-                        v.extend(v2)
+                        v.extend(v2)  # type: ignore
 
         if with_status:
             prefix_script.append('# Ensure job status directory')
@@ -709,7 +710,7 @@ class SerialQueue(base_queue.Queue):
         text = '\n'.join(script)
         return text
 
-    def add_header_command(self, command: str) -> None:
+    def add_header_command(self, command: str) -> None:  # type: ignore
         ub.schedule_deprecation(
             modname='cmd_queue',
             name='add_header_command',
