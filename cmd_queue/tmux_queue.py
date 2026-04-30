@@ -688,6 +688,7 @@ class TMUXMultiQueue(base_queue.Queue):
                 self.kill_other_queues(ask_first=True)
 
         self.write()
+        self._write_monitor_manifest()
         ub.cmd(f'bash {self.fpath}', verbose=self.cmd_verbose, check=True,
                system=system)
         if block:

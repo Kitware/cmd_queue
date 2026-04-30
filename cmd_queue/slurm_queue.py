@@ -463,6 +463,7 @@ class SlurmQueue(base_queue.Queue):
         self.jobs = []
         if name is None:
             name = 'SQ'
+        self.name = name
         stamp = time.strftime('%Y%m%dT%H%M%S')
         self.unused_kwargs = kwargs
         self.queue_id = name + '-' + stamp + '-' + ub.hash_data(uuid.uuid4())[0:8]
@@ -697,6 +698,7 @@ class SlurmQueue(base_queue.Queue):
             raise Exception('slurm backend is not available')
         self.log_dpath.ensuredir()
         self.write()
+        self._write_monitor_manifest()
         ub.cmd(f'bash {self.fpath}', verbose=3, check=True, system=system)
         if block:
             return self.monitor()
@@ -914,7 +916,7 @@ class SlurmQueue(base_queue.Queue):
         """Snapshot enough state for an out-of-process monitor to reattach."""
         return {
             'backend': 'slurm',
-            'name': self.name if hasattr(self, 'name') else self.queue_id,
+            'name': self.name or self.queue_id,
             'queue_id': self.queue_id,
             'dpath': str(self.dpath),
             'fpath': str(self.fpath),
@@ -928,9 +930,11 @@ class SlurmQueue(base_queue.Queue):
         path = mm.manifest_path_for_dpath(self.dpath)
         manifest = self._build_monitor_manifest()
         mm.write_manifest(manifest, path)
-        # Use queue_id as the active-index name; SlurmQueue does not require a
-        # human name, so this lets `cmd_queue monitor <queue_id>` work too.
-        mm.update_active_index(manifest['name'], path)
+        # Register under both queue_id (always unique) and the user-supplied
+        # name (when distinct) so `cmd_queue monitor <name-or-id>` finds it.
+        mm.update_active_index(self.queue_id, path)
+        if self.name and self.name != self.queue_id:
+            mm.update_active_index(self.name, path)
         return path
 
     @classmethod
