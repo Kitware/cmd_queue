@@ -715,8 +715,7 @@ class TMUXMultiQueue(base_queue.Queue):
             with_textual=with_textual,
         )
 
-    @staticmethod
-    def _print_done_summary(agg_state: Dict[str, Any]) -> None:
+    def _print_done_summary(self, agg_state: Dict[str, Any]) -> None:
         from rich import print as rich_print
         failed = agg_state.get('failed', 0)
         passed = agg_state.get('passed', 0)
@@ -733,6 +732,32 @@ class TMUXMultiQueue(base_queue.Queue):
             f'skipped=[yellow]{skipped}[/yellow]  '
             f'total={total}'
         )
+        if failed:
+            failed_jobs = []
+            for worker in self.workers:
+                for job in getattr(worker, 'jobs', []):
+                    fail_fpath = getattr(job, 'fail_fpath', None)
+                    if fail_fpath is not None and fail_fpath.exists():
+                        failed_jobs.append(job)
+            if failed_jobs:
+                rich_print('[bold red]Failed jobs:[/bold red]')
+                any_log_missing = False
+                for job in failed_jobs:
+                    log_fpath = getattr(job, 'log_fpath', None)
+                    if (getattr(job, 'log', False) and log_fpath is not None
+                            and log_fpath.exists()):
+                        rich_print(
+                            f'  [red]{job.name}[/red]  log: {log_fpath}'
+                        )
+                    else:
+                        any_log_missing = True
+                        rich_print(f'  [red]{job.name}[/red]')
+                if any_log_missing:
+                    rich_print(
+                        '[yellow]Note:[/yellow] failure logs are not '
+                        'enabled for some jobs (pass log=True at '
+                        'submit time to capture stdout/stderr to disk).'
+                    )
 
     def _dispatch_monitor(
         self,
@@ -933,6 +958,7 @@ class TMUXMultiQueue(base_queue.Queue):
             self.capture()
         if onfail == 'kill' and not agg_state.get('failed'):
             self.kill()
+        self._print_done_summary(agg_state)
         return agg_state
 
     def _textual_monitor(self):
