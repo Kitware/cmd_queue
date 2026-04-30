@@ -1212,6 +1212,16 @@ class TMUXMultiQueue(base_queue.Queue):
         """Snapshot enough state for an out-of-process monitor to reattach."""
         workers_info = []
         for worker in self.workers:
+            jobs_info = []
+            for job in getattr(worker, 'jobs', []):
+                fail_fpath = getattr(job, 'fail_fpath', None)
+                log_fpath = getattr(job, 'log_fpath', None)
+                jobs_info.append({
+                    'name': getattr(job, 'name', None),
+                    'log': bool(getattr(job, 'log', False)),
+                    'fail_fpath': str(fail_fpath) if fail_fpath else None,
+                    'log_fpath': str(log_fpath) if log_fpath else None,
+                })
             workers_info.append({
                 'name': worker.name,
                 'rootid': worker.rootid,
@@ -1220,6 +1230,7 @@ class TMUXMultiQueue(base_queue.Queue):
                 'state_fpath': str(worker.state_fpath),
                 'fpath': str(worker.fpath),
                 'environ': dict(worker.environ or {}),
+                'jobs': jobs_info,
             })
         return {
             'backend': 'tmux',
@@ -1262,15 +1273,29 @@ class TMUXMultiQueue(base_queue.Queue):
         self.job_info_dpath = self.dpath / 'job_info'
         self.preamble = []
         self.jobs = []
-        self.workers = [
-            serial_queue.SerialQueue(
+        import types
+        workers = []
+        for w in manifest.get('workers', []):
+            worker = serial_queue.SerialQueue(
                 name=w['name'],
                 rootid=w['rootid'],
                 dpath=ub.Path(w['dpath']),
                 environ=w.get('environ') or {},
             )
-            for w in manifest.get('workers', [])
-        ]
+            # Rehydrate lightweight job stubs so the monitor can show
+            # per-job failure rows. We don't need the full BashJob — only
+            # the attributes the failed-jobs renderer reads.
+            stubs = []
+            for j in w.get('jobs') or []:
+                stubs.append(types.SimpleNamespace(
+                    name=j.get('name'),
+                    log=bool(j.get('log', False)),
+                    fail_fpath=ub.Path(j['fail_fpath']) if j.get('fail_fpath') else None,
+                    log_fpath=ub.Path(j['log_fpath']) if j.get('log_fpath') else None,
+                ))
+            worker.jobs = stubs
+            workers.append(worker)
+        self.workers = workers
         return self
 
 
