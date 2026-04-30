@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
 # PYTHON_ARGCOMPLETE_OK
-from __future__ import annotations
-
-# mypy: ignore-errors
-
 """
 This is the main script for the cmd_queue CLI. The :class:`CmdQueueConfig`
 defines the available options and its docstring provides a quick tutorial.
@@ -14,6 +10,7 @@ For help run:
     cmd_queue --help
 
 """
+from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Callable
 
 import rich

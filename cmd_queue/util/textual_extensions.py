@@ -1,9 +1,5 @@
 from __future__ import annotations
-
-# mypy: ignore-errors
 from typing import Any
-
-# from typing import Any
 
 
 try:

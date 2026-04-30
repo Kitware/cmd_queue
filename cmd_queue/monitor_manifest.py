@@ -1,7 +1,3 @@
-from __future__ import annotations
-
-# mypy: ignore-errors
-
 """
 Persistent metadata describing a queue at run-time so that a monitor process
 can reattach to it without holding a live queue object.
@@ -20,6 +16,7 @@ An "active queue" index in ``~/.cache/cmd_queue/active/<name>.json`` maps
 a human queue name to the most recent manifest path so that
 ``cmd_queue monitor <qname>`` can find it.
 """
+from __future__ import annotations
 import json
 from typing import Any, Dict, Optional
 

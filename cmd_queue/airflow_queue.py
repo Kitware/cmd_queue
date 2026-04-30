@@ -1,7 +1,3 @@
-from __future__ import annotations
-
-# mypy: ignore-errors
-
 r"""Airflow backend.
 
 Note:
@@ -29,6 +25,7 @@ Example:
     >>> print((queue.dags_dpath / 'cmdq_airflow_mwe.py').exists())
     True
 """
+from __future__ import annotations
 import contextlib
 import os
 import time

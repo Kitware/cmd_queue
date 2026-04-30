@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 r"""
 Helper script to wrap a command with sbatch, but using a more srun like syntax.
 
@@ -15,8 +16,6 @@ Helper script to wrap a command with sbatch, but using a more srun like syntax.
         -- \
             python -c 'import sys; print("hello world"); sys.exit(0)'
 """
-
-#!/usr/bin/env python3
 import scriptconfig as scfg
 import ubelt as ub
 

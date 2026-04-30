@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 r"""
 Work in progress. The idea is to provide a TMUX queue and a SLURM queue that
 provide a common high level API, even though functionality might diverge, the
@@ -39,6 +37,7 @@ Example:
     >>>     else:
     >>>         print('output does not exist')
 """
+from __future__ import annotations
 from typing import Any, Dict, Iterable, List, Optional, Union
 
 import ubelt as ub

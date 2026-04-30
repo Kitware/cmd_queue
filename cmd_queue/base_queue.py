@@ -1,6 +1,4 @@
 from __future__ import annotations
-
-# mypy: ignore-errors
 from typing import Any, Dict, Iterable, List, Optional, Union
 
 import ubelt as ub

@@ -1,7 +1,3 @@
-from __future__ import annotations
-
-# mypy: ignore-errors
-
 """
 This file defines a helper scriptconfig base config that can be used to help
 make cmd_queue CLIs so cmd_queue options are standardized and present at the
@@ -99,6 +95,7 @@ Example:
     >>> print('----------------')
     >>> my_cli_main(cmdline=0, run=1, print_queue=0, print_commands=0)
 """
+from __future__ import annotations
 import typing
 from typing import Any, Dict, Optional
 

@@ -1,7 +1,3 @@
-from __future__ import annotations
-
-# mypy: ignore-errors
-
 """
 A very simple queue based on tmux and bash
 
@@ -52,6 +48,7 @@ Example:
     >>>     queue.run()
 
 """
+from __future__ import annotations
 import uuid
 from typing import Any, Dict, Iterable, List, Optional
 

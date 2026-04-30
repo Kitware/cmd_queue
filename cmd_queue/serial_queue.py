@@ -1,12 +1,9 @@
-from __future__ import annotations
-
-# mypy: ignore-errors
-
 """
 References:
     https://jmmv.dev/2018/03/shell-readability-strict-mode.html
     https://stackoverflow.com/questions/13195655/bash-set-x-without-it-being-printed
 """
+from __future__ import annotations
 import uuid
 from typing import Any, Dict, Iterable, List, Optional
 
