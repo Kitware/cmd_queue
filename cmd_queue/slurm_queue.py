@@ -1,6 +1,4 @@
 from __future__ import annotations
-# mypy: ignore-errors
-
 r"""
 Work in progress. The idea is to provide a TMUX queue and a SLURM queue that
 provide a common high level API, even though functionality might diverge, the
@@ -246,7 +244,7 @@ class SlurmJob(base_queue.Job):
         begin: Optional[Any] = None,
         shell: Optional[Any] = None,
         tags: Optional[Any] = None,
-        preamble: Optional[List[str]] = None,
+        preamble: List[str] | str | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__()
@@ -254,7 +252,7 @@ class SlurmJob(base_queue.Job):
             import uuid
             name = 'job-' + str(uuid.uuid4())
         if depends is not None and not ub.iterable(depends):
-            depends = [depends]
+            depends = [depends]  # type: ignore
         self.unused_kwargs = kwargs
         self.command = command
         self.name = name
@@ -855,6 +853,7 @@ class SlurmQueue(base_queue.Queue):
 
         def update_jobid_status():
             import rich
+            assert job_status_table is not None
             for row in job_status_table:
                 if row['needs_update']:
                     job_id = row['job_id']

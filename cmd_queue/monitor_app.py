@@ -55,7 +55,7 @@ class JobTable(Widget):
         return table
 
 
-class CmdQueueMonitorApp(InstanceRunnableApp):
+class CmdQueueMonitorApp(InstanceRunnableApp):  # type: ignore
     """
     A Textual App to monitor jobs
     """
@@ -121,7 +121,7 @@ class CmdQueueMonitorApp(InstanceRunnableApp):
     async def on_mount(self, event: Any) -> None:
         # from textual.layouts.vertical import VerticalLayout
 
-        view: DockView = await self.push_view(DockView())
+        view: DockView = await self.push_view(DockView())  # type: ignore
         header = ExtHeader(tall=False)
         footer = textual.widgets.Footer()
         # panel = rich.panel.Panel()

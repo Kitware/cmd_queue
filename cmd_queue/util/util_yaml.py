@@ -104,10 +104,10 @@ def _custom_new_ruaml_yaml_obj():
     import ruamel.yaml
     # make a new instance, although you could get the YAML
     # instance from the constructor argument
-    class CustomConstructor(ruamel.yaml.constructor.RoundTripConstructor):
+    class CustomConstructor(ruamel.yaml.constructor.RoundTripConstructor):  # type: ignore
         ...
 
-    class CustomRepresenter(ruamel.yaml.representer.RoundTripRepresenter):
+    class CustomRepresenter(ruamel.yaml.representer.RoundTripRepresenter):  # type: ignore
         ...
 
     CustomRepresenter.add_representer(str, _YamlRepresenter.str_presenter)
@@ -139,7 +139,7 @@ def _custom_new_ruaml_yaml_obj():
     yaml_obj.Constructor = CustomConstructor
     yaml_obj.Representer = CustomRepresenter
     yaml_obj.preserve_quotes = True
-    yaml_obj.width = float('inf')
+    yaml_obj.width = float('inf')  # type: ignore
     return yaml_obj
 
 
@@ -389,7 +389,7 @@ class Yaml:
             .. [SO56937691] https://stackoverflow.com/questions/56937691/making-yaml-ruamel-yaml-always-dump-lists-inline
         """
         import ruamel.yaml
-        ret = ruamel.yaml.comments.CommentedSeq(items)
+        ret = ruamel.yaml.comments.CommentedSeq(items)  # type: ignore
         ret.fa.set_flow_style()
         return ret
 
@@ -408,10 +408,10 @@ class Yaml:
             >>> print(Yaml.dumps(data))
         """
         import ruamel.yaml
-        ret = ruamel.yaml.comments.CommentedMap(data)
+        ret = ruamel.yaml.comments.CommentedMap(data)  # type: ignore
         return ret
 
     @staticmethod
     def CodeBlock(text):
         import ruamel.yaml
-        return ruamel.yaml.scalarstring.LiteralScalarString(ub.codeblock(text))
+        return ruamel.yaml.scalarstring.LiteralScalarString(ub.codeblock(text))  # type: ignore

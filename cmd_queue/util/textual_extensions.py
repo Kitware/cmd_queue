@@ -47,12 +47,12 @@ class class_or_instancemethod(classmethod):
         >>> print(X().foo())
         bound to the instance
     """
-    def __get__(self, instance: Any, type_: Any) -> Any:
-        descr_get = super().__get__ if instance is None else self.__func__.__get__
+    def __get__(self, instance: Any, type_: Any) -> Any:  # type: ignore
+        descr_get = super().__get__ if instance is None else self.__func__.__get__  # type: ignore
         return descr_get(instance, type_)
 
 
-class InstanceRunnableApp(App):
+class InstanceRunnableApp(App):  # type: ignore
     """
     Extension of App that allows for running an instance
 
@@ -155,7 +155,7 @@ class InstanceRunnableApp(App):
 
 
 try:
-    class ExtHeader(Widget):
+    class ExtHeader(Widget):  # type: ignore
         """
         """
         def __init__(
@@ -229,4 +229,4 @@ try:
             """
             self.tall = not self.tall
 except Exception:
-    ExtHeader = None
+    ExtHeader = None  # type: ignore

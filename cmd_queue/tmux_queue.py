@@ -885,7 +885,7 @@ class TMUXMultiQueue(base_queue.Queue):
     def monitor(
         self,
         refresh_rate: float = 0.4,
-        with_textual: str = 'auto',
+        with_textual: str | bool = 'auto',
         onfail: str = '',
         onexit: str = '',
     ) -> None:
@@ -1393,7 +1393,7 @@ try:
     if not hasattr(CmdQueueMonitorApp, 'run'):
         raise ImportError('Current textual monitor is broken on new versions')
 except ImportError:
-    CmdQueueMonitorApp = None
+    CmdQueueMonitorApp = None  # type: ignore
 
 
 if 0:
