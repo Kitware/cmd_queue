@@ -692,13 +692,11 @@ class TMUXMultiQueue(base_queue.Queue):
         ub.cmd(f'bash {self.fpath}', verbose=self.cmd_verbose, check=True,
                system=system)
         if block:
-            agg_state = self.monitor(with_textual=with_textual)
-            if onexit == 'capture':
-                self.capture()
-            if not agg_state['failed']:
-                if onfail == 'kill':
-                    self.kill()
-            return agg_state
+            return self.monitor(
+                with_textual=with_textual,
+                onfail=onfail,
+                onexit=onexit,
+            )
 
     def read_state(self) -> Any:
         agg_state = {}
@@ -735,9 +733,28 @@ class TMUXMultiQueue(base_queue.Queue):
         for fpath in queue_fpaths:
             ub.cmd(f'{fpath}', verbose=self.cmd_verbose, check=True)
 
-    def monitor(self, refresh_rate: float = 0.4, with_textual: str = 'auto') -> None:
+    def monitor(
+        self,
+        refresh_rate: float = 0.4,
+        with_textual: str = 'auto',
+        onfail: str = '',
+        onexit: str = '',
+    ) -> None:
         """
-        Monitor progress until the jobs are done
+        Monitor progress until the jobs are done.
+
+        Owns post-run cleanup so that whether the monitor runs inline or
+        in a separate process (tmux monitor backend, ``cmd_queue
+        monitor`` CLI), the same finalization happens.
+
+        Args:
+            onfail (str): if ``'kill'`` and the queue ends with no
+                failures, kill the now-idle tmux sessions. (The arg is
+                named for historical reasons; the original behavior was
+                "tear down on a clean exit, leave alive on failure so
+                the user can investigate.")
+            onexit (str): if ``'capture'``, dump tmux pane contents
+                after the queue finishes.
 
         CommandLine:
             xdoctest -m cmd_queue.tmux_queue TMUXMultiQueue.monitor:0
@@ -794,6 +811,10 @@ class TMUXMultiQueue(base_queue.Queue):
         else:
             self._simple_rich_monitor(refresh_rate)
         table, finished, agg_state = self._build_status_table()
+        if onexit == 'capture':
+            self.capture()
+        if onfail == 'kill' and not agg_state.get('failed'):
+            self.kill()
         return agg_state
 
     def _textual_monitor(self):

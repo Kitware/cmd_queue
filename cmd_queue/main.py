@@ -345,15 +345,14 @@ class CmdQueueCLI(scfg.ModalCLI):
                 pass
             if 'with_textual' in queue.monitor.__code__.co_varnames:
                 kwargs['with_textual'] = config.with_textual
-            agg_state = queue.monitor(**kwargs)
-            agg_state = agg_state or {}
-            if config.onexit == 'capture' and hasattr(queue, 'capture'):
-                queue.capture()
-            # The existing TMUXMultiQueue.run semantics: if everything passed
-            # and onfail='kill', clean up the now-idle tmux sessions. If
-            # anything failed, leave them alive so the user can investigate.
-            if config.onfail == 'kill' and not agg_state.get('failed'):
-                queue.kill()
+            # monitor() owns post-run cleanup; only forward the kwargs the
+            # backend's monitor signature actually accepts.
+            varnames = queue.monitor.__code__.co_varnames
+            if 'onfail' in varnames:
+                kwargs['onfail'] = config.onfail
+            if 'onexit' in varnames:
+                kwargs['onexit'] = config.onexit
+            queue.monitor(**kwargs)
 
     class show(CommonShowRun):
         """

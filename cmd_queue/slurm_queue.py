@@ -693,7 +693,14 @@ class SlurmQueue(base_queue.Queue):
         text = '\n'.join(commands)
         return text
 
-    def run(self, block: bool = True, system: bool = False, **kw: Any) -> Optional[Any]:
+    def run(
+        self,
+        block: bool = True,
+        system: bool = False,
+        onfail: str = '',
+        onexit: str = '',
+        **kw: Any,
+    ) -> Optional[Any]:
         if not self.is_available():
             raise Exception('slurm backend is not available')
         self.log_dpath.ensuredir()
@@ -701,11 +708,28 @@ class SlurmQueue(base_queue.Queue):
         self._write_monitor_manifest()
         ub.cmd(f'bash {self.fpath}', verbose=3, check=True, system=system)
         if block:
-            return self.monitor()
+            return self.monitor(onfail=onfail, onexit=onexit)
 
-    def monitor(self, refresh_rate: float = 0.4) -> Optional[Any]:
+    def monitor(
+        self,
+        refresh_rate: float = 0.4,
+        onfail: str = '',
+        onexit: str = '',
+    ) -> Optional[Any]:
         """
-        Monitor progress until the jobs are done
+        Monitor progress until the jobs are done.
+
+        Owns post-run cleanup so that whether the monitor runs inline or
+        in a separate process (tmux monitor backend, ``cmd_queue
+        monitor`` CLI), the same finalization happens.
+
+        Args:
+            onfail (str): if ``'kill'``, scancel the queue's jobs after
+                the monitor exits when there are failures. Slurm has no
+                tmux-style sessions to clean up on success, so this only
+                fires on failure.
+            onexit (str): currently unused for slurm (kept for API
+                parity with the tmux backend).
 
         CommandLine:
             xdoctest -m cmd_queue.slurm_queue SlurmQueue.monitor --dev --run
@@ -886,6 +910,16 @@ class SlurmQueue(base_queue.Queue):
 
             return table, finished
 
+        agg_state: Dict[str, Any] = {}
+
+        def _update_agg_state() -> None:
+            if job_status_table is None:
+                return
+            counts = ub.dict_hist([row['status'] for row in job_status_table])
+            for key in ('passed', 'failed', 'skipped'):
+                agg_state[key] = counts.get(key, 0)
+            agg_state['total'] = len(job_status_table)
+
         try:
             table, finished = update_status_table()
             refresh_rate = 0.4
@@ -894,11 +928,19 @@ class SlurmQueue(base_queue.Queue):
                     time.sleep(refresh_rate)
                     table, finished = update_status_table()
                     live.update(table)
+            _update_agg_state()
         except KeyboardInterrupt:
             from rich.prompt import Confirm
             flag = Confirm.ask('do you to kill the procs?')
             if flag:
                 self.kill()
+            return agg_state
+
+        # Slurm has no idle sessions to clean up on success, so onfail='kill'
+        # only fires when there are observed failures.
+        if onfail == 'kill' and agg_state.get('failed'):
+            self.kill()
+        return agg_state
 
     def kill(self) -> None:
         cancel_commands = []
