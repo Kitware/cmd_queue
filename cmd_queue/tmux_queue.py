@@ -987,6 +987,57 @@ class TMUXMultiQueue(base_queue.Queue):
                     self.kill()
                     is_running = False
 
+    def _build_failed_jobs_renderable(self) -> Any:
+        """Renderable summary of currently-failed jobs, or None.
+
+        Used by the live monitor to surface failures (and their log
+        paths, when available) as soon as they happen, rather than only
+        in the post-run summary.
+        """
+        failed_jobs = []
+        for worker in self.workers:
+            for job in getattr(worker, 'jobs', []):
+                fail_fpath = getattr(job, 'fail_fpath', None)
+                if fail_fpath is not None and fail_fpath.exists():
+                    failed_jobs.append(job)
+        if not failed_jobs:
+            return None
+        from rich.table import Table
+        from rich.console import Group
+        from rich.text import Text
+        ftable = Table(
+            title='Failed jobs', title_style='bold red',
+            show_header=True, header_style='red',
+        )
+        ftable.add_column('name', style='red')
+        ftable.add_column('log')
+        any_log_missing = False
+        for job in failed_jobs:
+            log_fpath = getattr(job, 'log_fpath', None)
+            if (getattr(job, 'log', False) and log_fpath is not None
+                    and log_fpath.exists()):
+                ftable.add_row(job.name, str(log_fpath))
+            else:
+                any_log_missing = True
+                ftable.add_row(job.name, '[dim](no log)[/dim]')
+        if any_log_missing:
+            return Group(
+                ftable,
+                Text(
+                    'Note: failure logs are not enabled for some jobs '
+                    '(pass log=True at submit time).',
+                    style='yellow',
+                ),
+            )
+        return ftable
+
+    def _build_live_renderable(self):
+        from rich.console import Group
+        table, finished, agg_state = self._build_status_table()
+        failed = self._build_failed_jobs_renderable()
+        renderable = Group(table, failed) if failed is not None else table
+        return renderable, finished, agg_state
+
     def _simple_rich_monitor(self, refresh_rate=0.4):
         import time
         from rich.live import Live
@@ -995,12 +1046,14 @@ class TMUXMultiQueue(base_queue.Queue):
             for command in self._kill_commands():
                 print(command)
         try:
-            table, finished, agg_state = self._build_status_table()
-            with Live(table, refresh_per_second=4) as live:
+            renderable, finished, agg_state = self._build_live_renderable()
+            with Live(renderable, refresh_per_second=4) as live:
                 while not finished:
                     time.sleep(refresh_rate)
-                    table, finished, agg_state = self._build_status_table()
-                    live.update(table)
+                    renderable, finished, agg_state = (
+                        self._build_live_renderable()
+                    )
+                    live.update(renderable)
         except KeyboardInterrupt:
             from rich.prompt import Confirm
             flag = Confirm.ask('do you to kill the procs?')
