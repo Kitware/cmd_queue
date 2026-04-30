@@ -717,7 +717,7 @@ class SerialQueue(base_queue.Queue):
             migration='use preamble kwarg or add_preamble_command instead',
             deprecate='now',
         )
-        self.add_preamble_command.append(command)
+        self.add_preamble_command(command)
 
     def add_preamble_command(self, command: Any) -> None:
         if isinstance(command, list):
