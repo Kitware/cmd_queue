@@ -44,8 +44,8 @@ CommandLine:
     python ~/code/cmd_queue/examples/tmux_example.py --failures=0
 """
 
-import ubelt as ub
 import scriptconfig as scfg
+import ubelt as ub
 
 
 class TmuxExampleConfig(scfg.DataConfig):

@@ -1,19 +1,19 @@
 from __future__ import annotations
+
 from types import ModuleType
 from typing import Any, Callable, Optional, Tuple
 
 try:
     from textual import events
-    from textual.widgets import ScrollView
-    from textual.widget import Widget
     from textual.views import DockView
-    from cmd_queue.util.textual_extensions import ExtHeader
-    from cmd_queue.util.textual_extensions import InstanceRunnableApp
+    from textual.widget import Widget
+    from textual.widgets import ScrollView
 
     # from rich.panel import Panel
     # from rich.text import Text
     from cmd_queue.util import richer as rich
     from cmd_queue.util import texter as textual
+    from cmd_queue.util.textual_extensions import ExtHeader, InstanceRunnableApp
     # import ubelt as ub
 except ImportError:
     rich: ModuleType = None  # type: ignore

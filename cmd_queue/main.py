@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # PYTHON_ARGCOMPLETE_OK
 from __future__ import annotations
+
 # mypy: ignore-errors
 
 """
@@ -13,7 +14,7 @@ For help run:
     cmd_queue --help
 
 """
-from typing import Any, Callable, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable
 
 import rich
 import scriptconfig as scfg
@@ -119,8 +120,9 @@ class CommonShowRun(CommonConfig):
     )
 
     def _build_queue(config) -> 'cmd_queue.Queue':
-        import cmd_queue
         import json
+
+        import cmd_queue
 
         queue = cmd_queue.Queue.create(
             size=max(1, config['workers']),

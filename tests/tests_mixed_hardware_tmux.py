@@ -5,8 +5,9 @@ def test_mixed_hardware():
     tree_jobs.
     """
 
-    import cmd_queue
     import ubelt as ub
+
+    import cmd_queue
 
     backend = 'tmux'
 

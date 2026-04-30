@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 # mypy: ignore-errors
 
 r"""Airflow backend.
@@ -228,14 +229,15 @@ class AirflowQueue(base_queue.Queue):
                 'Non-blocking airflow runs are not implemented yet'
             )
         with self._patched_env(env):
-            from airflow.utils import db
-            from airflow.models.dagbag import DagBag
-            from airflow.models.serialized_dag import DagVersion
-            from airflow.models.dagbundle import DagBundleModel
-            from airflow.models.dag import DagModel
-            from airflow.utils.session import create_session
-            import sys
             import contextlib
+            import sys
+
+            from airflow.models.dag import DagModel
+            from airflow.models.dagbag import DagBag
+            from airflow.models.dagbundle import DagBundleModel
+            from airflow.models.serialized_dag import DagVersion
+            from airflow.utils import db
+            from airflow.utils.session import create_session
 
             if hasattr(db, 'resetdb'):
                 db.resetdb()
@@ -295,9 +297,9 @@ class AirflowQueue(base_queue.Queue):
         """
         env = self._airflow_env()
         with self._patched_env(env):
-            from airflow.utils.session import create_session
             from airflow.models.dagrun import DagRun
             from airflow.models.taskinstance import TaskInstance
+            from airflow.utils.session import create_session
             from sqlalchemy import select
 
             try:
@@ -307,7 +309,9 @@ class AirflowQueue(base_queue.Queue):
                 failed_state = TaskInstanceState.FAILED
                 skipped_state = TaskInstanceState.SKIPPED
             except Exception:  # pragma: no cover
-                from airflow.utils.state import State as TaskInstanceState  # type: ignore
+                from airflow.utils.state import (
+                    State as TaskInstanceState,  # type: ignore
+                )
 
                 success_state = TaskInstanceState.SUCCESS
                 failed_state = TaskInstanceState.FAILED
@@ -464,9 +468,9 @@ class AirflowQueue(base_queue.Queue):
         code = self.finalize_text()
 
         if style == 'rich':
+            from rich.console import Console
             from rich.panel import Panel
             from rich.syntax import Syntax
-            from rich.console import Console
 
             console = Console()
             console.print(Panel(Syntax(code, 'python'), title=str(self.fpath)))
@@ -494,9 +498,10 @@ def demo() -> None:
         from cmd_queue.airflow_queue import *  # NOQA
         demo()
     """
-    from airflow import DAG
-    from datetime import timezone
     from datetime import datetime as datetime_cls
+    from datetime import timezone
+
+    from airflow import DAG
     from airflow.operators.bash import BashOperator
 
     now = datetime_cls.now(timezone.utc)

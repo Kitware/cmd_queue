@@ -1,6 +1,7 @@
 def main():
-    import cmd_queue
     import ubelt as ub
+
+    import cmd_queue
 
     queue = cmd_queue.Queue.create(
         backend='slurm', partition='project123', account='user123', ntasks=1

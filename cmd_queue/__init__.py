@@ -313,7 +313,6 @@ __submodules__ = {
     'base_queue': ['Queue'],
 }
 from cmd_queue import base_queue
-
 from cmd_queue.base_queue import (
     Queue,
 )

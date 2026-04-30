@@ -1,7 +1,7 @@
 import io
 import os
-import ubelt as ub
 
+import ubelt as ub
 
 NEW_RUAMEL = 1
 

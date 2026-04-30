@@ -46,7 +46,6 @@ import ubelt as ub
 from cmd_queue import base_queue  # NOQA
 from cmd_queue.util import util_tags
 
-
 try:
     from functools import cache  # Python 3.9+ only
 except ImportError:
@@ -475,8 +474,8 @@ class SlurmQueue(base_queue.Queue):
         **kwargs: Any,
     ) -> None:
         super().__init__()
-        import uuid
         import time
+        import uuid
 
         self.jobs = []
         if name is None:
@@ -782,7 +781,6 @@ class SlurmQueue(base_queue.Queue):
                     'falling back to inline monitor.'
                 )
                 return self.monitor(onfail=onfail, onexit=onexit)
-            from cmd_queue.tmux_queue import has_stdin
             from cmd_queue.util.util_tmux import tmux as _tmux
 
             extra_args = []
@@ -871,11 +869,12 @@ class SlurmQueue(base_queue.Queue):
             >>> queue.run()
         """
 
+        import io
         import time
+
+        import pandas as pd
         from rich.live import Live
         from rich.table import Table
-        import io
-        import pandas as pd
 
         jobid_history = set()
 

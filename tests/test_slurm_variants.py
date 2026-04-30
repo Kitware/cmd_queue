@@ -1,6 +1,7 @@
 # test_slurm_preamble_insertion.py
 import shlex
-from cmd_queue.slurm_queue import SlurmQueue, SlurmJob
+
+from cmd_queue.slurm_queue import SlurmJob, SlurmQueue
 
 
 def _extract_wrap_payload(sbatch_args):

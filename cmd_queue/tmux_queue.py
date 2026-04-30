@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 # mypy: ignore-errors
 
 """
@@ -55,10 +56,9 @@ import uuid
 from typing import Any, Dict, Iterable, List, Optional
 
 import ubelt as ub
-# import itertools as it
 
-from cmd_queue import base_queue
-from cmd_queue import serial_queue
+# import itertools as it
+from cmd_queue import base_queue, serial_queue
 from cmd_queue.util.util_tmux import tmux
 
 
@@ -510,8 +510,8 @@ class TMUXMultiQueue(base_queue.Queue):
                 rankings[rank].update(members)
 
         if 0:
-            from graphid.util import util_graphviz
             import kwplot
+            from graphid.util import util_graphviz
 
             kwplot.autompl()
             util_graphviz.show_nx(graph, fnum=1)
@@ -1121,8 +1121,8 @@ class TMUXMultiQueue(base_queue.Queue):
         failed, skipped, status_by_name = self._collect_failed_and_skipped()
         if not failed and not skipped:
             return None
-        from rich.table import Table
         from rich.console import Group
+        from rich.table import Table
         from rich.text import Text
 
         renderables = []
@@ -1187,6 +1187,7 @@ class TMUXMultiQueue(base_queue.Queue):
 
     def _simple_rich_monitor(self, refresh_rate=0.4):
         import time
+
         from rich.live import Live
 
         if 0:

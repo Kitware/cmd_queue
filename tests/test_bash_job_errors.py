@@ -42,10 +42,10 @@ def test_bash_job_errors():
 
     dpath = ub.Path.appdir('cmd_queue', 'tests', 'test_bash_job_errors')
     dpath.delete().ensuredir()
-    from cmd_queue.serial_queue import BashJob
-
     # Demo full boilerplate for a job with no dependencies
     import sys
+
+    from cmd_queue.serial_queue import BashJob
 
     sys.executable
 
@@ -65,8 +65,10 @@ def test_bash_job_errors():
 
 
 def test_tmux_queue_errors():
-    import ubelt as ub
     import sys
+
+    import ubelt as ub
+
     import cmd_queue
 
     dpath = ub.Path.appdir('cmd_queue', 'tests', 'test_tmux_queue_errors')

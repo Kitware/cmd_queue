@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 # mypy: ignore-errors
 
 """
@@ -98,8 +99,8 @@ Example:
     >>> print('----------------')
     >>> my_cli_main(cmdline=0, run=1, print_queue=0, print_commands=0)
 """
-from typing import Any, Dict, Optional
 import typing
+from typing import Any, Dict, Optional
 
 import scriptconfig as scfg
 import ubelt as ub
@@ -295,7 +296,6 @@ class CMDQueueConfig(scfg.DataConfig):
             queue (cmd_queue.Queue): queue to run / report
             print_kwargs (None | Dict):
         """
-        import cmd_queue
 
         queue: cmd_queue.Queue
         print_thresh = 30

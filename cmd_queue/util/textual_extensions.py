@@ -1,28 +1,28 @@
 from __future__ import annotations
-# mypy: ignore-errors
 
+# mypy: ignore-errors
 from typing import Any
 
 # from typing import Any
 
 
 try:
-    from textual.app import App
-
     # from textual.driver import Driver
     # from typing import Type
     # from rich.console import Console
     import asyncio
+    from datetime import datetime
+
+    from rich.console import RenderableType
+    from rich.panel import Panel
+    from rich.repr import Result
+    from rich.style import StyleType
+    from rich.table import Table
+    from textual.app import App
+    from textual.reactive import Reactive, watch
 
     # from textual import events
     from textual.widget import Widget
-    from textual.reactive import watch, Reactive
-    from datetime import datetime
-    from rich.panel import Panel
-    from rich.style import StyleType
-    from rich.table import Table
-    from rich.console import RenderableType
-    from rich.repr import Result
 except ImportError:
     App: type = object
     Widget: type = object

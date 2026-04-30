@@ -1,6 +1,6 @@
 from __future__ import annotations
-# mypy: ignore-errors
 
+# mypy: ignore-errors
 from typing import Any, Dict, Iterable, List, Optional, Union
 
 import ubelt as ub
@@ -236,10 +236,12 @@ class Queue(ub.NiceRepr):
 
     @classmethod
     def _backend_classes(cls):
-        from cmd_queue import tmux_queue
-        from cmd_queue import serial_queue
-        from cmd_queue import slurm_queue
-        from cmd_queue import airflow_queue
+        from cmd_queue import (
+            airflow_queue,
+            serial_queue,
+            slurm_queue,
+            tmux_queue,
+        )
 
         lut = {
             'serial': serial_queue.SerialQueue,
@@ -401,9 +403,9 @@ class Queue(ub.NiceRepr):
             exclude_tags=exclude_tags,
         )
         if style == 'rich':
-            from rich.syntax import Syntax
-            from rich.panel import Panel
             from rich.console import Console
+            from rich.panel import Panel
+            from rich.syntax import Syntax
 
             console = Console()
             console.print(Panel(Syntax(code, 'bash'), title=str(self.fpath)))

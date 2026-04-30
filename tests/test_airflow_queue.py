@@ -1,10 +1,9 @@
 """Tests for the Airflow backend without pytest fixtures."""
 
-import ubelt as ub
 import pytest
+import ubelt as ub
 
 from cmd_queue.airflow_queue import AirflowQueue
-
 
 airflow = pytest.importorskip('airflow')
 

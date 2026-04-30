@@ -6,9 +6,10 @@ Cant do this with pure rich
     https://github.com/Textualize/rich/issues/2120
 """
 
-from rich.table import Table
-from rich.live import Live
 import time
+
+from rich.live import Live
+from rich.table import Table
 
 
 def random_rich_table():
@@ -54,8 +55,8 @@ def simple_pager_no_update():
 def combined_scrolling_table():
     from textual import events
     from textual.app import App
-    from textual.widgets import ScrollView
     from textual.widget import Widget
+    from textual.widgets import ScrollView
 
     class JobTable(Widget):
         def on_mount(self):

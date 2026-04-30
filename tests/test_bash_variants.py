@@ -2,11 +2,13 @@
 Tests for multiple variants of bash job text construction.
 """
 
-from cmd_queue.serial_queue import BashJob
 import subprocess
 import tempfile
-import ubelt as ub
+
 import kwutil
+import ubelt as ub
+
+from cmd_queue.serial_queue import BashJob
 
 
 def test_primary_bash_job_text_variants():

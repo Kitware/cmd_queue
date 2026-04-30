@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 # mypy: ignore-errors
 
 """
@@ -12,8 +13,7 @@ from typing import Any, Dict, Iterable, List, Optional
 import ubelt as ub
 
 from cmd_queue import base_queue
-from cmd_queue.util import util_bash
-from cmd_queue.util import util_tags
+from cmd_queue.util import util_bash, util_tags
 
 
 class BashJob(base_queue.Job):
@@ -411,8 +411,8 @@ class BashJob(base_queue.Job):
             with_status=with_status, with_gaurds=with_gaurds, **kwargs
         )
         if style == 'rich':
-            from rich.syntax import Syntax
             from rich.console import Console
+            from rich.syntax import Syntax
 
             console = Console()
             console.print(Syntax(code, 'bash'))
