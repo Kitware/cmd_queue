@@ -286,6 +286,75 @@ class CmdQueueCLI(scfg.ModalCLI):
             queue = config._build_queue()
             queue.run()
 
+    class monitor(CommonConfig):
+        """
+        Monitor an already-running queue.
+
+        Locates the queue by name (via the active-queue index that ``run``
+        populates), by manifest path, or by the queue's working directory.
+        Useful for reattaching to a queue whose ``run()`` invocation has
+        ended (e.g. shell closed) while workers are still active, and as
+        the entry point used by the tmux monitor backend to host the
+        status UI in its own session.
+        """
+        __command__ = 'monitor'
+
+        manifest = scfg.Value(None, help=ub.paragraph(
+            '''
+            Optional explicit path to the monitor manifest JSON. If
+            given, this overrides positional name resolution.
+            '''))
+
+        onfail = scfg.Value('', choices=['', 'kill'], help=ub.paragraph(
+            '''
+            What to do if the queue ends with at least one failure.
+            ``kill`` cancels still-running workers; ``''`` leaves them.
+            '''))
+
+        onexit = scfg.Value('', choices=['', 'capture'], help=ub.paragraph(
+            '''
+            What to do once the queue is fully done. ``capture`` runs the
+            backend's capture step (e.g. dump tmux pane contents).
+            '''))
+
+        refresh_rate = scfg.Value(0.4, help='monitor refresh rate, seconds')
+
+        with_textual = scfg.Value('auto', help='use textual UI if available (tmux backend only)')
+
+        def run(config) -> None:
+            from cmd_queue import monitor_manifest as mm
+            if config.manifest:
+                manifest_path = ub.Path(config.manifest).expand().absolute()
+                if not manifest_path.exists():
+                    raise FileNotFoundError(manifest_path)
+            else:
+                target = config['qname']
+                if not target:
+                    raise SystemExit(
+                        'cmd_queue monitor requires either a queue name '
+                        '(positional) or --manifest=<path>'
+                    )
+                manifest_path = mm.resolve_manifest(target)
+            if config.verbose:
+                rich.print(f'Loading monitor manifest from [bold]{manifest_path}[/bold]')
+            queue = mm.load_queue_for_monitoring(manifest_path)
+            kwargs = {}
+            try:
+                kwargs['refresh_rate'] = config.refresh_rate
+            except Exception:
+                pass
+            if 'with_textual' in queue.monitor.__code__.co_varnames:
+                kwargs['with_textual'] = config.with_textual
+            agg_state = queue.monitor(**kwargs)
+            agg_state = agg_state or {}
+            if config.onexit == 'capture' and hasattr(queue, 'capture'):
+                queue.capture()
+            # The existing TMUXMultiQueue.run semantics: if everything passed
+            # and onfail='kill', clean up the now-idle tmux sessions. If
+            # anything failed, leave them alive so the user can investigate.
+            if config.onfail == 'kill' and not agg_state.get('failed'):
+                queue.kill()
+
     class show(CommonShowRun):
         """
         display a queue
