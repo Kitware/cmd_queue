@@ -122,9 +122,11 @@ def load_queue_for_monitoring(manifest_path: Any) -> Any:
     backend = manifest['backend']
     if backend == 'tmux':
         from cmd_queue import tmux_queue
+
         return tmux_queue.TMUXMultiQueue._from_manifest(manifest)
     elif backend == 'slurm':
         from cmd_queue import slurm_queue
+
         return slurm_queue.SlurmQueue._from_manifest(manifest)
     else:
         raise NotImplementedError(

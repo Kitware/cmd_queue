@@ -1,7 +1,7 @@
-
 def test_failures_on_each_backend():
     # Test case where a job fails
     import cmd_queue
+
     backends = cmd_queue.Queue.available_backends()
     for backend in backends:
         self = cmd_queue.Queue.create(backend=backend)

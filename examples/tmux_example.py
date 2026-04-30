@@ -43,6 +43,7 @@ CommandLine:
     # Force a clean run (no injected failures)
     python ~/code/cmd_queue/examples/tmux_example.py --failures=0
 """
+
 import ubelt as ub
 import scriptconfig as scfg
 
@@ -51,22 +52,41 @@ class TmuxExampleConfig(scfg.DataConfig):
     """
     Automatically created module for IPython interactive environment
     """
-    mode = scfg.Value('tmux', help='Where the monitor UI runs.', choices=['inline', 'tmux', 'none'])
-    name = scfg.Value('tmux-example', help=ub.paragraph(
-            '''
+
+    mode = scfg.Value(
+        'tmux',
+        help='Where the monitor UI runs.',
+        choices=['inline', 'tmux', 'none'],
+    )
+    name = scfg.Value(
+        'tmux-example',
+        help=ub.paragraph(
+            """
             Queue name; also doubles as the lookup key for `cmd_queue
             monitor <name>`.
-            '''))
+            """
+        ),
+    )
     workers = scfg.Value(4, type=int, help='Number of parallel tmux workers.')
-    failures = scfg.Value(6, type=int, help=ub.paragraph(
-            '''
+    failures = scfg.Value(
+        6,
+        type=int,
+        help=ub.paragraph(
+            """
             Number of proc-* logical jobs to force into failure (0-4).
             The failures cascade: dependent merge/final jobs are skipped.
-            '''))
-    logs = scfg.Value(True, isflag=True, help=ub.paragraph(
-            '''
+            """
+        ),
+    )
+    logs = scfg.Value(
+        True,
+        isflag=True,
+        help=ub.paragraph(
+            """
             Set to False to disable per-job log capture (default: enabled).
-            '''))
+            """
+        ),
+    )
 
 
 def main():
@@ -81,7 +101,7 @@ def main():
     )
 
     proc_names = ['proc-A', 'proc-B', 'proc-C', 'proc-D']
-    fail_set = set(proc_names[:max(0, min(args.failures, len(proc_names)))])
+    fail_set = set(proc_names[: max(0, min(args.failures, len(proc_names)))])
 
     submit_kw = {'log': args.logs}
 
@@ -111,16 +131,10 @@ def main():
             name = f'{base_name}-{part:02d}'
             is_final_part = part == total_sleep
 
-            cmd = (
-                f'echo "[{name}] start"; '
-                f'sleep 1; '
-            )
+            cmd = f'echo "[{name}] start"; sleep 1; '
 
             if is_final_part and fail:
-                cmd += (
-                    f'echo "[{base_name}] FORCED FAILURE" >&2; '
-                    f'exit 1'
-                )
+                cmd += f'echo "[{base_name}] FORCED FAILURE" >&2; exit 1'
             elif is_final_part:
                 cmd += f'echo "[{base_name}] done"'
             else:
@@ -146,23 +160,24 @@ def main():
     # Level 2: each process job depends on exactly one prep job; some
     # may be forced to fail by --failures.
     proc_a = submit_sleep_chain(
-        'proc-A', 3, depends=[prep_a], fail='proc-A' in fail_set)
+        'proc-A', 3, depends=[prep_a], fail='proc-A' in fail_set
+    )
     proc_b = submit_sleep_chain(
-        'proc-B', 4, depends=[prep_b], fail='proc-B' in fail_set)
+        'proc-B', 4, depends=[prep_b], fail='proc-B' in fail_set
+    )
     proc_c = submit_sleep_chain(
-        'proc-C', 5, depends=[prep_c], fail='proc-C' in fail_set)
+        'proc-C', 5, depends=[prep_c], fail='proc-C' in fail_set
+    )
     proc_d = submit_sleep_chain(
-        'proc-D', 3, depends=[prep_d], fail='proc-D' in fail_set)
+        'proc-D', 3, depends=[prep_d], fail='proc-D' in fail_set
+    )
 
     # Level 3: two merge jobs, each waiting on a pair of proc jobs.
-    merge_x = submit_sleep_chain(
-        'merge-X', 4, depends=[proc_a, proc_b])
-    merge_y = submit_sleep_chain(
-        'merge-Y', 3, depends=[proc_c, proc_d])
+    merge_x = submit_sleep_chain('merge-X', 4, depends=[proc_a, proc_b])
+    merge_y = submit_sleep_chain('merge-Y', 3, depends=[proc_c, proc_d])
 
     # Level 4: single finalize job — the whole pipeline converges here.
-    submit_sleep_chain(
-        'final', 2, depends=[merge_x, merge_y])
+    submit_sleep_chain('final', 2, depends=[merge_x, merge_y])
 
     queue.print_graph()
 

@@ -6,18 +6,17 @@ from typing import Any, Dict, Iterable, List, Optional, Union
 import ubelt as ub
 
 
-class DuplicateJobError(KeyError):
-    ...
+class DuplicateJobError(KeyError): ...
 
 
-class UnknownBackendError(KeyError):
-    ...
+class UnknownBackendError(KeyError): ...
 
 
 class Job(ub.NiceRepr):
     """
     Base class for a job
     """
+
     def __init__(
         self,
         command: Optional[str] = None,
@@ -130,7 +129,9 @@ class Queue(ub.NiceRepr):
         """
         graph = self._dependency_graph()
         # Find the jobs that nobody depends on
-        sink_jobs = [graph.nodes[n]['job'] for n, d in graph.out_degree if d == 0]
+        sink_jobs = [
+            graph.nodes[n]['job'] for n, d in graph.out_degree if d == 0
+        ]
         # All new jobs must depend on these jobs
         self.all_depends = sink_jobs
         return self
@@ -142,12 +143,21 @@ class Queue(ub.NiceRepr):
         """
         import os
         import stat
+
         text = self.finalize_text()
         self.fpath.parent.ensuredir()
         self.fpath.write_text(text)
-        os.chmod(self.fpath, (
-            stat.S_IXUSR | stat.S_IXGRP | stat.S_IRUSR |
-            stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP))
+        os.chmod(
+            self.fpath,
+            (
+                stat.S_IXUSR
+                | stat.S_IXGRP
+                | stat.S_IRUSR
+                | stat.S_IWUSR
+                | stat.S_IRGRP
+                | stat.S_IWGRP
+            ),
+        )
         return self.fpath
 
     def submit(self, command: Union[str, Job], **kwargs: Any) -> Job:
@@ -170,7 +180,9 @@ class Queue(ub.NiceRepr):
         if isinstance(command, str):
             name = kwargs.get('name', None)
             if name is None:
-                name = kwargs['name'] = self.name + '-job-{}'.format(self.num_real_jobs)
+                name = kwargs['name'] = self.name + '-job-{}'.format(
+                    self.num_real_jobs
+                )
 
             # TODO: make sure name is path safe.
             if ':' in name:
@@ -193,9 +205,14 @@ class Queue(ub.NiceRepr):
                 try:
                     depends = [
                         self.named_jobs[dep] if isinstance(dep, str) else dep
-                        for dep in depends]
+                        for dep in depends
+                    ]
                 except Exception:
-                    print('self.named_jobs = {}'.format(ub.urepr(self.named_jobs, nl=1)))
+                    print(
+                        'self.named_jobs = {}'.format(
+                            ub.urepr(self.named_jobs, nl=1)
+                        )
+                    )
                     raise
             job = serial_queue.BashJob(command, depends=depends, **kwargs)
         elif isinstance(command, Job):
@@ -223,6 +240,7 @@ class Queue(ub.NiceRepr):
         from cmd_queue import serial_queue
         from cmd_queue import slurm_queue
         from cmd_queue import airflow_queue
+
         lut = {
             'serial': serial_queue.SerialQueue,
             'tmux': tmux_queue.TMUXMultiQueue,
@@ -252,17 +270,21 @@ class Queue(ub.NiceRepr):
         """
         if backend == 'serial':
             from cmd_queue import serial_queue
+
             kwargs.pop('size', None)
             self = serial_queue.SerialQueue(**kwargs)
         elif backend == 'tmux':
             from cmd_queue import tmux_queue
+
             self = tmux_queue.TMUXMultiQueue(**kwargs)
         elif backend == 'slurm':
             from cmd_queue import slurm_queue
+
             kwargs.pop('size', None)
             self = slurm_queue.SlurmQueue(**kwargs)
         elif backend == 'airflow':
             from cmd_queue import airflow_queue
+
             kwargs.pop('size', None)
             self = airflow_queue.AirflowQueue(**kwargs)
         else:
@@ -289,20 +311,26 @@ class Queue(ub.NiceRepr):
             print_ = print
 
         import networkx as nx
+
         graph = self._dependency_graph()
         if reduced:
             print_('\nGraph (reduced):')
             try:
                 reduced_graph = nx.transitive_reduction(graph)
-                nx.write_network_text(reduced_graph, path=print_, end='',
-                                      vertical_chains=vertical_chains)
+                nx.write_network_text(
+                    reduced_graph,
+                    path=print_,
+                    end='',
+                    vertical_chains=vertical_chains,
+                )
             except Exception as ex:
                 print_(f'ex={ex}')
             print_('\n')
         else:
             print_('\nGraph:')
-            nx.write_network_text(graph, path=print_, end='',
-                                  vertical_chains=vertical_chains)
+            nx.write_network_text(
+                graph, path=print_, end='', vertical_chains=vertical_chains
+            )
 
     def print_commands(
         self,
@@ -340,17 +368,23 @@ class Queue(ub.NiceRepr):
         colors = kwargs.get('colors', None)
         if colors is not None:
             ub.schedule_deprecation(
-                'cmd_queue', 'colors', 'arg',
+                'cmd_queue',
+                'colors',
+                'arg',
                 migration='use style="plain" | "rich" | "colors" instead',
-                deprecate='now')
+                deprecate='now',
+            )
             if not colors:
                 style = 'plain'
         with_rich = kwargs.get('with_rich', None)
         if with_rich is not None:
             ub.schedule_deprecation(
-                'cmd_queue', 'with_rich', 'arg',
+                'cmd_queue',
+                'with_rich',
+                'arg',
                 migration='use use style="plain" | "rich" | "colors" instead',
-                deprecate='now')
+                deprecate='now',
+            )
             if with_rich:
                 style = 'rich'
         if style == 'auto':
@@ -358,16 +392,19 @@ class Queue(ub.NiceRepr):
             # style = 'rich' if colors else 'plain'
 
         from cmd_queue.util import util_tags
+
         exclude_tags = util_tags.Tags.coerce(exclude_tags)
         code = self.finalize_text(
             with_status=with_status,
             with_gaurds=with_gaurds,
             with_locks=with_locks,
-            exclude_tags=exclude_tags)
+            exclude_tags=exclude_tags,
+        )
         if style == 'rich':
             from rich.syntax import Syntax
             from rich.panel import Panel
             from rich.console import Console
+
             console = Console()
             console.print(Panel(Syntax(code, 'bash'), title=str(self.fpath)))
         elif style == 'colors':
@@ -381,19 +418,25 @@ class Queue(ub.NiceRepr):
 
     def rprint(self, **kwargs: Any) -> None:
         ub.schedule_deprecation(
-            'cmd_queue', name='rprint', type='arg',
+            'cmd_queue',
+            name='rprint',
+            type='arg',
             migration='print_commands',
         )
         self.print_commands(**kwargs)
 
-    def print_graph(self, reduced: bool = True, vertical_chains: bool = False) -> None:
+    def print_graph(
+        self, reduced: bool = True, vertical_chains: bool = False
+    ) -> None:
         """
         Renders the dependency graph to an "network text"
 
         Args:
             reduced (bool): if True only show the implicit dependency forest
         """
-        self.write_network_text(reduced=reduced, vertical_chains=vertical_chains)
+        self.write_network_text(
+            reduced=reduced, vertical_chains=vertical_chains
+        )
 
     def _dependency_graph(self) -> Any:
         """
@@ -414,10 +457,13 @@ class Queue(ub.NiceRepr):
             >>> self.print_graph()
         """
         import networkx as nx
+
         graph = nx.DiGraph()
         duplicate_names = ub.find_duplicates(self.jobs, key=lambda x: x.name)
         if duplicate_names:
-            print('duplicate_names = {}'.format(ub.urepr(duplicate_names, nl=1)))
+            print(
+                'duplicate_names = {}'.format(ub.urepr(duplicate_names, nl=1))
+            )
             raise Exception('Job names must be unique')
 
         for index, job in enumerate(self.jobs):
@@ -429,11 +475,13 @@ class Queue(ub.NiceRepr):
                         graph.add_edge(dep.name, job.name)
         return graph
 
-    def monitor(self,
-                refresh_rate: float = 0.4,
-                with_textual: str | bool = 'auto',
-                onfail: str = '',
-                onexit: str = '') -> None:
+    def monitor(
+        self,
+        refresh_rate: float = 0.4,
+        with_textual: str | bool = 'auto',
+        onfail: str = '',
+        onexit: str = '',
+    ) -> None:
         print('monitor not implemented')
 
     def _coerce_style(
@@ -445,8 +493,11 @@ class Queue(ub.NiceRepr):
         # Helper
         if with_rich is not None:
             ub.schedule_deprecation(
-                'cmd_queue', 'with_rich', 'arg',
-                migration='use style="rich" instead')
+                'cmd_queue',
+                'with_rich',
+                'arg',
+                migration='use style="rich" instead',
+            )
             if with_rich:
                 style = 'rich'
         if style == 'auto':

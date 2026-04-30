@@ -38,15 +38,11 @@ def bash_json_dump(json_fmt_parts, fpath):
              \
             > out.json
     """
-    printf_body_parts = [
-        '"{}": {}'.format(k, f) for k, f, v in json_fmt_parts
-    ]
-    printf_arg_parts = [
-        '"{}"'.format(v) for k, f, v in json_fmt_parts
-    ]
-    printf_body = r"'{" + ", ".join(printf_body_parts) + r"}\n'"
+    printf_body_parts = ['"{}": {}'.format(k, f) for k, f, v in json_fmt_parts]
+    printf_arg_parts = ['"{}"'.format(v) for k, f, v in json_fmt_parts]
+    printf_body = r"'{" + ', '.join(printf_body_parts) + r"}\n'"
     printf_args = ' '.join(printf_arg_parts)
     redirect_part = '> ' + str(fpath)
-    printf_part = 'printf ' +  printf_body + ' \\\n    ' + printf_args
+    printf_part = 'printf ' + printf_body + ' \\\n    ' + printf_args
     dump_code = printf_part + ' \\\n    ' + redirect_part
     return dump_code

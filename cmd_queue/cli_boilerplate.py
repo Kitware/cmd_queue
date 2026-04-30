@@ -154,42 +154,91 @@ class CMDQueueConfig(scfg.DataConfig):
         slurm_options = scfg.Value(None, help='if the backend is slurm, provide a YAML dictionary for things like partition / etc...', group='cmd-queue')
 
     """
-    run = scfg.Value(False, isflag=True, help='if False, only prints the commands, otherwise executes them', group='cmd-queue')
 
-    backend = scfg.Value('tmux', help=('The cmd_queue backend. Can be tmux, slurm, or serial'), group='cmd-queue')
+    run = scfg.Value(
+        False,
+        isflag=True,
+        help='if False, only prints the commands, otherwise executes them',
+        group='cmd-queue',
+    )
 
-    monitor = scfg.Value('inline', help=('where the live status UI runs while'), group='cmd-queue', choices=['inline', 'tmux'])
+    backend = scfg.Value(
+        'tmux',
+        help=('The cmd_queue backend. Can be tmux, slurm, or serial'),
+        group='cmd-queue',
+    )
 
-    queue_name = scfg.Value(None, help='overwrite the default queue name', group='cmd-queue')
+    monitor = scfg.Value(
+        'inline',
+        help=('where the live status UI runs while'),
+        group='cmd-queue',
+        choices=['inline', 'tmux'],
+    )
 
-    print_commands = scfg.Value('auto', isflag=True, help='enable / disable rprint before exec', group='cmd-queue')
+    queue_name = scfg.Value(
+        None, help='overwrite the default queue name', group='cmd-queue'
+    )
 
-    print_queue = scfg.Value('auto', isflag=True, help='print the cmd queue DAG', group='cmd-queue')
+    print_commands = scfg.Value(
+        'auto',
+        isflag=True,
+        help='enable / disable rprint before exec',
+        group='cmd-queue',
+    )
 
-    with_textual = scfg.Value('auto', isflag=True, help='setting for cmd-queue monitoring', group='cmd-queue')
+    print_queue = scfg.Value(
+        'auto', isflag=True, help='print the cmd queue DAG', group='cmd-queue'
+    )
 
-    other_session_handler = scfg.Value('ask', help='for tmux backend only. How to handle conflicting sessions. Can be ask, kill, or ignore, or auto', group='cmd-queue')
+    with_textual = scfg.Value(
+        'auto',
+        isflag=True,
+        help='setting for cmd-queue monitoring',
+        group='cmd-queue',
+    )
 
-    virtualenv_cmd = scfg.Value(None, type=str, help=ub.paragraph(
-        '''
+    other_session_handler = scfg.Value(
+        'ask',
+        help='for tmux backend only. How to handle conflicting sessions. Can be ask, kill, or ignore, or auto',
+        group='cmd-queue',
+    )
+
+    virtualenv_cmd = scfg.Value(
+        None,
+        type=str,
+        help=ub.paragraph(
+            """
         Command to start the appropriate virtual environment if your bashrc
-        does not start it by default.'''), group='cmd-queue')
+        does not start it by default."""
+        ),
+        group='cmd-queue',
+    )
 
     # TODO: add global preamble argument
 
-    tmux_workers = scfg.Value(8, help='number of tmux workers in the queue for the tmux backend', group='cmd-queue')
+    tmux_workers = scfg.Value(
+        8,
+        help='number of tmux workers in the queue for the tmux backend',
+        group='cmd-queue',
+    )
 
-    slurm_options = scfg.Value(None, help=ub.paragraph(
-        '''
+    slurm_options = scfg.Value(
+        None,
+        help=ub.paragraph(
+            """
         if the backend is slurm, provide a YAML dictionary for things like
         partition / etc...
-        '''), group='cmd-queue')
+        """
+        ),
+        group='cmd-queue',
+    )
 
     def __post_init__(self) -> None:
         from cmd_queue.util.util_yaml import Yaml
+
         self.slurm_options = Yaml.coerce(self.slurm_options) or {}
 
-    def create_queue(config, **kwargs: Any) -> "cmd_queue.Queue":
+    def create_queue(config, **kwargs: Any) -> 'cmd_queue.Queue':
         """
         Create an empty queue based on options specified in this config
 
@@ -200,19 +249,20 @@ class CMDQueueConfig(scfg.DataConfig):
             cmd_queue.Queue
         """
         import cmd_queue
+
         queuekw = {}
         if config.backend == 'slurm':
             queuekw.update(config.slurm_options)
         elif config.backend == 'tmux':
-            queuekw.update({
-                'size': config.tmux_workers,
-            })
+            queuekw.update(
+                {
+                    'size': config.tmux_workers,
+                }
+            )
         queuekw.update(kwargs)
         if 'name' not in queuekw:
             queuekw['name'] = config.queue_name
-        queue = cmd_queue.Queue.create(
-            backend=config.backend,
-            **queuekw)
+        queue = cmd_queue.Queue.create(backend=config.backend, **queuekw)
         if config.virtualenv_cmd:
             # Experimental feature to automatically activate virtual
             # environments
@@ -220,9 +270,12 @@ class CMDQueueConfig(scfg.DataConfig):
             if virtualenv_cmd == 'auto':
                 import os
                 import shlex
+
                 venv_path = os.environ.get('VIRTUAL_ENV', '')
                 if venv_path:
-                    virtualenv_cmd = 'source ' + shlex.quote(str(ub.Path(venv_path) / 'bin/activate'))
+                    virtualenv_cmd = 'source ' + shlex.quote(
+                        str(ub.Path(venv_path) / 'bin/activate')
+                    )
                 else:
                     virtualenv_cmd = None
             if virtualenv_cmd:
@@ -231,7 +284,7 @@ class CMDQueueConfig(scfg.DataConfig):
 
     def run_queue(
         config,
-        queue: "cmd_queue.Queue",
+        queue: 'cmd_queue.Queue',
         print_kwargs: Optional[Dict[str, Any]] = None,
         **kwargs: Any,
     ) -> None:
@@ -243,22 +296,27 @@ class CMDQueueConfig(scfg.DataConfig):
             print_kwargs (None | Dict):
         """
         import cmd_queue
+
         queue: cmd_queue.Queue
         print_thresh = 30
         if config['print_commands'] == 'auto':
             if len(queue) < print_thresh:
                 config['print_commands'] = 1
             else:
-                print(f'More than {print_thresh} jobs, skip queue.print_commands. '
-                      'If you want to see them explicitly specify print_commands=1')
+                print(
+                    f'More than {print_thresh} jobs, skip queue.print_commands. '
+                    'If you want to see them explicitly specify print_commands=1'
+                )
                 config['print_commands'] = 0
 
         if config['print_queue'] == 'auto':
             if len(queue) < print_thresh:
                 config['print_queue'] = 1
             else:
-                print(f'More than {print_thresh} jobs, skip queue.print_graph. '
-                      'If you want to see them explicitly specify print_queue=1')
+                print(
+                    f'More than {print_thresh} jobs, skip queue.print_graph. '
+                    'If you want to see them explicitly specify print_queue=1'
+                )
                 config['print_queue'] = 0
 
         if config.print_commands:
@@ -270,7 +328,9 @@ class CMDQueueConfig(scfg.DataConfig):
             queue.print_graph(vertical_chains=True)
 
         if config.run:
-            queue.run(with_textual=config.with_textual,
-                      other_session_handler=config.other_session_handler,
-                      monitor=config.monitor,
-                      **kwargs)
+            queue.run(
+                with_textual=config.with_textual,
+                other_session_handler=config.other_session_handler,
+                monitor=config.monitor,
+                **kwargs,
+            )

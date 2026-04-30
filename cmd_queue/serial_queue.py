@@ -86,6 +86,7 @@ class BashJob(base_queue.Job):
         >>> self = BashJob('echo hi', 'myjob')
         >>> self.print_commands(with_status=True, with_gaurds=True)
     """
+
     def __init__(
         self,
         command: str,
@@ -103,7 +104,6 @@ class BashJob(base_queue.Job):
         preamble: Optional[List[str]] = None,
         **kwargs: Any,
     ) -> None:
-
         if depends is not None and not ub.iterable(depends):
             depends = [depends]  # type: ignore
         self.name = name
@@ -151,7 +151,6 @@ class BashJob(base_queue.Job):
         conditionals: Optional[Dict[str, List[str]]] = None,
         **kwargs: Any,
     ) -> str:
-
         # Note: with_gaurds are the +- e and +-x bash behaviors, it is not a
         # great name. with_status is used to dump extra metadata out. These add
         # a lot of bash boilerplate, which can make the script more difficult
@@ -177,7 +176,7 @@ class BashJob(base_queue.Job):
                 'on_skip': [
                     f'mkdir -p {self.skip_fpath.parent}',
                     f'printf "skip" > {self.skip_fpath}',
-                ]
+                ],
             }
 
             # Append custom conditionals
@@ -220,8 +219,9 @@ class BashJob(base_queue.Job):
                 json_fmt_parts += [
                     ('logs', '"%s"', self.log_fpath),
                 ]
-            dump_pre_status = util_bash.bash_json_dump(json_fmt_parts,
-                                                       self.stat_fpath)
+            dump_pre_status = util_bash.bash_json_dump(
+                json_fmt_parts, self.stat_fpath
+            )
             script.append('# Mark job as running')
             script.append(dump_pre_status)
 
@@ -240,13 +240,17 @@ class BashJob(base_queue.Job):
         if self.cwd is not None:
             # If the directory doesn't exist, then the job is marked as failed.
             script.append('# Change to the specified directory')
-            script.append(f'{{ pushd "{self.cwd}" && CHDIR_OK=1; }} || CHDIR_OK=0')
+            script.append(
+                f'{{ pushd "{self.cwd}" && CHDIR_OK=1; }} || CHDIR_OK=0'
+            )
             internal_conditionals.append('"$CHDIR_OK" == 1')
 
         if self.preamble:
             script.append('# Run preamble')
             preamble_str = ' && '.join(self.preamble)
-            script.append(f'{{ {preamble_str} && PREAMBLE_OK=1; }} || PREAMBLE_OK=0')
+            script.append(
+                f'{{ {preamble_str} && PREAMBLE_OK=1; }} || PREAMBLE_OK=0'
+            )
             internal_conditionals.append('"$PREAMBLE_OK" == 1')
 
         if internal_conditionals:
@@ -281,7 +285,9 @@ class BashJob(base_queue.Job):
             # Tells bash to stop printing commands, but is clever in that it
             # captures the last return code and doesnt print this command.
             # Also set -e so our boilerplate is not allowed to fail
-            script.append('# Capture job return code, disable command echo, enable exit-on-error')
+            script.append(
+                '# Capture job return code, disable command echo, enable exit-on-error'
+            )
             script.append('{ RETURN_CODE=$? ; set +x -e; } 2>/dev/null')
             # NOTE: ${PIPESTATUS[0]} is an alternative to $? if we want a
             # specific return code from a job chain
@@ -326,23 +332,26 @@ class BashJob(base_queue.Job):
                 json_fmt_parts += [
                     ('logs', '"%s"', self.log_fpath),
                 ]
-            dump_post_status = util_bash.bash_json_dump(json_fmt_parts,
-                                                        self.stat_fpath)
+            dump_post_status = util_bash.bash_json_dump(
+                json_fmt_parts, self.stat_fpath
+            )
 
             on_pass_part = indent(_job_conditionals['on_pass'])
             on_fail_part = indent(_job_conditionals['on_fail'])
             # RETURN_CODE=126 means dependencies were unmet; on_skip
             # already ran in the deps-failed branch above, so we don't
             # want to also mark the job as failed here.
-            conditional_body = '\n'.join([
-                'if [[ "$RETURN_CODE" == "0" ]]; then',
-                on_pass_part,
-                'elif [[ "$RETURN_CODE" == "126" ]]; then',
-                '    : # job was skipped; on_skip already handled',
-                'else',
-                on_fail_part,
-                'fi'
-            ])
+            conditional_body = '\n'.join(
+                [
+                    'if [[ "$RETURN_CODE" == "0" ]]; then',
+                    on_pass_part,
+                    'elif [[ "$RETURN_CODE" == "126" ]]; then',
+                    '    : # job was skipped; on_skip already handled',
+                    'else',
+                    on_fail_part,
+                    'fi',
+                ]
+            )
             script.append('# Mark job as stopped')
             script.append(dump_post_status)
             script.append(conditional_body)
@@ -398,11 +407,13 @@ class BashJob(base_queue.Job):
         """
         style = base_queue.Queue._coerce_style(self, style, with_rich)
 
-        code = self.finalize_text(with_status=with_status,
-                                  with_gaurds=with_gaurds, **kwargs)
+        code = self.finalize_text(
+            with_status=with_status, with_gaurds=with_gaurds, **kwargs
+        )
         if style == 'rich':
             from rich.syntax import Syntax
             from rich.console import Console
+
             console = Console()
             console.print(Syntax(code, 'bash'))
         elif style == 'colors':
@@ -489,7 +500,11 @@ class SerialQueue(base_queue.Queue):
         """
         super().__init__()
         if rootid is None:
-            rootid = str(ub.timestamp().split('T')[0]) + '_' + ub.hash_data(uuid.uuid4())[0:8]
+            rootid = (
+                str(ub.timestamp().split('T')[0])
+                + '_'
+                + ub.hash_data(uuid.uuid4())[0:8]
+            )
         self.name = name
         self.rootid = rootid
         if dpath is None:
@@ -499,7 +514,9 @@ class SerialQueue(base_queue.Queue):
         self.unused_kwargs = kwargs
 
         self.fpath = self.dpath / (self.pathid + '.sh')
-        self.state_fpath = self.dpath / 'serial_queue_{}.txt'.format(self.pathid)
+        self.state_fpath = self.dpath / 'serial_queue_{}.txt'.format(
+            self.pathid
+        )
         self.environ = environ
 
         self.header = '#!/bin/bash'  # todo: handle different shells
@@ -514,7 +531,7 @@ class SerialQueue(base_queue.Queue):
 
     @property
     def pathid(self) -> str:
-        """ A path-safe identifier for file names """
+        """A path-safe identifier for file names"""
         return '{}_{}'.format(self.name, self.rootid)
 
     def __nice__(self) -> str:
@@ -535,9 +552,11 @@ class SerialQueue(base_queue.Queue):
         """
         # We need to ensure the jobs are in a topologoical order here.
         import networkx as nx
+
         graph = self._dependency_graph()
         original_order = [j.name for j in self.jobs]
         from cmd_queue.util import util_networkx
+
         if not util_networkx.is_topological_order(graph, original_order):
             # If not already topologically sorted, try to make the minimal
             # reordering to achieve it.
@@ -565,6 +584,7 @@ class SerialQueue(base_queue.Queue):
 
         """
         import cmd_queue
+
         self.order_jobs()
         script = [self.header]
         script += ['# Written by cmd_queue {}'.format(cmd_queue.__version__)]
@@ -575,15 +595,18 @@ class SerialQueue(base_queue.Queue):
             script.append('set -e')
 
         if with_status:
-            script.append(ub.codeblock(
-                f'''
+            script.append(
+                ub.codeblock(
+                    f"""
                 # Init state to keep track of job progress
                 (( "_CMD_QUEUE_NUM_FAILED=0" )) || true
                 (( "_CMD_QUEUE_NUM_PASSED=0" )) || true
                 (( "_CMD_QUEUE_NUM_SKIPPED=0" )) || true
                 _CMD_QUEUE_TOTAL={total}
                 _CMD_QUEUE_STATUS=""
-                '''))
+                """
+                )
+            )
 
         old_status = None
 
@@ -592,10 +615,13 @@ class SerialQueue(base_queue.Queue):
             # be careful with json formatting here
             if with_status:
                 if old_status != status:
-                    script.append(ub.codeblock(
-                        '''
+                    script.append(
+                        ub.codeblock(
+                            """
                         _CMD_QUEUE_STATUS="{}"
-                        ''').format(status))
+                        """
+                        ).format(status)
+                    )
 
                 old_status = status
 
@@ -609,8 +635,9 @@ class SerialQueue(base_queue.Queue):
                     ('name', '"%s"', self.name),
                     ('rootid', '"%s"', self.rootid),
                 ]
-                dump_code = util_bash.bash_json_dump(json_fmt_parts,
-                                                     self.state_fpath)
+                dump_code = util_bash.bash_json_dump(
+                    json_fmt_parts, self.state_fpath
+                )
                 script.append('# Update queue status')
                 script.append(dump_code)
                 # script.append('cat ' + str(self.state_fpath))
@@ -634,8 +661,9 @@ class SerialQueue(base_queue.Queue):
             _mark_status('set_environ')
             if with_gaurds:
                 _command_enter()
-            script.extend([
-                f'export {k}="{v}"' for k, v in self.environ.items()])
+            script.extend(
+                [f'export {k}="{v}"' for k, v in self.environ.items()]
+            )
             if with_gaurds:
                 _command_exit()
 
@@ -668,7 +696,9 @@ class SerialQueue(base_queue.Queue):
 
                 if job.bookkeeper:
                     if with_locks:
-                        script.append(job.finalize_text(with_status, with_gaurds))
+                        script.append(
+                            job.finalize_text(with_status, with_gaurds)
+                        )
                 else:
                     if with_status:
                         script.append('')
@@ -677,18 +707,25 @@ class SerialQueue(base_queue.Queue):
 
                     _mark_status('run')
 
-                    script.append(ub.codeblock(
-                        '''
+                    script.append(
+                        ub.codeblock(
+                            """
                         #
                         ### Command {} / {} - {}
-                        ''').format(num + 1, total, job.name))
+                        """
+                        ).format(num + 1, total, job.name)
+                    )
 
                     conditionals = {
                         'on_pass': '(( "_CMD_QUEUE_NUM_PASSED=_CMD_QUEUE_NUM_PASSED+1" )) || true',
                         'on_fail': '(( "_CMD_QUEUE_NUM_FAILED=_CMD_QUEUE_NUM_FAILED+1" )) || true',
                         'on_skip': '(( "_CMD_QUEUE_NUM_SKIPPED=_CMD_QUEUE_NUM_SKIPPED+1" )) || true',
                     }
-                    script.append(job.finalize_text(with_status, with_gaurds, conditionals))
+                    script.append(
+                        job.finalize_text(
+                            with_status, with_gaurds, conditionals
+                        )
+                    )
                     if with_status:
                         script.append('# </job>')
                         script.append('#')
@@ -793,18 +830,40 @@ class SerialQueue(base_queue.Queue):
         # TODO: can implement a monitor here for non-blocking mode
         detach = not block
         if mode == 'bash':
-            ub.cmd(f'bash {self.fpath}', verbose=verbose, check=True,
-                   capture=capture, shell=shell, system=system, detach=detach)
+            ub.cmd(
+                f'bash {self.fpath}',
+                verbose=verbose,
+                check=True,
+                capture=capture,
+                shell=shell,
+                system=system,
+                detach=detach,
+            )
         elif mode == 'source':
-            ub.cmd(f'source {self.fpath}', verbose=verbose, check=True,
-                   capture=capture, shell=shell, system=system, detach=detach)
+            ub.cmd(
+                f'source {self.fpath}',
+                verbose=verbose,
+                check=True,
+                capture=capture,
+                shell=shell,
+                system=system,
+                detach=detach,
+            )
         else:
-            ub.cmd(f'{mode} {self.fpath}', verbose=verbose, check=True,
-                   capture=capture, shell=shell, system=system, detach=detach)
+            ub.cmd(
+                f'{mode} {self.fpath}',
+                verbose=verbose,
+                check=True,
+                capture=capture,
+                shell=shell,
+                system=system,
+                detach=detach,
+            )
             # raise KeyError
 
     def job_details(self) -> None:
         import json
+
         for job in self.jobs:
             print('+--------')
             print(f'job={job}')
@@ -817,6 +876,7 @@ class SerialQueue(base_queue.Queue):
     def read_state(self) -> Dict[str, Any]:
         import json
         import time
+
         max_attempts = 100
         num_attempts = 0
         while True:
@@ -869,6 +929,7 @@ def indent(text: Any, prefix: str = '    ') -> str:
 
 def _check_bash_text_for_syntax_errors(bash_text: str) -> None:
     import tempfile
+
     tmpdir = tempfile.TemporaryDirectory()
     with tmpdir:
         dpath = ub.Path(tmpdir.name)

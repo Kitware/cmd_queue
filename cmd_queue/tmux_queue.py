@@ -199,6 +199,7 @@ class TMUXMultiQueue(base_queue.Queue):
         >>> if self.is_available():
         >>>     self.run(with_textual=False, check_other_sessions=0)
     """
+
     def __init__(
         self,
         size: int = 1,
@@ -213,7 +214,11 @@ class TMUXMultiQueue(base_queue.Queue):
         super().__init__()
 
         if rootid is None:
-            rootid = str(ub.timestamp().split('T')[0]) + '_' + ub.hash_data(uuid.uuid4())[0:8]
+            rootid = (
+                str(ub.timestamp().split('T')[0])
+                + '_'
+                + ub.hash_data(uuid.uuid4())[0:8]
+            )
         if name is None:
             name = 'unnamed'
         self.name = name
@@ -229,7 +234,9 @@ class TMUXMultiQueue(base_queue.Queue):
         # Note: size can be changed as long as it happens before the queue is
         # written and run.
         if size <= 0:
-            raise ValueError(f'tmux queue size must be positive got size={size}')
+            raise ValueError(
+                f'tmux queue size must be positive got size={size}'
+            )
         self.size = size
         self.environ = environ
         self.fpath = self.dpath / f'run_queues_{self.name}.sh'
@@ -261,22 +268,28 @@ class TMUXMultiQueue(base_queue.Queue):
 
     def _new_workers(self, start: int = 0) -> List[serial_queue.SerialQueue]:
         import itertools as it
+
         per_worker_environs = [self.environ] * self.size
         if self.gpus:
             # TODO: more sophisticated GPU policy?
             per_worker_environs = [
-                ub.dict_union(e, {
-                    'CUDA_VISIBLE_DEVICES': str(cvd),
-                })
+                ub.dict_union(
+                    e,
+                    {
+                        'CUDA_VISIBLE_DEVICES': str(cvd),
+                    },
+                )
                 for cvd, e in zip(it.cycle(self.gpus), per_worker_environs)
             ]
 
         workers = [
             serial_queue.SerialQueue(
-                name='{}{}_{:03d}'.format(self._tmux_session_prefix, self.name, worker_idx),
+                name='{}{}_{:03d}'.format(
+                    self._tmux_session_prefix, self.name, worker_idx
+                ),
                 rootid=self.rootid,
                 dpath=self.dpath,
-                environ=e
+                environ=e,
             )
             for worker_idx, e in enumerate(per_worker_environs, start=start)
         ]
@@ -285,7 +298,9 @@ class TMUXMultiQueue(base_queue.Queue):
     def __nice__(self) -> str:
         return ub.urepr(self.jobs)
 
-    def _semaphore_wait_command(self, flag_fpaths: Iterable[str], msg: str) -> str:
+    def _semaphore_wait_command(
+        self, flag_fpaths: Iterable[str], msg: str
+    ) -> str:
         r"""
         TODO: use flock? or inotify?
 
@@ -326,15 +341,16 @@ class TMUXMultiQueue(base_queue.Queue):
                sleep 1;
             done
             printf "finished {msg} "
-            ''')
+            '''
+        )
         return command
 
     def _semaphore_signal_command(self, flag_fpath):
         return ub.codeblock(
-            f'''
+            f"""
             # Signal this worker is complete
             mkdir -p {flag_fpath.parent} && touch {flag_fpath}
-            '''
+            """
         )
 
     def order_jobs(self) -> None:
@@ -425,6 +441,7 @@ class TMUXMultiQueue(base_queue.Queue):
             >>> self.print_commands()
         """
         import networkx as nx
+
         graph = self._dependency_graph()
 
         # Get rid of implicit dependencies
@@ -442,7 +459,7 @@ class TMUXMultiQueue(base_queue.Queue):
             print(nx.is_directed_acyclic_graph(graph))
             simple_cycles = list(nx.cycles.simple_cycles(graph))
             print('simple_cycles = {}'.format(ub.urepr(simple_cycles, nl=1)))
-            nx.write_network_text(graph, print, end="")
+            nx.write_network_text(graph, print, end='')
             raise
 
         in_cut_nodes = set()
@@ -465,7 +482,9 @@ class TMUXMultiQueue(base_queue.Queue):
         cut_graph.remove_edges_from(cut_edges)
 
         # Get all the node groups disconnected by the cuts
-        condensed = nx.condensation(reduced_graph, nx.weakly_connected_components(cut_graph))
+        condensed = nx.condensation(
+            reduced_graph, nx.weakly_connected_components(cut_graph)
+        )
 
         # TODO: can we use nx.topological_generations for a more elegant
         # solution here?
@@ -476,17 +495,24 @@ class TMUXMultiQueue(base_queue.Queue):
         condensed_order = list(nx.topological_sort(condensed))
         for c_node in condensed_order:
             members = set(condensed.nodes[c_node]['members'])
-            ancestors = set(ub.flatten([nx.ancestors(reduced_graph, m) for m in members]))
+            ancestors = set(
+                ub.flatten([nx.ancestors(reduced_graph, m) for m in members])
+            )
             cut_in_ancestors = ancestors & in_cut_nodes
             cut_out_ancestors = ancestors & out_cut_nodes
             cut_in_members = members & in_cut_nodes
-            rank = len(cut_in_members) + len(cut_out_ancestors) + len(cut_in_ancestors)
+            rank = (
+                len(cut_in_members)
+                + len(cut_out_ancestors)
+                + len(cut_in_ancestors)
+            )
             for m in members:
                 rankings[rank].update(members)
 
         if 0:
             from graphid.util import util_graphviz
             import kwplot
+
             kwplot.autompl()
             util_graphviz.show_nx(graph, fnum=1)
             util_graphviz.show_nx(reduced_graph, fnum=3)
@@ -507,10 +533,15 @@ class TMUXMultiQueue(base_queue.Queue):
             # Ranked bins
             # Solve a bin packing problem to partition these into self.size groups
             from cmd_queue.util.util_algo import balanced_number_partitioning
+
             # Weighting by job heaviness would help here.
             group_weights = list(map(len, parallel_groups))
-            groupxs = balanced_number_partitioning(group_weights, num_parts=self.size)
-            rank_groups = [list(ub.take(parallel_groups, gxs)) for gxs in groupxs]
+            groupxs = balanced_number_partitioning(
+                group_weights, num_parts=self.size
+            )
+            rank_groups = [
+                list(ub.take(parallel_groups, gxs)) for gxs in groupxs
+            ]
             rank_groups = [g for g in rank_groups if len(g)]
 
             # Reorder each group to better agree with submission order
@@ -520,8 +551,12 @@ class TMUXMultiQueue(base_queue.Queue):
                 for nodes in group:
                     nodes_index = min(graph.nodes[n]['index'] for n in nodes)
                     priorities.append(nodes_index)
-                final_queue_order = list(ub.flatten(ub.take(group, ub.argsort(priorities))))
-                final_queue_jobs = [graph.nodes[n]['job'] for n in final_queue_order]
+                final_queue_order = list(
+                    ub.flatten(ub.take(group, ub.argsort(priorities)))
+                )
+                final_queue_jobs = [
+                    graph.nodes[n]['job'] for n in final_queue_order
+                ]
                 rank_jobs.append(final_queue_jobs)
             ranked_job_groups.append(rank_jobs)
 
@@ -534,7 +569,7 @@ class TMUXMultiQueue(base_queue.Queue):
             ranked_job_groups = [[serial_groups]]
 
         queue_workers = []
-        flag_dpath = (self.dpath / 'semaphores')
+        flag_dpath = self.dpath / 'semaphores'
         prev_rank_flag_fpaths = None
         for rank, rank_jobs in enumerate(ranked_job_groups):
             # Hack, abuse init workers each time to construct workers
@@ -544,7 +579,10 @@ class TMUXMultiQueue(base_queue.Queue):
                 # Add a dummy job to wait for dependencies of this linear queue
 
                 if prev_rank_flag_fpaths:
-                    command = self._semaphore_wait_command(prev_rank_flag_fpaths, msg=f"wait for previous rank {rank - 1}")
+                    command = self._semaphore_wait_command(
+                        prev_rank_flag_fpaths,
+                        msg=f'wait for previous rank {rank - 1}',
+                    )
                     # Note: this should not be a real job
                     worker.submit(command, bookkeeper=1)
 
@@ -560,7 +598,10 @@ class TMUXMultiQueue(base_queue.Queue):
             rank_flag_fpaths = []
             num_rank_workers = len(rank_workers)
             for worker_idx, worker in enumerate(rank_workers):
-                rank_flag_fpath = flag_dpath / f'rank_flag_{rank}_{worker_idx}_{num_rank_workers}.done'
+                rank_flag_fpath = (
+                    flag_dpath
+                    / f'rank_flag_{rank}_{worker_idx}_{num_rank_workers}.done'
+                )
                 command = self._semaphore_signal_command(rank_flag_fpath)
                 # Note: this should not be a real job
                 worker.submit(command, bookkeeper=1)
@@ -576,26 +617,32 @@ class TMUXMultiQueue(base_queue.Queue):
     def finalize_text(self, **kwargs: Any) -> str:
         self.order_jobs()
         # Create a driver script
-        driver_lines = [ub.codeblock(
-            f'''
+        driver_lines = [
+            ub.codeblock(
+                f"""
             #!/bin/bash
             # Driver script to start the tmux-queue
             echo "Submitting {self.num_real_jobs} jobs to a tmux queue"
-            ''')]
+            """
+            )
+        ]
         for queue in self.workers:
             # run_command_in_tmux_queue(command, name)
             # TODO: figure out how to forward environment variables from the
             # running sessions. We dont want to log secrets to plaintext.
             part = ub.codeblock(
-                f'''
+                f"""
                 ### Run Queue: {queue.pathid} with {len(queue)} jobs
                 tmux new-session -d -s {queue.pathid} "bash"
                 tmux send -t {queue.pathid} \\
                     "source {queue.fpath}" \\
                     Enter
-                ''').format()
+                """
+            ).format()
             driver_lines.append(part)
-        driver_lines += [f'echo "Spread jobs across {len(self.workers)} tmux workers"']
+        driver_lines += [
+            f'echo "Spread jobs across {len(self.workers)} tmux workers"'
+        ]
         driver_text = '\n\n'.join(driver_lines)
         return driver_text
 
@@ -611,7 +658,10 @@ class TMUXMultiQueue(base_queue.Queue):
         cmd_queue and kill them.
         """
         import parse
-        queue_name_pattern = parse.Parser(self._tmux_session_prefix + '{name}_{rootid}')
+
+        queue_name_pattern = parse.Parser(
+            self._tmux_session_prefix + '{name}_{rootid}'
+        )
         current_sessions = self._tmux_current_sessions()
         other_session_ids = []
         for info in current_sessions:
@@ -621,7 +671,9 @@ class TMUXMultiQueue(base_queue.Queue):
                     other_session_ids.append(info['id'])
         # print(f'other_session_ids={other_session_ids}')
         if other_session_ids:
-            print(f'Detected {len(other_session_ids)} other running cmd-queue sessions with the same name')
+            print(
+                f'Detected {len(other_session_ids)} other running cmd-queue sessions with the same name'
+            )
             print('Commands to kill them:')
             kill_commands = []
             for sess_id in other_session_ids:
@@ -629,13 +681,17 @@ class TMUXMultiQueue(base_queue.Queue):
                 print(command2)
                 kill_commands.append(command2)
             from rich import prompt
-            if not ask_first or prompt.Confirm().ask('Do you want to kill the other sessions?'):
+
+            if not ask_first or prompt.Confirm().ask(
+                'Do you want to kill the other sessions?'
+            ):
                 for command in kill_commands:
                     ub.cmd(command, verbose=self.cmd_verbose)
 
     def handle_other_sessions(self, other_session_handler: str) -> None:
         if other_session_handler == 'auto':
             from cmd_queue.tmux_queue import has_stdin
+
             if has_stdin():
                 other_session_handler = 'ask'
             else:
@@ -694,7 +750,8 @@ class TMUXMultiQueue(base_queue.Queue):
 
         if check_other_sessions:
             ub.schedule_deprecation(
-                'tmux_queue', 'check_other_sessions', 'argument')
+                'tmux_queue', 'check_other_sessions', 'argument'
+            )
             if check_other_sessions == 'auto':
                 if not has_stdin():
                     check_other_sessions = False
@@ -703,8 +760,12 @@ class TMUXMultiQueue(base_queue.Queue):
 
         self.write()
         manifest_path = self._write_monitor_manifest()
-        ub.cmd(f'bash {self.fpath}', verbose=self.cmd_verbose, check=True,
-               system=system)
+        ub.cmd(
+            f'bash {self.fpath}',
+            verbose=self.cmd_verbose,
+            check=True,
+            system=system,
+        )
         if not block:
             return None
         return self._dispatch_monitor(
@@ -717,6 +778,7 @@ class TMUXMultiQueue(base_queue.Queue):
 
     def _print_done_summary(self, agg_state: Dict[str, Any]) -> None:
         from rich import print as rich_print
+
         failed = agg_state.get('failed', 0)
         passed = agg_state.get('passed', 0)
         skipped = agg_state.get('skipped', 0)
@@ -740,11 +802,12 @@ class TMUXMultiQueue(base_queue.Queue):
             any_log_missing = False
             for job in failed_jobs:
                 log_fpath = getattr(job, 'log_fpath', None)
-                if (getattr(job, 'log', False) and log_fpath is not None
-                        and log_fpath.exists()):
-                    rich_print(
-                        f'  [red]{job.name}[/red]  log: {log_fpath}'
-                    )
+                if (
+                    getattr(job, 'log', False)
+                    and log_fpath is not None
+                    and log_fpath.exists()
+                ):
+                    rich_print(f'  [red]{job.name}[/red]  log: {log_fpath}')
                 else:
                     any_log_missing = True
                     rich_print(f'  [red]{job.name}[/red]  [dim](no log)[/dim]')
@@ -759,9 +822,7 @@ class TMUXMultiQueue(base_queue.Queue):
             for job in skipped_jobs:
                 reason = self._skip_reason(job, status_by_name)
                 if reason:
-                    rich_print(
-                        f'  [yellow]{job.name}[/yellow]  ({reason})'
-                    )
+                    rich_print(f'  [yellow]{job.name}[/yellow]  ({reason})')
                 else:
                     rich_print(f'  [yellow]{job.name}[/yellow]')
 
@@ -781,6 +842,7 @@ class TMUXMultiQueue(base_queue.Queue):
             )
         if monitor == 'none':
             from rich import print as rich_print
+
             rich_print(
                 '[bold]Queue running detached.[/bold] '
                 f'Reattach with: cmd_queue monitor --manifest={manifest_path}'
@@ -791,9 +853,11 @@ class TMUXMultiQueue(base_queue.Queue):
         if monitor == 'tmux':
             if not ub.find_exe('tmux'):
                 import warnings
+
                 warnings.warn(
                     "monitor='tmux' requested but tmux not found; "
-                    "falling back to inline monitor.")
+                    'falling back to inline monitor.'
+                )
                 return self.monitor(
                     with_textual=with_textual,
                     onfail=onfail,
@@ -806,6 +870,7 @@ class TMUXMultiQueue(base_queue.Queue):
                 extra_args.append(f'--onexit={onexit}')
             session_name = f'cmdq-monitor-{self.pathid}'
             from rich import print as rich_print
+
             rich_print(
                 f'[bold]Launching monitor in tmux session[/bold] {session_name}'
             )
@@ -816,11 +881,13 @@ class TMUXMultiQueue(base_queue.Queue):
                 verbose=0,
                 extra_args=extra_args,
             )
+
             # Don't pull the user's terminal into the monitor session; let
             # them attach on demand and freely detach back to this shell.
             def _is_finished() -> bool:
                 _, finished, _ = self._build_status_table()
                 return finished
+
             tmux.block_with_attach_prompt(
                 session_name=session_name,
                 is_finished_fn=_is_finished,
@@ -841,6 +908,7 @@ class TMUXMultiQueue(base_queue.Queue):
         running elsewhere (in a tmux session, or not at all).
         """
         import time
+
         while True:
             table, finished, agg_state = self._build_status_table()
             if finished:
@@ -988,6 +1056,7 @@ class TMUXMultiQueue(base_queue.Queue):
                 is_running = False
             else:
                 from rich.prompt import Confirm
+
                 flag = Confirm.ask('do you to kill the procs?')
                 if flag:
                     self.kill()
@@ -1061,15 +1130,20 @@ class TMUXMultiQueue(base_queue.Queue):
 
         if failed:
             ftable = Table(
-                title='Failed jobs', title_style='bold red',
-                show_header=True, header_style='red',
+                title='Failed jobs',
+                title_style='bold red',
+                show_header=True,
+                header_style='red',
             )
             ftable.add_column('name', style='red')
             ftable.add_column('log')
             for job in failed:
                 log_fpath = getattr(job, 'log_fpath', None)
-                if (getattr(job, 'log', False) and log_fpath is not None
-                        and log_fpath.exists()):
+                if (
+                    getattr(job, 'log', False)
+                    and log_fpath is not None
+                    and log_fpath.exists()
+                ):
                     ftable.add_row(job.name, str(log_fpath))
                 else:
                     any_log_missing = True
@@ -1078,8 +1152,10 @@ class TMUXMultiQueue(base_queue.Queue):
 
         if skipped:
             stable = Table(
-                title='Skipped jobs', title_style='bold yellow',
-                show_header=True, header_style='yellow',
+                title='Skipped jobs',
+                title_style='bold yellow',
+                show_header=True,
+                header_style='yellow',
             )
             stable.add_column('name', style='yellow')
             stable.add_column('reason')
@@ -1089,11 +1165,13 @@ class TMUXMultiQueue(base_queue.Queue):
             renderables.append(stable)
 
         if any_log_missing:
-            renderables.append(Text(
-                'Note: failure logs are not enabled for some failed '
-                'jobs (pass log=True at submit time).',
-                style='yellow',
-            ))
+            renderables.append(
+                Text(
+                    'Note: failure logs are not enabled for some failed '
+                    'jobs (pass log=True at submit time).',
+                    style='yellow',
+                )
+            )
 
         if len(renderables) == 1:
             return renderables[0]
@@ -1101,6 +1179,7 @@ class TMUXMultiQueue(base_queue.Queue):
 
     def _build_live_renderable(self):
         from rich.console import Group
+
         table, finished, agg_state = self._build_status_table()
         failed = self._build_failed_jobs_renderable()
         renderable = Group(table, failed) if failed is not None else table
@@ -1109,6 +1188,7 @@ class TMUXMultiQueue(base_queue.Queue):
     def _simple_rich_monitor(self, refresh_rate=0.4):
         import time
         from rich.live import Live
+
         if 0:
             print('Kill commands:')
             for command in self._kill_commands():
@@ -1124,15 +1204,24 @@ class TMUXMultiQueue(base_queue.Queue):
                     live.update(renderable)
         except KeyboardInterrupt:
             from rich.prompt import Confirm
+
             flag = Confirm.ask('do you to kill the procs?')
             if flag:
                 self.kill()
 
     def _build_status_table(self):
         from rich.table import Table
+
         # https://rich.readthedocs.io/en/stable/live.html
         table = Table()
-        columns = ['tmux session name', 'status', 'passed', 'failed', 'skipped', 'total']
+        columns = [
+            'tmux session name',
+            'status',
+            'passed',
+            'failed',
+            'skipped',
+            'total',
+        ]
         for col in columns:
             table.add_column(col)
 
@@ -1143,7 +1232,7 @@ class TMUXMultiQueue(base_queue.Queue):
             'failed': 0,
             'passed': 0,
             'skipped': 0,
-            'total': 0
+            'total': 0,
         }
 
         for worker in self.workers:
@@ -1155,12 +1244,12 @@ class TMUXMultiQueue(base_queue.Queue):
                 finished = False
                 pass_color = '[yellow]'
             else:
-                finished &= (state['status'] == 'done')
+                finished &= state['status'] == 'done'
                 if state['status'] == 'done':
                     pass_color = '[green]'
-                if (state['failed'] > 0):
+                if state['failed'] > 0:
                     fail_color = '[red]'
-                if (state['skipped'] > 0):
+                if state['skipped'] > 0:
                     skip_color = '[yellow]'
 
                 agg_state['total'] += state['total']
@@ -1171,10 +1260,10 @@ class TMUXMultiQueue(base_queue.Queue):
             table.add_row(
                 state['name'],
                 state['status'],
-                f"{pass_color}{state['passed']}",
-                f"{fail_color}{state['failed']}",
-                f"{skip_color}{state['skipped']}",
-                f"{state['total']}",
+                f'{pass_color}{state["passed"]}',
+                f'{fail_color}{state["failed"]}',
+                f'{skip_color}{state["skipped"]}',
+                f'{state["total"]}',
             )
 
         if not finished:
@@ -1186,10 +1275,10 @@ class TMUXMultiQueue(base_queue.Queue):
             table.add_row(
                 agg_state['name'],
                 agg_state['status'],
-                f"{agg_state['passed']}",
-                f"{agg_state['failed']}",
-                f"{agg_state['skipped']}",
-                f"{agg_state['total']}",
+                f'{agg_state["passed"]}',
+                f'{agg_state["failed"]}',
+                f'{agg_state["skipped"]}',
+                f'{agg_state["total"]}',
             )
         return table, finished, agg_state
 
@@ -1250,7 +1339,9 @@ class TMUXMultiQueue(base_queue.Queue):
         for queue in self.workers:
             print('\n\nqueue = {!r}'.format(queue))
             # First print out the contents for debug
-            tmux.capture_pane(target_session=queue.pathid, verbose=self.cmd_verbose)
+            tmux.capture_pane(
+                target_session=queue.pathid, verbose=self.cmd_verbose
+            )
 
     def _print_commands(self):
         # First print out the contents for debug
@@ -1287,27 +1378,32 @@ class TMUXMultiQueue(base_queue.Queue):
                 log_fpath = getattr(job, 'log_fpath', None)
                 depends = getattr(job, 'depends', None) or []
                 depends_names = [
-                    getattr(d, 'name', None) for d in depends
+                    getattr(d, 'name', None)
+                    for d in depends
                     if d is not None and getattr(d, 'name', None)
                 ]
-                jobs_info.append({
-                    'name': getattr(job, 'name', None),
-                    'log': bool(getattr(job, 'log', False)),
-                    'fail_fpath': str(fail_fpath) if fail_fpath else None,
-                    'skip_fpath': str(skip_fpath) if skip_fpath else None,
-                    'log_fpath': str(log_fpath) if log_fpath else None,
-                    'depends': depends_names,
-                })
-            workers_info.append({
-                'name': worker.name,
-                'rootid': worker.rootid,
-                'dpath': str(worker.dpath),
-                'pathid': worker.pathid,
-                'state_fpath': str(worker.state_fpath),
-                'fpath': str(worker.fpath),
-                'environ': dict(worker.environ or {}),
-                'jobs': jobs_info,
-            })
+                jobs_info.append(
+                    {
+                        'name': getattr(job, 'name', None),
+                        'log': bool(getattr(job, 'log', False)),
+                        'fail_fpath': str(fail_fpath) if fail_fpath else None,
+                        'skip_fpath': str(skip_fpath) if skip_fpath else None,
+                        'log_fpath': str(log_fpath) if log_fpath else None,
+                        'depends': depends_names,
+                    }
+                )
+            workers_info.append(
+                {
+                    'name': worker.name,
+                    'rootid': worker.rootid,
+                    'dpath': str(worker.dpath),
+                    'pathid': worker.pathid,
+                    'state_fpath': str(worker.state_fpath),
+                    'fpath': str(worker.fpath),
+                    'environ': dict(worker.environ or {}),
+                    'jobs': jobs_info,
+                }
+            )
         return {
             'backend': 'tmux',
             'name': self.name,
@@ -1324,6 +1420,7 @@ class TMUXMultiQueue(base_queue.Queue):
     def _write_monitor_manifest(self) -> Any:
         """Persist the monitor manifest to ``<dpath>/monitor_manifest.json``."""
         from cmd_queue import monitor_manifest as mm
+
         path = mm.manifest_path_for_dpath(self.dpath)
         manifest = self._build_monitor_manifest()
         mm.write_manifest(manifest, path)
@@ -1331,14 +1428,16 @@ class TMUXMultiQueue(base_queue.Queue):
         return path
 
     @classmethod
-    def _from_manifest(cls, manifest: Dict[str, Any]) -> "TMUXMultiQueue":
+    def _from_manifest(cls, manifest: Dict[str, Any]) -> 'TMUXMultiQueue':
         """Reconstruct a queue suitable for ``monitor()`` / ``kill()`` only."""
         self = cls.__new__(cls)
         # Initialize the base Queue state without re-creating workers / dpaths.
         base_queue.Queue.__init__(self)
         self.name = manifest['name']
         self.rootid = manifest['rootid']
-        self.pathid = manifest.get('pathid', '{}_{}'.format(self.name, self.rootid))
+        self.pathid = manifest.get(
+            'pathid', '{}_{}'.format(self.name, self.rootid)
+        )
         self.dpath = ub.Path(manifest['dpath'])
         self.fpath = ub.Path(manifest['fpath'])
         self.size = manifest['size']
@@ -1350,6 +1449,7 @@ class TMUXMultiQueue(base_queue.Queue):
         self.preamble = []
         self.jobs = []
         import types
+
         workers = []
         for w in manifest.get('workers', []):
             worker = serial_queue.SerialQueue(
@@ -1363,14 +1463,22 @@ class TMUXMultiQueue(base_queue.Queue):
             # the attributes the failed-jobs renderer reads.
             stubs = []
             for j in w.get('jobs') or []:
-                stubs.append(types.SimpleNamespace(
-                    name=j.get('name'),
-                    log=bool(j.get('log', False)),
-                    fail_fpath=ub.Path(j['fail_fpath']) if j.get('fail_fpath') else None,
-                    skip_fpath=ub.Path(j['skip_fpath']) if j.get('skip_fpath') else None,
-                    log_fpath=ub.Path(j['log_fpath']) if j.get('log_fpath') else None,
-                    depends=list(j.get('depends') or []),
-                ))
+                stubs.append(
+                    types.SimpleNamespace(
+                        name=j.get('name'),
+                        log=bool(j.get('log', False)),
+                        fail_fpath=ub.Path(j['fail_fpath'])
+                        if j.get('fail_fpath')
+                        else None,
+                        skip_fpath=ub.Path(j['skip_fpath'])
+                        if j.get('skip_fpath')
+                        else None,
+                        log_fpath=ub.Path(j['log_fpath'])
+                        if j.get('log_fpath')
+                        else None,
+                        depends=list(j.get('depends') or []),
+                    )
+                )
             worker.jobs = stubs
             workers.append(worker)
         self.workers = workers
@@ -1379,6 +1487,7 @@ class TMUXMultiQueue(base_queue.Queue):
 
 def has_stdin() -> bool:
     import sys
+
     try:
         sys.stdin.fileno()
     except Exception:
@@ -1390,6 +1499,7 @@ def has_stdin() -> bool:
 try:
     import textual  # NOQA
     from cmd_queue.monitor_app import CmdQueueMonitorApp
+
     if not hasattr(CmdQueueMonitorApp, 'run'):
         raise ImportError('Current textual monitor is broken on new versions')
 except ImportError:

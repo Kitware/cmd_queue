@@ -18,7 +18,9 @@ def _test_dpath(name: str) -> ub.Path:
 def _make_queue(name='cmdq_airflow_demo'):
     dpath = _test_dpath(name)
     airflow_home = dpath / 'airflow_home'
-    return AirflowQueue(name=name, dpath=dpath / 'queue_root', airflow_home=airflow_home)
+    return AirflowQueue(
+        name=name, dpath=dpath / 'queue_root', airflow_home=airflow_home
+    )
 
 
 def test_finalize_text_contains_dependencies():
@@ -27,7 +29,7 @@ def test_finalize_text_contains_dependencies():
     queue.submit('echo second', name='second_task', depends=first)
 
     text = queue.finalize_text()
-    assert "dag = DAG(" in text
+    assert 'dag = DAG(' in text
     assert "'finalize_demo'" in text
     assert "jobs['first_task']" in text
     assert "jobs['second_task']" in text
@@ -37,8 +39,8 @@ def test_finalize_text_contains_dependencies():
 def test_airflow_queue_run_executes_in_order():
     queue = _make_queue(name='run_demo')
     outfile = queue.dpath / 'output.txt'
-    queue.submit(f"echo first >> {outfile}", name='first')
-    queue.submit(f"echo second >> {outfile}", name='second', depends='first')
+    queue.submit(f'echo first >> {outfile}', name='first')
+    queue.submit(f'echo second >> {outfile}', name='second', depends='first')
 
     queue.run()
 

@@ -27,7 +27,6 @@ except ImportError:
 
 
 class JobTable(Widget):  # type: ignore
-
     def __init__(
         self,
         table_fn: Optional[Callable[[], Tuple[Any, bool, Any]]] = None,
@@ -87,9 +86,11 @@ class CmdQueueMonitorApp(InstanceRunnableApp):  # type: ignore
             >>> print(f'self.graceful_exit={self.graceful_exit}')
         """
         countdown = 10
+
         def demo_table_fn():
             nonlocal countdown
             import random
+
             r = random.random()
             columns = ['name', 'status', 'passed', 'errors', 'total']
             table = rich.table.Table()
@@ -108,10 +109,11 @@ class CmdQueueMonitorApp(InstanceRunnableApp):  # type: ignore
             finished = countdown <= 0
             agg_state = None
             return table, finished, agg_state
+
         return CmdQueueMonitorApp(demo_table_fn)
 
     async def on_load(self, event: Any) -> None:
-        await self.bind("q", "quit", "Quit")
+        await self.bind('q', 'quit', 'Quit')
 
     async def action_quit(self) -> None:
         await self.shutdown()
@@ -131,8 +133,8 @@ class CmdQueueMonitorApp(InstanceRunnableApp):  # type: ignore
         # vlayout.add(text)
         # vlayout.add(table_view)
 
-        await view.dock(header, edge="top")
-        await view.dock(footer, edge="bottom")
+        await view.dock(header, edge='top')
+        await view.dock(footer, edge='bottom')
         await view.dock(table_view)
         # await view.dock(scrollview2)
 

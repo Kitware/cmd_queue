@@ -314,6 +314,8 @@ __submodules__ = {
 }
 from cmd_queue import base_queue
 
-from cmd_queue.base_queue import (Queue,)
+from cmd_queue.base_queue import (
+    Queue,
+)
 
 __all__ = ['Queue', 'base_queue']
