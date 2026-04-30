@@ -95,14 +95,11 @@ class tmux:
         ]
         if extra_args:
             cmd_parts.extend(extra_args)
-        # Wrap in a small shell script so the pane stays open after the
-        # monitor exits, letting the user see the final table.
+        # After the monitor exits, drop into an interactive shell so the
+        # pane stays alive and the user can scroll up to read the final
+        # status table without a synthetic prompt blocking dismissal.
         inner = ' '.join(shlex.quote(p) for p in cmd_parts)
-        bash_payload = (
-            f'{inner}; '
-            'echo; echo "[cmd_queue monitor exited] press enter to close"; '
-            'read -r _'
-        )
+        bash_payload = f'{inner}; exec bash'
         new_session_cmd = [
             'tmux', 'new-session', '-d', '-s', session_name,
             'bash', '-lc', bash_payload,
@@ -128,6 +125,86 @@ class tmux:
                        verbose=verbose, check=False)
                 info['attached_via'] = 'attach-session'
         return info
+
+    @staticmethod
+    def block_with_attach_prompt(
+        session_name: str,
+        is_finished_fn: Any,
+        refresh_rate: float = 1.0,
+        label: str = 'queue',
+    ) -> None:
+        """
+        Block until ``is_finished_fn()`` returns truthy, while letting the
+        user press ``a`` to attach (or switch) to the given tmux session
+        and ``q`` / ``d`` to stop watching from the parent shell.
+
+        On a non-TTY stdin (e.g. piped invocation, CI), falls back to a
+        silent polling loop.
+
+        Args:
+            session_name: target tmux session for the attach action.
+            is_finished_fn: zero-arg callable returning True when the
+                queue is done.
+            refresh_rate: how often (seconds) to re-check completion and
+                poll for keypresses.
+            label: short noun used in the user-facing prompt.
+        """
+        import os
+        import sys
+        import time
+
+        if not sys.stdin.isatty():
+            while not is_finished_fn():
+                time.sleep(refresh_rate)
+            return
+
+        import select
+        import termios
+        import tty
+
+        inside_tmux = bool(os.environ.get('TMUX'))
+        attach_cmd = (
+            f'tmux switch-client -t {session_name}' if inside_tmux
+            else f'tmux attach -t {session_name}'
+        )
+        print(
+            f'Watching {label}. Press [a] to attach to monitor session '
+            f'({session_name}), [q] to stop watching (queue keeps running).'
+        )
+        print(f'Manual reattach anytime from another shell: {attach_cmd}')
+
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setcbreak(fd)
+            while True:
+                if is_finished_fn():
+                    return
+                ready, _, _ = select.select([sys.stdin], [], [], refresh_rate)
+                if not ready:
+                    continue
+                ch = sys.stdin.read(1)
+                if ch in ('a', 'A'):
+                    # Restore terminal before tmux takes over the tty.
+                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+                    try:
+                        if inside_tmux:
+                            ub.cmd(['tmux', 'switch-client', '-t',
+                                    session_name], check=False)
+                        else:
+                            ub.cmd(['tmux', 'attach-session', '-t',
+                                    session_name], check=False)
+                    finally:
+                        # Re-enter cbreak when the user detaches back.
+                        tty.setcbreak(fd)
+                elif ch in ('q', 'Q', 'd', 'D'):
+                    return
+                elif ch == '\x03':  # Ctrl-C
+                    raise KeyboardInterrupt
+        except KeyboardInterrupt:
+            return
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
     @staticmethod
     def list_panes(target_session: str) -> List[Dict[str, str]]:

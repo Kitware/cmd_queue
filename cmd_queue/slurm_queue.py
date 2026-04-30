@@ -754,31 +754,33 @@ class SlurmQueue(base_queue.Queue):
             _tmux.spawn_monitor_session(
                 session_name=session_name,
                 manifest_path=manifest_path,
-                attach=has_stdin(),
+                attach=False,
                 verbose=0,
                 extra_args=extra_args,
             )
-            return self._headless_block_until_done()
+            job_names = {job.name for job in self.jobs}
+
+            def _is_finished() -> bool:
+                if not job_names:
+                    return True
+                info = ub.cmd('squeue --format="%j"')
+                still_queued = {
+                    line.strip()
+                    for line in info['out'].splitlines()
+                    if line.strip() in job_names
+                }
+                return not still_queued
+
+            _tmux.block_with_attach_prompt(
+                session_name=session_name,
+                is_finished_fn=_is_finished,
+                refresh_rate=5.0,
+                label=f'queue {self.name or self.queue_id}',
+            )
+            return None
         raise ValueError(
             f"monitor must be one of 'inline', 'tmux', 'none'; got {monitor!r}"
         )
-
-    def _headless_block_until_done(self, refresh_rate: float = 5.0) -> None:
-        """Poll squeue until none of this queue's job names are still queued."""
-        import time
-        job_names = {job.name for job in self.jobs}
-        if not job_names:
-            return None
-        while True:
-            info = ub.cmd('squeue --format="%j"')
-            still_queued = {
-                line.strip()
-                for line in info['out'].splitlines()
-                if line.strip() in job_names
-            }
-            if not still_queued:
-                return None
-            time.sleep(refresh_rate)
 
     def monitor(
         self,

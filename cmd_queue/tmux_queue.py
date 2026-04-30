@@ -760,13 +760,23 @@ class TMUXMultiQueue(base_queue.Queue):
             tmux.spawn_monitor_session(
                 session_name=session_name,
                 manifest_path=manifest_path,
-                attach=has_stdin(),
+                attach=False,
                 verbose=0,
                 extra_args=extra_args,
             )
-            # The tmux session now owns the UI and the post-run cleanup.
-            # The caller still blocks here so block=True keeps its meaning.
-            return self._headless_block_until_done()
+            # Don't pull the user's terminal into the monitor session; let
+            # them attach on demand and freely detach back to this shell.
+            def _is_finished() -> bool:
+                _, finished, _ = self._build_status_table()
+                return finished
+            tmux.block_with_attach_prompt(
+                session_name=session_name,
+                is_finished_fn=_is_finished,
+                refresh_rate=1.0,
+                label=f'queue {self.name}',
+            )
+            _, _, agg_state = self._build_status_table()
+            return agg_state
         raise ValueError(
             f"monitor must be one of 'inline', 'tmux', 'none'; got {monitor!r}"
         )

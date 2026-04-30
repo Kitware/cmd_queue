@@ -36,7 +36,7 @@ def main():
     parser.add_argument(
         '--mode',
         choices=['inline', 'tmux', 'none'],
-        default='inline',
+        default='tmux',
         help='Where the monitor UI runs.',
     )
     parser.add_argument(
