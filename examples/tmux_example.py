@@ -1,16 +1,20 @@
 """
 Demonstrates the ``monitor`` kwarg on the tmux backend.
 
-Three modes are illustrated:
+Four monitor modes are illustrated:
 
-    * ``monitor='inline'`` (default) — the live status table renders in
-      the current shell, just like before. Closing the shell loses the
-      view and (depending on your terminal) may kill the parent process.
+    * ``monitor='hybrid'`` (default) — the live status table renders in
+      the current shell *and* a detached ``cmd_queue monitor`` tmux
+      session is spawned alongside. Press ``[a]`` from the inline UI to
+      attach (or switch-client) to the tmux session, ``[q]`` to stop
+      watching.
 
-    * ``monitor='tmux'`` — the status table renders in a *separate*
-      detached tmux session. The original shell still blocks until jobs
-      finish, but the visible UI (and the post-run cleanup) lives in a
-      session that survives the shell closing. Run with ``--mode=tmux``.
+    * ``monitor='inline'`` — only the in-shell live UI; no tmux session
+      is spawned.
+
+    * ``monitor='tmux'`` — only the detached tmux session, no inline
+      UI. Useful when you want the visible status table (and post-run
+      cleanup) to survive the calling shell closing.
 
     * ``monitor='none'`` — no live UI; ``run()`` headless-blocks until
       jobs finish. Useful in non-interactive scripts. The reattach hint
@@ -31,10 +35,15 @@ summary (and dependency-skip cascade) is visible. Pass ``--failures=0``
 for a clean run, or higher numbers for more failures.
 
 CommandLine:
-    # Default: inline monitor (current shell), one forced failure
+    # Default (hybrid): inline monitor in this shell + attachable tmux
+    # session. Press [a] in the inline UI to jump into the tmux monitor,
+    # [q] to stop watching (queue keeps running).
     python ~/code/cmd_queue/examples/tmux_example.py
 
-    # Spawn the monitor in its own tmux session and attach
+    # Inline-only, no side tmux session
+    python ~/code/cmd_queue/examples/tmux_example.py --mode=inline
+
+    # Spawn the monitor only in a tmux session (no inline view)
     python ~/code/cmd_queue/examples/tmux_example.py --mode=tmux
 
     # Run silently and reattach manually with `cmd_queue monitor <name>`
@@ -54,9 +63,9 @@ class TmuxExampleConfig(scfg.DataConfig):
     """
 
     mode = scfg.Value(
-        'tmux',
+        'hybrid',
         help='Where the monitor UI runs.',
-        choices=['inline', 'tmux', 'none'],
+        choices=['hybrid', 'inline', 'tmux', 'none'],
     )
     name = scfg.Value(
         'tmux-example',
@@ -211,6 +220,6 @@ def main():
 if __name__ == '__main__':
     """
     CommandLine:
-        python ~/code/cmd_queue/examples/tmux_example.py --mode=tmux
+        python ~/code/cmd_queue/examples/tmux_example.py
     """
     main()

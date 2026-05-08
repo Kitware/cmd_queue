@@ -711,7 +711,7 @@ class TMUXMultiQueue(base_queue.Queue):
         with_textual: str = 'auto',
         check_other_sessions: Optional[bool] = None,
         other_session_handler: str = 'auto',
-        monitor: str = 'inline',
+        monitor: str = 'hybrid',
         **kw: Any,
     ) -> None:
         """
@@ -727,13 +727,20 @@ class TMUXMultiQueue(base_queue.Queue):
             monitor (str):
                 Where the live status UI runs while ``block=True``.
 
-                * ``'inline'`` (default): renders in the current shell, just
-                  like today. Closing the shell loses the view.
+                * ``'hybrid'`` (default): renders the inline UI in the
+                  current shell *and* spawns a detached ``cmd_queue
+                  monitor`` tmux session alongside. Press ``[a]`` from
+                  the inline UI to attach (or switch-client) to the
+                  tmux session; ``[q]`` stops watching. The side
+                  session is killed when the inline monitor exits.
+                * ``'inline'``: renders only in the current shell. No
+                  tmux session is spawned. Closing the shell loses the
+                  view.
                 * ``'tmux'``: spawns ``cmd_queue monitor --manifest=...``
-                  in a detached tmux session and (when interactive) attaches
-                  the user to it. The current process still blocks until
-                  jobs finish (and runs the post-run cleanup), so detaching
-                  the tmux UI does not return control to the caller.
+                  only in a detached tmux session. The current process
+                  blocks until jobs finish (and runs the post-run
+                  cleanup), so detaching the tmux UI does not return
+                  control to the caller.
                 * ``'none'``: no UI; the call still blocks via a headless
                   state-file poll when ``block=True``.
         """
@@ -837,6 +844,45 @@ class TMUXMultiQueue(base_queue.Queue):
                 onfail=onfail,
                 onexit=onexit,
             )
+        if monitor == 'hybrid':
+            side_session = None
+            if ub.find_exe('tmux'):
+                extra_args = []
+                if onfail:
+                    extra_args.append(f'--onfail={onfail}')
+                if onexit:
+                    extra_args.append(f'--onexit={onexit}')
+                side_session = f'cmdq-monitor-{self.pathid}'
+                from rich import print as rich_print
+
+                rich_print(
+                    f'[dim]Spawned attachable monitor in tmux session[/dim] '
+                    f'{side_session} [dim](press [a] to attach)[/dim]'
+                )
+                tmux.spawn_monitor_session(
+                    session_name=side_session,
+                    manifest_path=manifest_path,
+                    attach=False,
+                    verbose=0,
+                    extra_args=extra_args,
+                )
+            else:
+                import warnings
+
+                warnings.warn(
+                    "monitor='hybrid' requested but tmux not found; "
+                    'falling back to inline-only monitor.'
+                )
+            try:
+                return self.monitor(
+                    with_textual=with_textual,
+                    onfail=onfail,
+                    onexit=onexit,
+                    side_session=side_session,
+                )
+            finally:
+                if side_session and tmux.has_session(side_session):
+                    tmux.kill_session(side_session, verbose=0)
         if monitor == 'none':
             from rich import print as rich_print
 
@@ -895,7 +941,8 @@ class TMUXMultiQueue(base_queue.Queue):
             self._print_done_summary(agg_state)
             return agg_state
         raise ValueError(
-            f"monitor must be one of 'inline', 'tmux', 'none'; got {monitor!r}"
+            "monitor must be one of 'hybrid', 'inline', 'tmux', 'none'; "
+            f'got {monitor!r}'
         )
 
     def _headless_block_until_done(self, refresh_rate: float = 1.0) -> Any:
@@ -953,6 +1000,7 @@ class TMUXMultiQueue(base_queue.Queue):
         with_textual: str | bool = 'auto',
         onfail: str = '',
         onexit: str = '',
+        side_session: Optional[str] = None,
     ) -> None:
         """
         Monitor progress until the jobs are done.
@@ -969,6 +1017,11 @@ class TMUXMultiQueue(base_queue.Queue):
                 the user can investigate.")
             onexit (str): if ``'capture'``, dump tmux pane contents
                 after the queue finishes.
+            side_session (str | None): name of an attachable tmux
+                monitor session running alongside the inline UI. When
+                set, the inline monitor binds ``a`` to attach (or
+                switch-client) to this session. Caller is responsible
+                for spawning/cleaning up the session.
 
         CommandLine:
             xdoctest -m cmd_queue.tmux_queue TMUXMultiQueue.monitor:0
@@ -1021,9 +1074,9 @@ class TMUXMultiQueue(base_queue.Queue):
                 with_textual = False
 
         if with_textual:
-            self._textual_monitor()
+            self._textual_monitor(side_session=side_session)
         else:
-            self._simple_rich_monitor(refresh_rate)
+            self._simple_rich_monitor(refresh_rate, side_session=side_session)
         table, finished, agg_state = self._build_status_table()
         if onexit == 'capture':
             self.capture()
@@ -1032,7 +1085,7 @@ class TMUXMultiQueue(base_queue.Queue):
         self._print_done_summary(agg_state)
         return agg_state
 
-    def _textual_monitor(self):
+    def _textual_monitor(self, side_session: Optional[str] = None):
         from rich import print as rich_print
 
         if 0:
@@ -1043,11 +1096,22 @@ class TMUXMultiQueue(base_queue.Queue):
         is_running = True
         while is_running:
             table_fn = self._build_status_table
-            app = CmdQueueMonitorApp(table_fn, kill_fn=self.kill)
+            app = CmdQueueMonitorApp(
+                table_fn, kill_fn=self.kill, attach_session=side_session
+            )
             app.run()
 
             table, finished, agg_state = self._build_status_table()
             rich_print(table)
+
+            if getattr(app, 'attach_requested', False):
+                # User pressed 'a' inside the textual UI; perform the
+                # attach (or switch-client) now that textual has released
+                # the terminal, then re-enter the textual loop.
+                app.attach_requested = False
+                if side_session is not None:
+                    _attach_or_switch(side_session)
+                continue
 
             if app.graceful_exit:
                 is_running = False
@@ -1174,32 +1238,35 @@ class TMUXMultiQueue(base_queue.Queue):
             return renderables[0]
         return Group(*renderables)
 
-    def _build_live_renderable(self):
+    def _build_live_renderable(self, side_session: Optional[str] = None):
         from rich.console import Group
 
         table, finished, agg_state = self._build_status_table()
         failed = self._build_failed_jobs_renderable()
-        renderable = Group(table, failed) if failed is not None else table
+        hint = _attach_hint_renderable(side_session) if side_session else None
+        parts = [p for p in (table, failed, hint) if p is not None]
+        renderable = Group(*parts) if len(parts) > 1 else parts[0]
         return renderable, finished, agg_state
 
-    def _simple_rich_monitor(self, refresh_rate=0.4):
-        import time
-
-        from rich.live import Live
+    def _simple_rich_monitor(
+        self, refresh_rate=0.4, side_session: Optional[str] = None
+    ):
+        import sys
 
         if 0:
             print('Kill commands:')
             for command in self._kill_commands():
                 print(command)
+
+        use_keys = side_session is not None and sys.stdin.isatty()
         try:
-            renderable, finished, agg_state = self._build_live_renderable()
-            with Live(renderable, refresh_per_second=4) as live:
-                while not finished:
-                    time.sleep(refresh_rate)
-                    renderable, finished, agg_state = (
-                        self._build_live_renderable()
-                    )
-                    live.update(renderable)
+            _run_live_with_attach(
+                build_renderable=lambda: self._build_live_renderable(
+                    side_session=side_session,
+                ),
+                refresh_rate=refresh_rate,
+                side_session=side_session if use_keys else None,
+            )
         except KeyboardInterrupt:
             from rich.prompt import Confirm
 
@@ -1481,6 +1548,95 @@ class TMUXMultiQueue(base_queue.Queue):
             workers.append(worker)
         self.workers = workers
         return self
+
+
+def _attach_or_switch(session_name: str) -> None:
+    """Attach the user's terminal to ``session_name`` (or switch-client
+    if already inside tmux). Thin module-level shim around the static
+    method so call sites don't need to import the class."""
+    tmux.attach_or_switch(session_name)
+
+
+def _attach_hint_renderable(session_name: str) -> Any:
+    """Footer text shown beneath the live status table when an
+    attachable side-session exists, so the user can discover the
+    keybindings without reading the docs."""
+    import os
+
+    from rich.text import Text
+
+    verb = 'switch-client' if os.environ.get('TMUX') else 'attach'
+    return Text.from_markup(
+        rf'[dim]Press \[a] to {verb} to monitor session '
+        f"'{session_name}'  •  \\[q] to stop watching (queue keeps "
+        'running)[/dim]'
+    )
+
+
+def _run_live_with_attach(
+    build_renderable: Any,
+    refresh_rate: float,
+    side_session: Optional[str],
+) -> None:
+    """Run a ``rich.live.Live`` loop that also accepts ``a``/``q``
+    keypresses when ``side_session`` is provided.
+
+    The loop exits when the renderable's ``finished`` flag goes True
+    (queue done) or when the user presses ``q``. On ``a`` the Live
+    display is suspended, the user is attached to the side tmux
+    session, and the loop resumes after they detach.
+    """
+    import sys
+    import time
+
+    from rich.live import Live
+
+    if side_session is None:
+        # Plain path with no input handling — preserves old behavior
+        # exactly when there is no side session to attach to.
+        renderable, finished, _ = build_renderable()
+        with Live(renderable, refresh_per_second=4) as live:
+            while not finished:
+                time.sleep(refresh_rate)
+                renderable, finished, _ = build_renderable()
+                live.update(renderable)
+        return
+
+    import select
+    import termios
+    import tty
+
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    try:
+        while True:
+            tty.setcbreak(fd)
+            attach_requested = False
+            renderable, finished, _ = build_renderable()
+            with Live(renderable, refresh_per_second=4) as live:
+                while not finished:
+                    ready, _, _ = select.select(
+                        [sys.stdin], [], [], refresh_rate
+                    )
+                    if ready:
+                        ch = sys.stdin.read(1)
+                        if ch in ('a', 'A'):
+                            attach_requested = True
+                            break
+                        if ch in ('q', 'Q'):
+                            return
+                        if ch == '\x03':  # Ctrl-C
+                            raise KeyboardInterrupt
+                    renderable, finished, _ = build_renderable()
+                    live.update(renderable)
+            if not attach_requested:
+                return
+            # Restore the terminal so tmux gets a clean tty, attach,
+            # then loop back into Live with cbreak re-enabled.
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+            _attach_or_switch(side_session)
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
 
 def has_stdin() -> bool:

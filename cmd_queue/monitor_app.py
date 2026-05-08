@@ -61,11 +61,14 @@ class CmdQueueMonitorApp(InstanceRunnableApp):  # type: ignore
         self,
         table_fn: Callable[[], Tuple[Any, bool, Any]],
         kill_fn: Optional[Callable[[], Any]] = None,
+        attach_session: Optional[str] = None,
         **kwargs: Any,
     ) -> None:
         self.job_table = JobTable(table_fn)
         self.kill_fn = kill_fn
         self.graceful_exit = False
+        self.attach_session = attach_session
+        self.attach_requested = False
         super().__init__(**kwargs)
         self._title = 'Command Queue'
 
@@ -114,8 +117,18 @@ class CmdQueueMonitorApp(InstanceRunnableApp):  # type: ignore
 
     async def on_load(self, event: Any) -> None:
         await self.bind('q', 'quit', 'Quit')
+        if self.attach_session is not None:
+            await self.bind('a', 'attach_monitor', 'Attach monitor')
 
     async def action_quit(self) -> None:
+        await self.shutdown()
+
+    async def action_attach_monitor(self) -> None:
+        # The actual tmux attach has to happen *after* the textual app
+        # releases the terminal. Flag it and shut down; the caller
+        # (TMUXMultiQueue._textual_monitor) checks ``attach_requested``
+        # and performs the attach + re-launches the app.
+        self.attach_requested = True
         await self.shutdown()
 
     async def on_mount(self, event: Any) -> None:

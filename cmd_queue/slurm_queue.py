@@ -737,7 +737,7 @@ class SlurmQueue(base_queue.Queue):
         system: bool = False,
         onfail: str = '',
         onexit: str = '',
-        monitor: str = 'inline',
+        monitor: str = 'hybrid',
         **kw: Any,
     ) -> Optional[Any]:
         """
@@ -745,13 +745,22 @@ class SlurmQueue(base_queue.Queue):
 
         Args:
             monitor (str): where the live status UI runs while
-                ``block=True``. ``'inline'`` (default) renders in the
-                current shell. ``'tmux'`` spawns ``cmd_queue monitor``
-                in a detached tmux session so the UI survives the
-                calling shell closing — useful for slurm jobs whose
-                workers run on the cluster long after the submit shell
-                might be gone. ``'none'`` skips the UI but still blocks
-                when ``block=True``.
+                ``block=True``.
+
+                * ``'hybrid'`` (default): inline UI in the current
+                  shell *and* a detached ``cmd_queue monitor`` tmux
+                  session you can press ``[a]`` to attach to. The
+                  side session is killed when the inline monitor
+                  exits. Falls back to ``'inline'`` when tmux is
+                  unavailable.
+                * ``'inline'``: renders only in the current shell.
+                * ``'tmux'``: spawns ``cmd_queue monitor`` only in a
+                  detached tmux session so the UI survives the
+                  calling shell closing — useful for slurm jobs
+                  whose workers run on the cluster long after the
+                  submit shell might be gone.
+                * ``'none'``: skips the UI but still blocks when
+                  ``block=True``.
         """
         if not self.is_available():
             raise Exception('slurm backend is not available')
@@ -763,6 +772,46 @@ class SlurmQueue(base_queue.Queue):
             return None
         if monitor == 'inline':
             return self.monitor(onfail=onfail, onexit=onexit)
+        if monitor == 'hybrid':
+            from cmd_queue.util.util_tmux import tmux as _tmux
+
+            side_session = None
+            if ub.find_exe('tmux'):
+                extra_args = []
+                if onfail:
+                    extra_args.append(f'--onfail={onfail}')
+                if onexit:
+                    extra_args.append(f'--onexit={onexit}')
+                side_session = f'cmdq-monitor-{self.queue_id}'
+                from rich import print as rich_print
+
+                rich_print(
+                    f'[dim]Spawned attachable monitor in tmux session[/dim] '
+                    f'{side_session} [dim](press [a] to attach)[/dim]'
+                )
+                _tmux.spawn_monitor_session(
+                    session_name=side_session,
+                    manifest_path=manifest_path,
+                    attach=False,
+                    verbose=0,
+                    extra_args=extra_args,
+                )
+            else:
+                import warnings
+
+                warnings.warn(
+                    "monitor='hybrid' requested but tmux not found; "
+                    'falling back to inline-only monitor.'
+                )
+            try:
+                return self.monitor(
+                    onfail=onfail,
+                    onexit=onexit,
+                    side_session=side_session,
+                )
+            finally:
+                if side_session and _tmux.has_session(side_session):
+                    _tmux.kill_session(side_session, verbose=0)
         if monitor == 'none':
             from rich import print as rich_print
 
@@ -821,7 +870,8 @@ class SlurmQueue(base_queue.Queue):
             )
             return None
         raise ValueError(
-            f"monitor must be one of 'inline', 'tmux', 'none'; got {monitor!r}"
+            "monitor must be one of 'hybrid', 'inline', 'tmux', 'none'; "
+            f'got {monitor!r}'
         )
 
     def monitor(
@@ -832,6 +882,7 @@ class SlurmQueue(base_queue.Queue):
         with_textual: str | bool = 'auto',
         onfail: str = '',
         onexit: str = '',
+        side_session: Optional[str] = None,
     ) -> Optional[Any]:
         """
         Monitor progress until the jobs are done.
@@ -869,11 +920,14 @@ class SlurmQueue(base_queue.Queue):
         """
 
         import io
-        import time
 
         import pandas as pd
-        from rich.live import Live
         from rich.table import Table
+
+        from cmd_queue.tmux_queue import (
+            _attach_hint_renderable,
+            _run_live_with_attach,
+        )
 
         jobid_history = set()
 
@@ -1065,13 +1119,29 @@ class SlurmQueue(base_queue.Queue):
             agg_state['total'] = len(job_status_table)
 
         try:
-            table, finished = update_status_table()
+            import sys
+
+            from rich.console import Group
+
+            def _build_renderable() -> Any:
+                table, finished = update_status_table()
+                hint = (
+                    _attach_hint_renderable(side_session)
+                    if side_session
+                    else None
+                )
+                renderable = Group(table, hint) if hint is not None else table
+                # The slurm Live loop tracks completion via a separate
+                # variable than tmux; agg_state is updated post-loop.
+                return renderable, finished, None
+
             refresh_rate = 0.4
-            with Live(table, refresh_per_second=4) as live:
-                while not finished:
-                    time.sleep(refresh_rate)
-                    table, finished = update_status_table()
-                    live.update(table)
+            use_keys = side_session is not None and sys.stdin.isatty()
+            _run_live_with_attach(
+                build_renderable=_build_renderable,
+                refresh_rate=refresh_rate,
+                side_session=side_session if use_keys else None,
+            )
             _update_agg_state()
         except KeyboardInterrupt:
             from rich.prompt import Confirm

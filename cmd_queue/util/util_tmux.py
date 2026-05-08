@@ -235,6 +235,28 @@ class tmux:
             termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
     @staticmethod
+    def attach_or_switch(session_name: str) -> None:
+        """Bring ``session_name`` to the foreground for the user.
+
+        Inside an existing tmux client, this issues ``switch-client`` so
+        we don't try to nest tmux. Otherwise we ``attach-session`` and
+        let the foreground process inherit the tty (the user can detach
+        with the usual binding to come back).
+        """
+        import os
+
+        if os.environ.get('TMUX'):
+            ub.cmd(
+                ['tmux', 'switch-client', '-t', session_name],
+                check=False,
+            )
+        else:
+            ub.cmd(
+                ['tmux', 'attach-session', '-t', session_name],
+                check=False,
+            )
+
+    @staticmethod
     def list_panes(target_session: str) -> List[Dict[str, str]]:
         """
         Ignore:
