@@ -30,7 +30,7 @@ import contextlib
 import os
 import time
 import uuid
-from typing import Any, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 import ubelt as ub
 
@@ -314,7 +314,7 @@ class AirflowQueue(base_queue.Queue):
                 failed_state = TaskInstanceState.FAILED
                 skipped_state = TaskInstanceState.SKIPPED
 
-            summary = {
+            summary: Dict[str, Any] = {
                 'name': self.name,
                 'status': 'unknown',
                 'total': None,
@@ -360,7 +360,7 @@ class AirflowQueue(base_queue.Queue):
                 )
         return summary
 
-    def finalize_text(self) -> str:
+    def finalize_text(self, **kwargs: Any) -> str:
         import networkx as nx
 
         graph = self._dependency_graph()
@@ -405,7 +405,7 @@ class AirflowQueue(base_queue.Queue):
         return text
         # pass
 
-    def submit(self, command: str, **kwargs: Any) -> AirflowJob:
+    def submit(self, command: str, **kwargs: Any) -> AirflowJob:  # ty: ignore[invalid-method-override]
         name = kwargs.get('name', None)
         if name is None:
             name = kwargs['name'] = f'J{len(self.jobs):04d}-{self.queue_id}'
@@ -435,7 +435,8 @@ class AirflowQueue(base_queue.Queue):
         job = AirflowJob(command, depends=depends, **kwargs)
         self.jobs.append(job)
         self.num_real_jobs += 1
-        self.named_jobs[job.name] = job
+        # job.name is set above before this line, but ty sees Optional.
+        self.named_jobs[job.name] = job  # ty: ignore[invalid-assignment]
         return job
 
     def print_commands(

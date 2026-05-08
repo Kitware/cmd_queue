@@ -254,14 +254,14 @@ class TMUXMultiQueue(base_queue.Queue):
         self._new_workers()
 
         if preamble is not None:
-            self.add_preamble_commands(preamble)
+            self.add_preamble_command(preamble)
 
     @classmethod
     def is_available(cls) -> bool:
         """
         Determines if we can run the tmux queue or not.
         """
-        return ub.find_exe('tmux')
+        return bool(ub.find_exe('tmux'))
 
     def _new_workers(self, start: int = 0) -> List[serial_queue.SerialQueue]:
         import itertools as it
@@ -293,7 +293,9 @@ class TMUXMultiQueue(base_queue.Queue):
         return workers
 
     def __nice__(self) -> str:
-        return ub.urepr(self.jobs)
+        # ub.urepr typed as ``str | tuple[...]`` for the json-mode path;
+        # plain repr never returns the tuple form.
+        return str(ub.urepr(self.jobs))
 
     def _semaphore_wait_command(
         self, flag_fpaths: Iterable[str], msg: str

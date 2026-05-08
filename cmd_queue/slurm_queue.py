@@ -268,8 +268,10 @@ class SlurmJob(base_queue.Job):
         self.shell = shell
         self.tags = util_tags.Tags.coerce(tags)
         # Extra arguments for sbatch
-        self._sbatch_kvargs = ub.udict(kwargs) & SLURM_SBATCH_KVARGS
-        self._sbatch_flags = ub.udict(kwargs) & SLURM_SBATCH_FLAGS
+        # ub.udict.__and__ accepts list-of-keys (dict-key intersection);
+        # ty's stub typing for the operator only recognizes set/dict.
+        self._sbatch_kvargs = ub.udict(kwargs) & SLURM_SBATCH_KVARGS  # ty: ignore[unsupported-operator]
+        self._sbatch_flags = ub.udict(kwargs) & SLURM_SBATCH_FLAGS  # ty: ignore[unsupported-operator]
         self.preamble = preamble
         # if shell not in {None, 'bash'}:
         #     raise NotImplementedError(shell)
@@ -404,9 +406,9 @@ class SlurmJob(base_queue.Job):
             _preamble.append(self.preamble)
 
         if _preamble:
-            wrp_command = shlex.quote(' && '.join(_preamble + [self.command]))
+            wrp_command = shlex.quote(' && '.join(_preamble + [self.command]))  # ty: ignore[invalid-argument-type]
         else:
-            wrp_command = shlex.quote(self.command)
+            wrp_command = shlex.quote(self.command)  # ty: ignore[invalid-argument-type]
 
         if self.shell:
             wrp_command = shlex.quote(self.shell + ' -c ' + wrp_command)
@@ -496,8 +498,10 @@ class SlurmQueue(base_queue.Queue):
         self.shell = shell
         self.preamble = []
         self.all_depends = None
-        self._sbatch_kvargs = ub.udict(kwargs) & SLURM_SBATCH_KVARGS
-        self._sbatch_flags = ub.udict(kwargs) & SLURM_SBATCH_FLAGS
+        # ub.udict.__and__ accepts list-of-keys (dict-key intersection);
+        # ty's stub typing for the operator only recognizes set/dict.
+        self._sbatch_kvargs = ub.udict(kwargs) & SLURM_SBATCH_KVARGS  # ty: ignore[unsupported-operator]
+        self._sbatch_flags = ub.udict(kwargs) & SLURM_SBATCH_FLAGS  # ty: ignore[unsupported-operator]
         self._include_monitor_metadata = True
         self.jobid_fpath = None
 
@@ -534,8 +538,10 @@ class SlurmQueue(base_queue.Queue):
             import json
 
             status['sinfo_working'] = True
+            # ub.cmd().stdout is typed ``str | bytes | None`` but returns
+            # a populated str here (default ``output=True``).
             status['sinfo_version_str'] = (
-                ub.cmd('sinfo --version').stdout.strip().split(' ')[1]
+                ub.cmd('sinfo --version').stdout.strip().split(' ')[1]  # ty: ignore[unresolved-attribute, invalid-argument-type]
             )
             sinfo_out = json.loads(sinfo['out'])
             nodes = sinfo_out['nodes']
@@ -563,9 +569,9 @@ class SlurmQueue(base_queue.Queue):
                     # note: the --json command is not available in
                     # slurm-wlm 19.05.5, but it is in slurm-wlm 21.08.5
                     sinfo_version_str = (
-                        ub.cmd('sinfo --version').stdout.strip().split(' ')[1]
+                        ub.cmd('sinfo --version').stdout.strip().split(' ')[1]  # ty: ignore[unresolved-attribute, invalid-argument-type]
                     )
-                    sinfo_major_version = int(sinfo_version_str.split('.')[0])
+                    sinfo_major_version = int(sinfo_version_str.split('.')[0])  # ty: ignore[invalid-argument-type]
                     if sinfo_major_version < 21:
                         # Dont check in this case
                         return True
@@ -605,7 +611,7 @@ class SlurmQueue(base_queue.Queue):
 
         return False
 
-    def submit(
+    def submit(  # ty: ignore[invalid-method-override]
         self,
         command: str,
         preamble: Optional[Union[str, List[str]]] = None,
@@ -659,7 +665,8 @@ class SlurmQueue(base_queue.Queue):
         job = SlurmJob(command, depends=depends, preamble=preamble, **_kwargs)
         self.jobs.append(job)
         self.num_real_jobs += 1
-        self.named_jobs[job.name] = job
+        # job.name is always populated above, but ty sees ``str | None``.
+        self.named_jobs[job.name] = job  # ty: ignore[invalid-assignment]
         return job
 
     def order_jobs(self) -> List[SlurmJob]:
@@ -964,7 +971,9 @@ class SlurmQueue(base_queue.Queue):
                 if row['needs_update']:
                     job_id = row['job_id']
                     out = ub.cmd(f'scontrol show job "{job_id}"')
-                    info = parse_scontrol_output(out.stdout)
+                    # ub.cmd().stdout is typed ``str | bytes | None`` but
+                    # is always a str here.
+                    info = parse_scontrol_output(out.stdout)  # ty: ignore[invalid-argument-type]
                     row['JobState'] = info['JobState']
                     row['ExitCode'] = info.get('ExitCode', None)
                     # https://slurm.schedmd.com/job_state_codes.html

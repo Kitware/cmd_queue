@@ -15,6 +15,22 @@ class Job(ub.NiceRepr):
     Base class for a job
     """
 
+    # The following attributes are produced by concrete subclasses
+    # (BashJob, SlurmJob, AirflowJob). They are declared here so that
+    # generic queue code that walks ``Job`` instances type-checks
+    # against the base class without each subclass attribute being
+    # flagged as unresolved.
+    # ``bookkeeper`` is exposed as an int so backends can accumulate
+    # counts; treated as bool elsewhere via truthiness.
+    bookkeeper: int = 0
+    tags: Any = None
+    log: bool = False
+    log_fpath: Any = None
+    pass_fpath: Any = None
+    fail_fpath: Any = None
+    skip_fpath: Any = None
+    stat_fpath: Any = None
+
     def __init__(
         self,
         command: Optional[str] = None,
@@ -31,7 +47,11 @@ class Job(ub.NiceRepr):
         self.kwargs = kwargs
 
     def __nice__(self) -> str:
-        return self.name
+        return self.name or ''
+
+    def finalize_text(self, *args: Any, **kwargs: Any) -> str:
+        """Render this job to a bash snippet. Implemented by subclasses."""
+        raise NotImplementedError
 
 
 class Queue(ub.NiceRepr):
@@ -104,10 +124,12 @@ class Queue(ub.NiceRepr):
             new_depends = []
             if job.depends:
                 for dep in job.depends:
-                    new_dep = new.named_jobs[dep.name]
+                    # named_jobs only contains non-None-named jobs by
+                    # construction, but ``Job.name`` is typed Optional.
+                    new_dep = new.named_jobs[dep.name]  # ty: ignore[invalid-argument-type]
                     new_depends.append(new_dep)
             # TODO: carry over metadata
-            new.submit(job.command, depends=new_depends, name=job.name)
+            new.submit(job.command, depends=new_depends, name=job.name)  # ty: ignore[invalid-argument-type]
         return new
 
         for job in self.jobs:
@@ -226,7 +248,9 @@ class Queue(ub.NiceRepr):
         except Exception:
             raise
 
-        self.named_jobs[job.name] = job
+        # job.name is set by submit() above before this line, but ty
+        # only sees ``Optional[str]`` from the Job base class.
+        self.named_jobs[job.name] = job  # ty: ignore[invalid-assignment]
 
         if not job.bookkeeper:
             self.num_real_jobs += 1
@@ -483,6 +507,25 @@ class Queue(ub.NiceRepr):
         onexit: str = '',
     ) -> None:
         print('monitor not implemented')
+
+    # Subclass-supplied entry points. Declaring them here lets callers
+    # type-check against the abstract ``Queue`` (e.g. the value
+    # returned by ``Queue.create``) without each backend's overrides
+    # being flagged. The bodies just raise so a missing override is
+    # caught at runtime rather than silently no-oping.
+
+    def finalize_text(self, **kwargs: Any) -> str:
+        raise NotImplementedError
+
+    def run(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError
+
+    def kill(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError
+
+    def read_state(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError
+
 
     def _coerce_style(
         self,

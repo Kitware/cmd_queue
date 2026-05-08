@@ -74,8 +74,10 @@ class SlurmifyCLI(scfg.DataConfig):
         import rich
         from rich.markup import escape
 
-        config = cls.cli(argv=argv, data=kwargs, strict=True)
-        rich.print('config = ' + escape(ub.urepr(config, nl=1)))
+        # See main.py: ``argv=1`` is the scriptconfig idiom for sys.argv.
+        config = cls.cli(argv=argv, data=kwargs, strict=True)  # ty: ignore[invalid-argument-type]
+        # ub.urepr unions with a tuple form for the json branch; cast to str.
+        rich.print('config = ' + escape(str(ub.urepr(config, nl=1))))
 
         # import json
         # Run a new CLI queue
@@ -114,7 +116,8 @@ class SlurmifyCLI(scfg.DataConfig):
                     bash_command = ' '.join(
                         [shlex.quote(str(p)) for p in bash_command]
                     )
-            submitkw = ub.udict(row) & {'name', 'depends'}
+            # ``ub.udict.__and__`` accepts an iterable of keys.
+            submitkw = ub.udict(row) & {'name', 'depends'}  # ty: ignore[unsupported-operator]
             queue.submit(bash_command, log=False, **submitkw)
         except Exception:
             print('row = {}'.format(ub.urepr(row, nl=1)))

@@ -207,7 +207,7 @@ class BashJob(base_queue.Job):
         if with_status:
             script.append('# before_command:')
             # import shlex
-            json_fmt_parts = [
+            json_fmt_parts: List[tuple[str, str, Any]] = [
                 ('ret', '%s', 'null'),
                 ('name', '"%s"', self.name),
                 # ('command', '"%s"', shlex.quote(self.command)),
@@ -321,7 +321,7 @@ class BashJob(base_queue.Job):
 
         if with_status:
             # import shlex
-            json_fmt_parts = [
+            json_fmt_parts: List[tuple[str, str, Any]] = [
                 ('ret', '%s', '$RETURN_CODE'),
                 ('name', '"%s"', self.name),
             ]
@@ -402,7 +402,9 @@ class BashJob(base_queue.Job):
             >>> print('\n\n---\n\n')
             >>> self.print_commands(with_status=0, with_gaurds=0, style='rich')
         """
-        style = base_queue.Queue._coerce_style(self, style, with_rich)
+        # SerialQueue is-a Queue, but ty doesn't always narrow ``self``
+        # back through the base-class accessor.
+        style = base_queue.Queue._coerce_style(self, style, with_rich)  # ty: ignore[invalid-argument-type]
 
         code = self.finalize_text(
             with_status=with_status, with_gaurds=with_gaurds, **kwargs
@@ -571,6 +573,7 @@ class SerialQueue(base_queue.Queue):
         with_gaurds: bool = True,
         with_locks: bool = True,
         exclude_tags: Optional[Any] = None,
+        **kwargs: Any,
     ) -> str:
         """
         Create the bash script that will:
@@ -817,7 +820,7 @@ class SerialQueue(base_queue.Queue):
         self,
         block: bool = True,
         system: bool = False,
-        shell: int = 1,
+        shell: bool = True,
         capture: bool = True,
         mode: str = 'bash',
         verbose: int = 3,

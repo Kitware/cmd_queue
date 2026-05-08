@@ -50,7 +50,8 @@ def test_primary_bash_job_text_variants():
                 'export SETUP_LINE2=2',
             ]
 
-        finalize_kwargs = ub.udict(variant) & {'with_status', 'with_gaurds'}
+        # ub.udict.__and__ accepts an iterable of keys.
+        finalize_kwargs = ub.udict(variant) & {'with_status', 'with_gaurds'}  # ty: ignore[unsupported-operator]
 
         command = 'echo hi'
         self = BashJob(command, name='job2', **job_kwargs)
@@ -106,7 +107,8 @@ def test_bash_job_variants_syntax_grided():
                 'export SETUP_LINE2=2',
             ]
 
-        finalize_kwargs = ub.udict(variant) & {'with_status', 'with_gaurds'}
+        # ub.udict.__and__ accepts an iterable of keys.
+        finalize_kwargs = ub.udict(variant) & {'with_status', 'with_gaurds'}  # ty: ignore[unsupported-operator]
 
         self = BashJob('echo hi', name='job2', **job_kwargs)
         self.log = variant['log']

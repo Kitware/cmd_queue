@@ -234,7 +234,9 @@ class CMDQueueConfig(scfg.DataConfig):
     def __post_init__(self) -> None:
         from cmd_queue.util.util_yaml import Yaml
 
-        self.slurm_options = Yaml.coerce(self.slurm_options) or {}
+        # scriptconfig descriptors return the underlying value at runtime;
+        # ty sees the descriptor type and flags the assignment.
+        self.slurm_options = Yaml.coerce(self.slurm_options) or {}  # ty: ignore[invalid-assignment]
 
     def create_queue(config, **kwargs: Any) -> 'cmd_queue.Queue':
         """
@@ -248,9 +250,10 @@ class CMDQueueConfig(scfg.DataConfig):
         """
         import cmd_queue
 
-        queuekw = {}
+        queuekw: Dict[str, Any] = {}
         if config.backend == 'slurm':
-            queuekw.update(config.slurm_options)
+            # scriptconfig descriptor resolves to a dict at runtime.
+            queuekw.update(config.slurm_options)  # ty: ignore[no-matching-overload]
         elif config.backend == 'tmux':
             queuekw.update(
                 {
@@ -260,7 +263,8 @@ class CMDQueueConfig(scfg.DataConfig):
         queuekw.update(kwargs)
         if 'name' not in queuekw:
             queuekw['name'] = config.queue_name
-        queue = cmd_queue.Queue.create(backend=config.backend, **queuekw)
+        # scriptconfig descriptor: ``config.backend`` resolves to str at runtime.
+        queue = cmd_queue.Queue.create(backend=config.backend, **queuekw)  # ty: ignore[invalid-argument-type]
         if config.virtualenv_cmd:
             # Experimental feature to automatically activate virtual
             # environments
@@ -277,7 +281,8 @@ class CMDQueueConfig(scfg.DataConfig):
                 else:
                     virtualenv_cmd = None
             if virtualenv_cmd:
-                queue.add_header_command(virtualenv_cmd)
+                # scriptconfig descriptor narrows to str at runtime.
+                queue.add_header_command(virtualenv_cmd)  # ty: ignore[invalid-argument-type]
         return queue
 
     def run_queue(

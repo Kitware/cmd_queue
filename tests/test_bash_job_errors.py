@@ -99,7 +99,9 @@ def test_tmux_queue_errors():
     queue.print_commands(True, True)
     queue.write()
 
-    if not queue.is_available():
+    # Backend subclasses define is_available; the abstract Queue base
+    # type doesn't, but at runtime queue is a TMUXMultiQueue here.
+    if not queue.is_available():  # ty: ignore[unresolved-attribute]
         import pytest
 
         pytest.skip('Skip tmux test. Tmux is not available')

@@ -89,12 +89,18 @@ class CommonConfig(scfg.DataConfig):
 
     @classmethod
     def main(cls, argv: int = 1, **kwargs: Any) -> None:
-        config = cls.cli(argv=argv, data=kwargs, strict=True)
+        # scriptconfig ``argv`` accepts True/None/list[str]; the integer
+        # idiom (``1`` => use sys.argv) is undocumented but in use here.
+        config = cls.cli(argv=argv, data=kwargs, strict=True)  # ty: ignore[invalid-argument-type]
         if config.verbose:
-            rich.print('config = ' + ub.urepr(config, nl=1))
+            # ub.urepr's return type is unioned with a tuple form for
+            # the json branch; the str cast is always-safe here.
+            rich.print('config = ' + str(ub.urepr(config, nl=1)))
         cli_queue_name = config['qname']
-        config.cli_queue_dpath = ub.Path(config['dpath'])
-        config.cli_queue_fpath = config.cli_queue_dpath / (
+        # scriptconfig allows attaching arbitrary attributes to a Config
+        # instance at runtime.
+        config.cli_queue_dpath = ub.Path(config['dpath'])  # ty: ignore[unresolved-attribute]
+        config.cli_queue_fpath = config.cli_queue_dpath / (  # ty: ignore[unresolved-attribute]
             str(cli_queue_name) + '.cmd_queue.json'
         )
         config.run()
@@ -155,7 +161,8 @@ class CommonShowRun(CommonConfig):
                             bash_command = ' '.join(
                                 [shlex.quote(str(p)) for p in bash_command]
                             )
-                    submitkw = ub.udict(row) & {'name', 'depends'}
+                    # ``ub.udict.__and__`` accepts an iterable of keys.
+                    submitkw = ub.udict(row) & {'name', 'depends'}  # ty: ignore[unsupported-operator]
                     print('\n\n\n')
                     print(f'submitkw={submitkw}')
                     print(
@@ -373,7 +380,8 @@ class CmdQueueCLI(scfg.ModalCLI):
             from cmd_queue import monitor_manifest as mm
 
             if config.manifest:
-                manifest_path = ub.Path(config.manifest).expand().absolute()
+                # scriptconfig descriptor narrows to str at runtime.
+                manifest_path = ub.Path(config.manifest).expand().absolute()  # ty: ignore[invalid-argument-type]
                 if not manifest_path.exists():
                     raise FileNotFoundError(manifest_path)
             else:
