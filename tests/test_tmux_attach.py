@@ -215,17 +215,20 @@ def test_textual_app_binds_a_only_when_attach_session_set():
     attach session is actually wired up — otherwise the binding would
     flag-and-shut-down with nowhere to attach to."""
     pytest.importorskip('textual')
-    try:
-        from cmd_queue.monitor_app import CmdQueueMonitorApp
-    except ImportError:
-        pytest.skip('textual monitor app is unavailable on this build')
-    if CmdQueueMonitorApp is None:  # gated in tmux_queue.py
+    # ``CmdQueueMonitorApp`` is always importable; tmux_queue.py is the
+    # one that maps it to None when the legacy textual API is broken,
+    # so the test only exercises the construction here.
+    from cmd_queue.monitor_app import CmdQueueMonitorApp
+
+    if not hasattr(CmdQueueMonitorApp, 'run'):
         pytest.skip('textual monitor app is gated off')
 
     def table_fn():
         return None, True, {}
 
-    app_with = CmdQueueMonitorApp(table_fn, attach_session='cmdq-monitor-x')
+    app_with = CmdQueueMonitorApp(
+        table_fn, attach_session='cmdq-monitor-x'
+    )
     app_without = CmdQueueMonitorApp(table_fn)
 
     assert app_with.attach_session == 'cmdq-monitor-x'
