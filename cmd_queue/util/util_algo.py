@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import List
 
 import numpy as np
 
 
-def balanced_number_partitioning(items: np.ndarray, num_parts: int) -> List[np.ndarray]:
+def balanced_number_partitioning(
+    items: np.ndarray | Sequence, num_parts: int
+) -> List[np.ndarray]:
     """
     Greedy approximation to multiway number partitioning
 

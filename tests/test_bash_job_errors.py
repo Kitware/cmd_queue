@@ -2,9 +2,10 @@ import ubelt as ub
 
 
 def demo_script(dpath):
-    script_fpath = (dpath / 'myprog.py')
-    script_fpath.write_text(ub.codeblock(
-        '''
+    script_fpath = dpath / 'myprog.py'
+    script_fpath.write_text(
+        ub.codeblock(
+            """
         #!/usr/env/python
 
         def main():
@@ -30,34 +31,46 @@ def demo_script(dpath):
 
         if __name__ == '__main__':
             main()
-        '''))
+        """
+        )
+    )
     return script_fpath
 
 
 def test_bash_job_errors():
     import ubelt as ub
+
     dpath = ub.Path.appdir('cmd_queue', 'tests', 'test_bash_job_errors')
     dpath.delete().ensuredir()
-    from cmd_queue.serial_queue import BashJob
     # Demo full boilerplate for a job with no dependencies
     import sys
+
+    from cmd_queue.serial_queue import BashJob
+
     sys.executable
 
     script_fpath = demo_script(dpath)
 
     pyexe = sys.executable
 
-    self = BashJob(f'{pyexe} {script_fpath} --failflag --steps=4', 'myjob', log=True)
-    self.print_commands(1, 1)
+    self = BashJob(
+        f'{pyexe} {script_fpath} --failflag --steps=4', 'myjob', log=True
+    )
+    self.print_commands(True, True)
 
-    self = BashJob(f'{pyexe} {script_fpath}  --failflag --steps=4', 'myjob', log=False)
-    self.print_commands(1, 1)
+    self = BashJob(
+        f'{pyexe} {script_fpath}  --failflag --steps=4', 'myjob', log=False
+    )
+    self.print_commands(True, True)
 
 
 def test_tmux_queue_errors():
-    import ubelt as ub
     import sys
+
+    import ubelt as ub
+
     import cmd_queue
+
     dpath = ub.Path.appdir('cmd_queue', 'tests', 'test_tmux_queue_errors')
     dpath.delete().ensuredir()
     script_fpath = demo_script(dpath)
@@ -66,16 +79,31 @@ def test_tmux_queue_errors():
     log = True
 
     queue = cmd_queue.Queue.create(backend='tmux')
-    job1 = queue.submit(f'{pyexe} {script_fpath} --steps=3 --steptime=0.5', log=log)
-    job2 = queue.submit(f'{pyexe} {script_fpath} --steps=2 --steptime=0.5 --failflag', log=log, depends=job1)
-    job3 = queue.submit(f'{pyexe} {script_fpath} --steps=2 --steptime=0.5', log=log, depends=job2)
-    job4 = queue.submit(f'{pyexe} {script_fpath} --steps=2 --steptime=0.5', log=log)
+    job1 = queue.submit(
+        f'{pyexe} {script_fpath} --steps=3 --steptime=0.5', log=log
+    )
+    job2 = queue.submit(
+        f'{pyexe} {script_fpath} --steps=2 --steptime=0.5 --failflag',
+        log=log,
+        depends=job1,
+    )
+    job3 = queue.submit(
+        f'{pyexe} {script_fpath} --steps=2 --steptime=0.5',
+        log=log,
+        depends=job2,
+    )
+    job4 = queue.submit(
+        f'{pyexe} {script_fpath} --steps=2 --steptime=0.5', log=log
+    )
     # queue.submit(f'{pyexe} {script_fpath} --steps=2', log=log)
-    queue.print_commands(1, 1)
+    queue.print_commands(True, True)
     queue.write()
 
-    if not queue.is_available():
+    # Backend subclasses define is_available; the abstract Queue base
+    # type doesn't, but at runtime queue is a TMUXMultiQueue here.
+    if not queue.is_available():  # ty: ignore[unresolved-attribute]
         import pytest
+
         pytest.skip('Skip tmux test. Tmux is not available')
 
     queue.run(block=0)

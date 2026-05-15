@@ -1,23 +1,36 @@
 from __future__ import annotations
-# mypy: ignore-errors
-
 from typing import Any, Dict, Iterable, List, Optional, Union
 
 import ubelt as ub
 
 
-class DuplicateJobError(KeyError):
-    ...
+class DuplicateJobError(KeyError): ...
 
 
-class UnknownBackendError(KeyError):
-    ...
+class UnknownBackendError(KeyError): ...
 
 
 class Job(ub.NiceRepr):
     """
     Base class for a job
     """
+
+    # The following attributes are produced by concrete subclasses
+    # (BashJob, SlurmJob, AirflowJob). They are declared here so that
+    # generic queue code that walks ``Job`` instances type-checks
+    # against the base class without each subclass attribute being
+    # flagged as unresolved.
+    # ``bookkeeper`` is exposed as an int so backends can accumulate
+    # counts; treated as bool elsewhere via truthiness.
+    bookkeeper: int = 0
+    tags: Any = None
+    log: bool = False
+    log_fpath: Any = None
+    pass_fpath: Any = None
+    fail_fpath: Any = None
+    skip_fpath: Any = None
+    stat_fpath: Any = None
+
     def __init__(
         self,
         command: Optional[str] = None,
@@ -27,14 +40,18 @@ class Job(ub.NiceRepr):
     ) -> None:
         # This is unused, should the slurm and bash job reuse this?
         if depends is not None and not ub.iterable(depends):
-            depends = [depends]
+            depends = [depends]  # type: ignore
         self.name = name
         self.command = command
         self.depends = depends
         self.kwargs = kwargs
 
     def __nice__(self) -> str:
-        return self.name
+        return self.name or ''
+
+    def finalize_text(self, *args: Any, **kwargs: Any) -> str:
+        """Render this job to a bash snippet. Implemented by subclasses."""
+        raise NotImplementedError
 
 
 class Queue(ub.NiceRepr):
@@ -107,10 +124,12 @@ class Queue(ub.NiceRepr):
             new_depends = []
             if job.depends:
                 for dep in job.depends:
-                    new_dep = new.named_jobs[dep.name]
+                    # named_jobs only contains non-None-named jobs by
+                    # construction, but ``Job.name`` is typed Optional.
+                    new_dep = new.named_jobs[dep.name]  # ty: ignore[invalid-argument-type]
                     new_depends.append(new_dep)
             # TODO: carry over metadata
-            new.submit(job.command, depends=new_depends, name=job.name)
+            new.submit(job.command, depends=new_depends, name=job.name)  # ty: ignore[invalid-argument-type]
         return new
 
         for job in self.jobs:
@@ -130,7 +149,9 @@ class Queue(ub.NiceRepr):
         """
         graph = self._dependency_graph()
         # Find the jobs that nobody depends on
-        sink_jobs = [graph.nodes[n]['job'] for n, d in graph.out_degree if d == 0]
+        sink_jobs = [
+            graph.nodes[n]['job'] for n, d in graph.out_degree if d == 0
+        ]
         # All new jobs must depend on these jobs
         self.all_depends = sink_jobs
         return self
@@ -142,12 +163,21 @@ class Queue(ub.NiceRepr):
         """
         import os
         import stat
+
         text = self.finalize_text()
         self.fpath.parent.ensuredir()
         self.fpath.write_text(text)
-        os.chmod(self.fpath, (
-            stat.S_IXUSR | stat.S_IXGRP | stat.S_IRUSR |
-            stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP))
+        os.chmod(
+            self.fpath,
+            (
+                stat.S_IXUSR
+                | stat.S_IXGRP
+                | stat.S_IRUSR
+                | stat.S_IWUSR
+                | stat.S_IRGRP
+                | stat.S_IWGRP
+            ),
+        )
         return self.fpath
 
     def submit(self, command: Union[str, Job], **kwargs: Any) -> Job:
@@ -170,7 +200,9 @@ class Queue(ub.NiceRepr):
         if isinstance(command, str):
             name = kwargs.get('name', None)
             if name is None:
-                name = kwargs['name'] = self.name + '-job-{}'.format(self.num_real_jobs)
+                name = kwargs['name'] = self.name + '-job-{}'.format(
+                    self.num_real_jobs
+                )
 
             # TODO: make sure name is path safe.
             if ':' in name:
@@ -193,9 +225,14 @@ class Queue(ub.NiceRepr):
                 try:
                     depends = [
                         self.named_jobs[dep] if isinstance(dep, str) else dep
-                        for dep in depends]
+                        for dep in depends
+                    ]
                 except Exception:
-                    print('self.named_jobs = {}'.format(ub.urepr(self.named_jobs, nl=1)))
+                    print(
+                        'self.named_jobs = {}'.format(
+                            ub.urepr(self.named_jobs, nl=1)
+                        )
+                    )
                     raise
             job = serial_queue.BashJob(command, depends=depends, **kwargs)
         elif isinstance(command, Job):
@@ -211,7 +248,9 @@ class Queue(ub.NiceRepr):
         except Exception:
             raise
 
-        self.named_jobs[job.name] = job
+        # job.name is set by submit() above before this line, but ty
+        # only sees ``Optional[str]`` from the Job base class.
+        self.named_jobs[job.name] = job  # ty: ignore[invalid-assignment]
 
         if not job.bookkeeper:
             self.num_real_jobs += 1
@@ -219,10 +258,13 @@ class Queue(ub.NiceRepr):
 
     @classmethod
     def _backend_classes(cls):
-        from cmd_queue import tmux_queue
-        from cmd_queue import serial_queue
-        from cmd_queue import slurm_queue
-        from cmd_queue import airflow_queue
+        from cmd_queue import (
+            airflow_queue,
+            serial_queue,
+            slurm_queue,
+            tmux_queue,
+        )
+
         lut = {
             'serial': serial_queue.SerialQueue,
             'tmux': tmux_queue.TMUXMultiQueue,
@@ -252,17 +294,21 @@ class Queue(ub.NiceRepr):
         """
         if backend == 'serial':
             from cmd_queue import serial_queue
+
             kwargs.pop('size', None)
             self = serial_queue.SerialQueue(**kwargs)
         elif backend == 'tmux':
             from cmd_queue import tmux_queue
+
             self = tmux_queue.TMUXMultiQueue(**kwargs)
         elif backend == 'slurm':
             from cmd_queue import slurm_queue
+
             kwargs.pop('size', None)
             self = slurm_queue.SlurmQueue(**kwargs)
         elif backend == 'airflow':
             from cmd_queue import airflow_queue
+
             kwargs.pop('size', None)
             self = airflow_queue.AirflowQueue(**kwargs)
         else:
@@ -279,7 +325,7 @@ class Queue(ub.NiceRepr):
         try:
             import rich as rich_mod
         except ImportError:
-            rich_mod = None
+            rich_mod = None  # type: ignore
         if rich == 'auto':
             rich = rich_mod is not None
 
@@ -289,20 +335,26 @@ class Queue(ub.NiceRepr):
             print_ = print
 
         import networkx as nx
+
         graph = self._dependency_graph()
         if reduced:
             print_('\nGraph (reduced):')
             try:
                 reduced_graph = nx.transitive_reduction(graph)
-                nx.write_network_text(reduced_graph, path=print_, end='',
-                                      vertical_chains=vertical_chains)
+                nx.write_network_text(
+                    reduced_graph,
+                    path=print_,
+                    end='',
+                    vertical_chains=vertical_chains,
+                )
             except Exception as ex:
                 print_(f'ex={ex}')
             print_('\n')
         else:
             print_('\nGraph:')
-            nx.write_network_text(graph, path=print_, end='',
-                                  vertical_chains=vertical_chains)
+            nx.write_network_text(
+                graph, path=print_, end='', vertical_chains=vertical_chains
+            )
 
     def print_commands(
         self,
@@ -340,17 +392,23 @@ class Queue(ub.NiceRepr):
         colors = kwargs.get('colors', None)
         if colors is not None:
             ub.schedule_deprecation(
-                'cmd_queue', 'colors', 'arg',
+                'cmd_queue',
+                'colors',
+                'arg',
                 migration='use style="plain" | "rich" | "colors" instead',
-                deprecate='now')
+                deprecate='now',
+            )
             if not colors:
                 style = 'plain'
         with_rich = kwargs.get('with_rich', None)
         if with_rich is not None:
             ub.schedule_deprecation(
-                'cmd_queue', 'with_rich', 'arg',
+                'cmd_queue',
+                'with_rich',
+                'arg',
                 migration='use use style="plain" | "rich" | "colors" instead',
-                deprecate='now')
+                deprecate='now',
+            )
             if with_rich:
                 style = 'rich'
         if style == 'auto':
@@ -358,16 +416,19 @@ class Queue(ub.NiceRepr):
             # style = 'rich' if colors else 'plain'
 
         from cmd_queue.util import util_tags
+
         exclude_tags = util_tags.Tags.coerce(exclude_tags)
         code = self.finalize_text(
             with_status=with_status,
             with_gaurds=with_gaurds,
             with_locks=with_locks,
-            exclude_tags=exclude_tags)
+            exclude_tags=exclude_tags,
+        )
         if style == 'rich':
-            from rich.syntax import Syntax
-            from rich.panel import Panel
             from rich.console import Console
+            from rich.panel import Panel
+            from rich.syntax import Syntax
+
             console = Console()
             console.print(Panel(Syntax(code, 'bash'), title=str(self.fpath)))
         elif style == 'colors':
@@ -381,19 +442,25 @@ class Queue(ub.NiceRepr):
 
     def rprint(self, **kwargs: Any) -> None:
         ub.schedule_deprecation(
-            'cmd_queue', name='rprint', type='arg',
+            'cmd_queue',
+            name='rprint',
+            type='arg',
             migration='print_commands',
         )
         self.print_commands(**kwargs)
 
-    def print_graph(self, reduced: bool = True, vertical_chains: bool = False) -> None:
+    def print_graph(
+        self, reduced: bool = True, vertical_chains: bool = False
+    ) -> None:
         """
         Renders the dependency graph to an "network text"
 
         Args:
             reduced (bool): if True only show the implicit dependency forest
         """
-        self.write_network_text(reduced=reduced, vertical_chains=vertical_chains)
+        self.write_network_text(
+            reduced=reduced, vertical_chains=vertical_chains
+        )
 
     def _dependency_graph(self) -> Any:
         """
@@ -414,10 +481,13 @@ class Queue(ub.NiceRepr):
             >>> self.print_graph()
         """
         import networkx as nx
+
         graph = nx.DiGraph()
         duplicate_names = ub.find_duplicates(self.jobs, key=lambda x: x.name)
         if duplicate_names:
-            print('duplicate_names = {}'.format(ub.urepr(duplicate_names, nl=1)))
+            print(
+                'duplicate_names = {}'.format(ub.urepr(duplicate_names, nl=1))
+            )
             raise Exception('Job names must be unique')
 
         for index, job in enumerate(self.jobs):
@@ -429,20 +499,48 @@ class Queue(ub.NiceRepr):
                         graph.add_edge(dep.name, job.name)
         return graph
 
-    def monitor(self) -> None:
+    def monitor(
+        self,
+        refresh_rate: float = 0.4,
+        with_textual: str | bool = 'auto',
+        onfail: str = '',
+        onexit: str = '',
+    ) -> None:
         print('monitor not implemented')
+
+    # Subclass-supplied entry points. Declaring them here lets callers
+    # type-check against the abstract ``Queue`` (e.g. the value
+    # returned by ``Queue.create``) without each backend's overrides
+    # being flagged. The bodies just raise so a missing override is
+    # caught at runtime rather than silently no-oping.
+
+    def finalize_text(self, **kwargs: Any) -> str:
+        raise NotImplementedError
+
+    def run(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError
+
+    def kill(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError
+
+    def read_state(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError
+
 
     def _coerce_style(
         self,
         style: str = 'auto',
         with_rich: Optional[bool] = None,
-        colors: bool = True,
+        colors: bool | int = True,
     ) -> str:
         # Helper
         if with_rich is not None:
             ub.schedule_deprecation(
-                'cmd_queue', 'with_rich', 'arg',
-                migration='use style="rich" instead')
+                'cmd_queue',
+                'with_rich',
+                'arg',
+                migration='use style="rich" instead',
+            )
             if with_rich:
                 style = 'rich'
         if style == 'auto':

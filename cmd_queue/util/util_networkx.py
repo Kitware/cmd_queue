@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Iterable, Hashable
+from typing import Any, Hashable, Iterable
 
 
 def is_topological_order(graph: Any, node_order: Iterable[Hashable]) -> bool:

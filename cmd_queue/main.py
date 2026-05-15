@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
 # PYTHON_ARGCOMPLETE_OK
-from __future__ import annotations
-# mypy: ignore-errors
-
 """
 This is the main script for the cmd_queue CLI. The :class:`CmdQueueConfig`
 defines the available options and its docstring provides a quick tutorial.
@@ -13,7 +10,8 @@ For help run:
     cmd_queue --help
 
 """
-from typing import Any, Callable, TYPE_CHECKING
+from __future__ import annotations
+from typing import TYPE_CHECKING, Any, Callable
 
 import rich
 import scriptconfig as scfg
@@ -66,19 +64,22 @@ def _testcase():
 
     """
 
+
 if TYPE_CHECKING:
     import cmd_queue
 
 
 class CommonConfig(scfg.DataConfig):
-
     qname = scfg.Value(None, position=1, help='name of the CLI queue')
 
-    dpath = scfg.Value('auto', help=ub.paragraph(
-        '''
+    dpath = scfg.Value(
+        'auto',
+        help=ub.paragraph(
+            """
         The path the CLI will use to store intermediate files. Defaults to $XDG_CACHE/.cache/cmd_queue/cli
-        '''
-    ))
+        """
+        ),
+    )
 
     verbose = scfg.Value(1, help='verbosity level')
 
@@ -88,29 +89,50 @@ class CommonConfig(scfg.DataConfig):
 
     @classmethod
     def main(cls, argv: int = 1, **kwargs: Any) -> None:
-        config = cls.cli(argv=argv, data=kwargs, strict=True)
+        # scriptconfig ``argv`` accepts True/None/list[str]; the integer
+        # idiom (``1`` => use sys.argv) is undocumented but in use here.
+        config = cls.cli(argv=argv, data=kwargs, strict=True)  # ty: ignore[invalid-argument-type]
         if config.verbose:
-            rich.print('config = ' + ub.urepr(config, nl=1))
+            # ub.urepr's return type is unioned with a tuple form for
+            # the json branch; the str cast is always-safe here.
+            rich.print('config = ' + str(ub.urepr(config, nl=1)))
         cli_queue_name = config['qname']
-        config.cli_queue_dpath = ub.Path(config['dpath'])
-        config.cli_queue_fpath = config.cli_queue_dpath / (str(cli_queue_name) + '.cmd_queue.json')
+        # scriptconfig allows attaching arbitrary attributes to a Config
+        # instance at runtime.
+        config.cli_queue_dpath = ub.Path(config['dpath'])  # ty: ignore[unresolved-attribute]
+        config.cli_queue_fpath = config.cli_queue_dpath / (  # ty: ignore[unresolved-attribute]
+            str(cli_queue_name) + '.cmd_queue.json'
+        )
         config.run()
 
 
 class CommonShowRun(CommonConfig):
-    workers = scfg.Value(1, help='number of concurrent queues for the tmux backend.')
+    workers = scfg.Value(
+        1, help='number of concurrent queues for the tmux backend.'
+    )
 
-    backend = scfg.Value('tmux', help='the execution backend to use', choices=['tmux', 'slurm', 'serial', 'airflow'])
+    backend = scfg.Value(
+        'tmux',
+        help='the execution backend to use',
+        choices=['tmux', 'slurm', 'serial', 'airflow'],
+    )
 
-    gpus = scfg.Value(None, help='a comma separated list of the gpu numbers to spread across. tmux backend only.')
+    gpus = scfg.Value(
+        None,
+        help='a comma separated list of the gpu numbers to spread across. tmux backend only.',
+    )
 
-    def _build_queue(config) -> "cmd_queue.Queue":
-        import cmd_queue
+    def _build_queue(config) -> 'cmd_queue.Queue':
         import json
-        queue = cmd_queue.Queue.create(size=max(1, config['workers']),
-                                       backend=config['backend'],
-                                       name=config['qname'],
-                                       gpus=config['gpus'])
+
+        import cmd_queue
+
+        queue = cmd_queue.Queue.create(
+            size=max(1, config['workers']),
+            backend=config['backend'],
+            name=config['qname'],
+            gpus=config['gpus'],
+        )
         # Run a new CLI queue
         data = json.loads(config.cli_queue_fpath.read_text())
         print('data = {}'.format(ub.urepr(data, nl=1)))
@@ -128,17 +150,24 @@ class CommonShowRun(CommonConfig):
                         if len(bash_command) == 1:
                             # hack
                             import shlex
+
                             if shlex.quote(bash_command[0]) == bash_command[0]:
                                 bash_command = bash_command[0]
                             else:
                                 bash_command = shlex.quote(bash_command[0])
                         else:
                             import shlex
-                            bash_command = ' '.join([shlex.quote(str(p)) for p in bash_command])
-                    submitkw = ub.udict(row) & {'name', 'depends'}
+
+                            bash_command = ' '.join(
+                                [shlex.quote(str(p)) for p in bash_command]
+                            )
+                    # ``ub.udict.__and__`` accepts an iterable of keys.
+                    submitkw = ub.udict(row) & {'name', 'depends'}  # ty: ignore[unsupported-operator]
                     print('\n\n\n')
                     print(f'submitkw={submitkw}')
-                    print('bash_command = {}'.format(ub.urepr(bash_command, nl=1)))
+                    print(
+                        'bash_command = {}'.format(ub.urepr(bash_command, nl=1))
+                    )
                     print('\n\n\n')
                     queue.submit(bash_command, log=False, **submitkw)
         except Exception:
@@ -256,11 +285,18 @@ class CmdQueueCLI(scfg.ModalCLI):
         cleanup tmux sessions
         """
 
-        yes = scfg.Value(False, isflag=True, help='if True say yes to prompts', short_alias=['y'])
+        yes = scfg.Value(
+            False,
+            isflag=True,
+            help='if True say yes to prompts',
+            short_alias=['y'],
+        )
 
         __command__ = 'cleanup'
+
         def run(config) -> None:
             from cmd_queue.util.util_tmux import tmux
+
             sessions = tmux.list_sessions()
             print('sessions = {}'.format(ub.urepr(sessions, nl=1)))
 
@@ -271,6 +307,7 @@ class CmdQueueCLI(scfg.ModalCLI):
                     sessions_ids.append(session['id'])
             print('sessions_ids = {}'.format(ub.urepr(sessions_ids, nl=1)))
             from rich import prompt
+
             if config.yes or prompt.Confirm.ask('Do you want to kill these?'):
                 for session_id in sessions_ids:
                     tmux.kill_session(session_id)
@@ -279,17 +316,108 @@ class CmdQueueCLI(scfg.ModalCLI):
         """
         run a queue
         """
+
         __command__ = 'run'
+
         def run(config) -> None:
-            """
-            """
+            """ """
             queue = config._build_queue()
             queue.run()
+
+    class monitor(CommonConfig):
+        """
+        Monitor an already-running queue.
+
+        Locates the queue by name (via the active-queue index that ``run``
+        populates), by manifest path, or by the queue's working directory.
+        Useful for reattaching to a queue whose ``run()`` invocation has
+        ended (e.g. shell closed) while workers are still active, and as
+        the entry point used by the tmux monitor backend to host the
+        status UI in its own session.
+        """
+
+        __command__ = 'monitor'
+
+        manifest = scfg.Value(
+            None,
+            help=ub.paragraph(
+                """
+            Optional explicit path to the monitor manifest JSON. If
+            given, this overrides positional name resolution.
+            """
+            ),
+        )
+
+        onfail = scfg.Value(
+            '',
+            choices=['', 'kill'],
+            help=ub.paragraph(
+                """
+            What to do if the queue ends with at least one failure.
+            ``kill`` cancels still-running workers; ``''`` leaves them.
+            """
+            ),
+        )
+
+        onexit = scfg.Value(
+            '',
+            choices=['', 'capture'],
+            help=ub.paragraph(
+                """
+            What to do once the queue is fully done. ``capture`` runs the
+            backend's capture step (e.g. dump tmux pane contents).
+            """
+            ),
+        )
+
+        refresh_rate = scfg.Value(0.4, help='monitor refresh rate, seconds')
+
+        with_textual = scfg.Value(
+            'auto', help='use textual UI if available (tmux backend only)'
+        )
+
+        def run(config) -> None:
+            from cmd_queue import monitor_manifest as mm
+
+            if config.manifest:
+                # scriptconfig descriptor narrows to str at runtime.
+                manifest_path = ub.Path(config.manifest).expand().absolute()  # ty: ignore[invalid-argument-type]
+                if not manifest_path.exists():
+                    raise FileNotFoundError(manifest_path)
+            else:
+                target = config['qname']
+                if not target:
+                    raise SystemExit(
+                        'cmd_queue monitor requires either a queue name '
+                        '(positional) or --manifest=<path>'
+                    )
+                manifest_path = mm.resolve_manifest(target)
+            if config.verbose:
+                rich.print(
+                    f'Loading monitor manifest from [bold]{manifest_path}[/bold]'
+                )
+            queue = mm.load_queue_for_monitoring(manifest_path)
+            kwargs = {}
+            try:
+                kwargs['refresh_rate'] = config.refresh_rate
+            except Exception:
+                pass
+            if 'with_textual' in queue.monitor.__code__.co_varnames:
+                kwargs['with_textual'] = config.with_textual
+            # monitor() owns post-run cleanup; only forward the kwargs the
+            # backend's monitor signature actually accepts.
+            varnames = queue.monitor.__code__.co_varnames
+            if 'onfail' in varnames:
+                kwargs['onfail'] = config.onfail
+            if 'onexit' in varnames:
+                kwargs['onexit'] = config.onexit
+            queue.monitor(**kwargs)
 
     class show(CommonShowRun):
         """
         display a queue
         """
+
         __command__ = 'show'
 
         def run(config) -> None:
@@ -301,20 +429,30 @@ class CmdQueueCLI(scfg.ModalCLI):
         """
         submit a job to a queue
         """
+
         __command__ = 'submit'
 
-        jobname = scfg.Value(None, help='for submit, this is the name of the new job')
+        jobname = scfg.Value(
+            None, help='for submit, this is the name of the new job'
+        )
         depends = scfg.Value(None, help='comma separated jobnames to depend on')
 
-        command = scfg.Value(None, type=str, position=2, nargs='*', help=ub.paragraph(
-            '''
+        command = scfg.Value(
+            None,
+            type=str,
+            position=2,
+            nargs='*',
+            help=ub.paragraph(
+                """
             Specifies the bash command to queue.
             Care must be taken when specifying this argument.  If specifying as a
             key/value pair argument, it is important to quote and escape the bash
             command properly.  A more convenient way to specify this command is as
             a positional argument. End all of the options to this CLI with `--` and
             then specify your full command.
-            '''))
+            """
+            ),
+        )
 
         def run(config) -> None:
             r"""
@@ -363,6 +501,7 @@ class CmdQueueCLI(scfg.ModalCLI):
                 ub.cmd('cmd_queue test-queue')
             """
             import json
+
             # Run a new CLI queue
             data = json.loads(config.cli_queue_fpath.read_text())
             row = {'type': 'command', 'command': config['command']}
@@ -377,11 +516,16 @@ class CmdQueueCLI(scfg.ModalCLI):
         """
         create a new queue
         """
+
         __command__ = 'new'
-        header = scfg.Value(None, help='a header command to execute in every session (e.g. activating a virtualenv). Only used when action is new')
+        header = scfg.Value(
+            None,
+            help='a header command to execute in every session (e.g. activating a virtualenv). Only used when action is new',
+        )
 
         def run(config) -> None:
             import json
+
             # Start a new CLI queue
             data = []
             config = config
@@ -396,9 +540,13 @@ class CmdQueueCLI(scfg.ModalCLI):
         """
         display available queues
         """
+
         __command__ = 'list'
+
         def run(config) -> None:
-            print(ub.urepr(list(config.cli_queue_dpath.glob('*.cmd_queue.json'))))
+            print(
+                ub.urepr(list(config.cli_queue_dpath.glob('*.cmd_queue.json')))
+            )
 
 
 main: Callable[..., Any] = CmdQueueCLI.main

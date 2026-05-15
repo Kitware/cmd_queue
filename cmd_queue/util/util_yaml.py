@@ -1,20 +1,21 @@
 import io
 import os
-import ubelt as ub
 
+import ubelt as ub
 
 NEW_RUAMEL = 1
 
 
 class _YamlRepresenter:
-
     @staticmethod
     def str_presenter(dumper, data):
         # https://stackoverflow.com/questions/8640959/how-can-i-control-what-scalar-form-pyyaml-uses-for-my-data
         if len(data.splitlines()) > 1 or '\n' in data:
             text_list = [line.rstrip() for line in data.splitlines()]
             fixed_data = '\n'.join(text_list)
-            return dumper.represent_scalar('tag:yaml.org,2002:str', fixed_data, style='|')
+            return dumper.represent_scalar(
+                'tag:yaml.org,2002:str', fixed_data, style='|'
+            )
         return dumper.represent_scalar('tag:yaml.org,2002:str', data)
 
 
@@ -29,6 +30,7 @@ def _custom_ruaml_loader():
         https://stackoverflow.com/questions/76870413/using-a-custom-loader-with-ruamel-yaml-0-15-0
     """
     import ruamel.yaml
+
     Loader = ruamel.yaml.RoundTripLoader
 
     def _construct_include_tag(self, node):
@@ -38,10 +40,13 @@ def _custom_ruaml_loader():
         else:
             external_fpath = ub.Path(node.value)
             if not external_fpath.exists():
-                raise IOError(f'Included external yaml file {external_fpath} '
-                              'does not exist')
+                raise IOError(
+                    f'Included external yaml file {external_fpath} '
+                    'does not exist'
+                )
             return Yaml.load(node.value)
-    Loader.add_constructor("!include", _construct_include_tag)
+
+    Loader.add_constructor('!include', _construct_include_tag)
     return Loader
 
 
@@ -52,6 +57,7 @@ def _custom_ruaml_dumper():
         https://stackoverflow.com/questions/59635900/ruamel-yaml-custom-commentedmapping-for-custom-tags
     """
     import ruamel.yaml
+
     Dumper = ruamel.yaml.RoundTripDumper
     Dumper.add_representer(str, _YamlRepresenter.str_presenter)
     Dumper.add_representer(ub.udict, Dumper.represent_dict)
@@ -64,6 +70,7 @@ def _custom_pyaml_dumper():
 
     class Dumper(yaml.Dumper):
         pass
+
     # dumper = yaml.dumper.Dumper
     # dumper = yaml.SafeDumper(sort_keys=False)
     # yaml.dump(data, s, Dumper=yaml.SafeDumper, sort_keys=False, width=float("inf"))
@@ -102,16 +109,19 @@ def _custom_new_ruaml_yaml_obj():
         >>> print(file.getvalue())
     """
     import ruamel.yaml
+
     # make a new instance, although you could get the YAML
     # instance from the constructor argument
-    class CustomConstructor(ruamel.yaml.constructor.RoundTripConstructor):
+    class CustomConstructor(ruamel.yaml.constructor.RoundTripConstructor):  # type: ignore
         ...
 
-    class CustomRepresenter(ruamel.yaml.representer.RoundTripRepresenter):
+    class CustomRepresenter(ruamel.yaml.representer.RoundTripRepresenter):  # type: ignore
         ...
 
     CustomRepresenter.add_representer(str, _YamlRepresenter.str_presenter)
-    CustomRepresenter.add_representer(ub.udict, CustomRepresenter.represent_dict)
+    CustomRepresenter.add_representer(
+        ub.udict, CustomRepresenter.represent_dict
+    )
 
     def _construct_include_tag(self, node):
         print(f'node={node}')
@@ -122,14 +132,17 @@ def _custom_new_ruaml_yaml_obj():
         else:
             external_fpath = ub.Path(value)
             if not external_fpath.exists():
-                raise IOError(f'Included external yaml file {external_fpath} '
-                              'does not exist')
+                raise IOError(
+                    f'Included external yaml file {external_fpath} '
+                    'does not exist'
+                )
             # Not sure why we can't recurse here...
             # yaml_obj
             # print(f'yaml_obj={yaml_obj}')
             # import xdev
             # xdev.embed()
             return Yaml.load(value)
+
     # Loader = ruamel.yaml.RoundTripLoader
     # Loader.add_constructor("!include", _construct_include_tag)
 
@@ -139,7 +152,7 @@ def _custom_new_ruaml_yaml_obj():
     yaml_obj.Constructor = CustomConstructor
     yaml_obj.Representer = CustomRepresenter
     yaml_obj.preserve_quotes = True
-    yaml_obj.width = float('inf')
+    yaml_obj.width = float('inf')  # type: ignore
     return yaml_obj
 
 
@@ -180,12 +193,18 @@ class Yaml:
                 yaml_obj.dump(data, file)
             else:
                 import ruamel.yaml
+
                 Dumper = _custom_ruaml_dumper()
-                ruamel.yaml.round_trip_dump(data, file, Dumper=Dumper, width=float("inf"))
+                ruamel.yaml.round_trip_dump(
+                    data, file, Dumper=Dumper, width=float('inf')
+                )
         elif backend == 'pyyaml':
             import yaml
+
             Dumper = _custom_pyaml_dumper()
-            yaml.dump(data, file, Dumper=Dumper, sort_keys=False, width=float("inf"))
+            yaml.dump(
+                data, file, Dumper=Dumper, sort_keys=False, width=float('inf')
+            )
         else:
             raise KeyError(backend)
         text = file.getvalue()
@@ -227,6 +246,7 @@ class Yaml:
         else:
             if backend == 'ruamel':
                 import ruamel.yaml  # NOQA
+
                 # TODO: seems like there will be a deprecation
                 # from ruamel.yaml import YAML
                 if NEW_RUAMEL:
@@ -236,10 +256,13 @@ class Yaml:
                     # yaml = YAML(typ='unsafe', pure=True)
                     # data = yaml.load(file, Loader=Loader, preserve_quotes=True)
                     Loader = _custom_ruaml_loader()
-                    data = ruamel.yaml.load(file, Loader=Loader, preserve_quotes=True)
+                    data = ruamel.yaml.load(
+                        file, Loader=Loader, preserve_quotes=True
+                    )
                     # data = ruamel.yaml.load(file, Loader=ruamel.yaml.RoundTripLoader, preserve_quotes=True)
             elif backend == 'pyyaml':
                 import yaml
+
                 # data = yaml.load(file, Loader=yaml.SafeLoader)
                 data = yaml.load(file, Loader=yaml.Loader)
             else:
@@ -389,7 +412,8 @@ class Yaml:
             .. [SO56937691] https://stackoverflow.com/questions/56937691/making-yaml-ruamel-yaml-always-dump-lists-inline
         """
         import ruamel.yaml
-        ret = ruamel.yaml.comments.CommentedSeq(items)
+
+        ret = ruamel.yaml.comments.CommentedSeq(items)  # type: ignore
         ret.fa.set_flow_style()
         return ret
 
@@ -408,10 +432,12 @@ class Yaml:
             >>> print(Yaml.dumps(data))
         """
         import ruamel.yaml
-        ret = ruamel.yaml.comments.CommentedMap(data)
+
+        ret = ruamel.yaml.comments.CommentedMap(data)  # type: ignore
         return ret
 
     @staticmethod
     def CodeBlock(text):
         import ruamel.yaml
-        return ruamel.yaml.scalarstring.LiteralScalarString(ub.codeblock(text))
+
+        return ruamel.yaml.scalarstring.LiteralScalarString(ub.codeblock(text))  # type: ignore

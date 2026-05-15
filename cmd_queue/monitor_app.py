@@ -1,35 +1,32 @@
 from __future__ import annotations
-# mypy: ignore-errors
 
 from types import ModuleType
 from typing import Any, Callable, Optional, Tuple
 
 try:
     from textual import events
-    from textual.widgets import ScrollView
-    from textual.widget import Widget
     from textual.views import DockView
-    from cmd_queue.util.textual_extensions import ExtHeader
-    from cmd_queue.util.textual_extensions import InstanceRunnableApp
+    from textual.widget import Widget
+    from textual.widgets import ScrollView
 
     # from rich.panel import Panel
     # from rich.text import Text
     from cmd_queue.util import richer as rich
     from cmd_queue.util import texter as textual
+    from cmd_queue.util.textual_extensions import ExtHeader, InstanceRunnableApp
     # import ubelt as ub
 except ImportError:
-    rich: ModuleType = None
-    textual: ModuleType = None
-    events: ModuleType = None
-    ScrollView: type = object
-    Widget: type = object
-    DockView: type = object
-    InstanceRunnableApp: type = object
-    ExtHeader: type = object
+    rich: ModuleType = None  # type: ignore
+    textual: ModuleType = None  # type: ignore
+    events: ModuleType = None  # type: ignore
+    ScrollView: type = object  # type: ignore
+    Widget: type = object  # type: ignore
+    DockView: type = object  # type: ignore
+    InstanceRunnableApp: type = object  # type: ignore
+    ExtHeader: type = object  # type: ignore
 
 
-class JobTable(Widget):
-
+class JobTable(Widget):  # type: ignore
     def __init__(
         self,
         table_fn: Optional[Callable[[], Tuple[Any, bool, Any]]] = None,
@@ -55,7 +52,7 @@ class JobTable(Widget):
         return table
 
 
-class CmdQueueMonitorApp(InstanceRunnableApp):
+class CmdQueueMonitorApp(InstanceRunnableApp):  # type: ignore
     """
     A Textual App to monitor jobs
     """
@@ -64,11 +61,14 @@ class CmdQueueMonitorApp(InstanceRunnableApp):
         self,
         table_fn: Callable[[], Tuple[Any, bool, Any]],
         kill_fn: Optional[Callable[[], Any]] = None,
+        attach_session: Optional[str] = None,
         **kwargs: Any,
     ) -> None:
         self.job_table = JobTable(table_fn)
         self.kill_fn = kill_fn
         self.graceful_exit = False
+        self.attach_session = attach_session
+        self.attach_requested = False
         super().__init__(**kwargs)
         self._title = 'Command Queue'
 
@@ -89,9 +89,11 @@ class CmdQueueMonitorApp(InstanceRunnableApp):
             >>> print(f'self.graceful_exit={self.graceful_exit}')
         """
         countdown = 10
+
         def demo_table_fn():
             nonlocal countdown
             import random
+
             r = random.random()
             columns = ['name', 'status', 'passed', 'errors', 'total']
             table = rich.table.Table()
@@ -110,18 +112,29 @@ class CmdQueueMonitorApp(InstanceRunnableApp):
             finished = countdown <= 0
             agg_state = None
             return table, finished, agg_state
+
         return CmdQueueMonitorApp(demo_table_fn)
 
     async def on_load(self, event: Any) -> None:
-        await self.bind("q", "quit", "Quit")
+        await self.bind('q', 'quit', 'Quit')
+        if self.attach_session is not None:
+            await self.bind('a', 'attach_monitor', 'Attach monitor')
 
     async def action_quit(self) -> None:
+        await self.shutdown()
+
+    async def action_attach_monitor(self) -> None:
+        # The actual tmux attach has to happen *after* the textual app
+        # releases the terminal. Flag it and shut down; the caller
+        # (TMUXMultiQueue._textual_monitor) checks ``attach_requested``
+        # and performs the attach + re-launches the app.
+        self.attach_requested = True
         await self.shutdown()
 
     async def on_mount(self, event: Any) -> None:
         # from textual.layouts.vertical import VerticalLayout
 
-        view: DockView = await self.push_view(DockView())
+        view: DockView = await self.push_view(DockView())  # type: ignore
         header = ExtHeader(tall=False)
         footer = textual.widgets.Footer()
         # panel = rich.panel.Panel()
@@ -133,8 +146,8 @@ class CmdQueueMonitorApp(InstanceRunnableApp):
         # vlayout.add(text)
         # vlayout.add(table_view)
 
-        await view.dock(header, edge="top")
-        await view.dock(footer, edge="bottom")
+        await view.dock(header, edge='top')
+        await view.dock(footer, edge='bottom')
         await view.dock(table_view)
         # await view.dock(scrollview2)
 

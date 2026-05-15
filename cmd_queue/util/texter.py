@@ -22,28 +22,32 @@ def lazy_import(
 ) -> Callable[[str], Any]:
     import importlib
     import os
+
     name_to_submod = {
-        func: mod for mod, funcs in submod_attrs.items()
-        for func in funcs
+        func: mod for mod, funcs in submod_attrs.items() for func in funcs
     }
 
     def __getattr__(name: str) -> Any:
         if name in submodules:
             attr = importlib.import_module(
                 '{module_name}.{name}'.format(
-                    module_name=module_name, name=name)
+                    module_name=module_name, name=name
+                )
             )
         elif name in name_to_submod:
             submodname = name_to_submod[name]
             module = importlib.import_module(
                 '{module_name}.{submodname}'.format(
-                    module_name=module_name, submodname=submodname)
+                    module_name=module_name, submodname=submodname
+                )
             )
             attr = getattr(module, name)
         else:
             raise AttributeError(
                 'No {module_name} attribute {name}'.format(
-                    module_name=module_name, name=name))
+                    module_name=module_name, name=name
+                )
+            )
         globals()[name] = attr
         return attr
 
@@ -92,9 +96,30 @@ __getattr__ = lazy_import(
 def __dir__() -> list[str]:
     return __all__
 
+
 __all__: list[str] = [
-    'actions', 'app', 'background', 'binding', 'case', 'driver',
-    'drivers', 'events', 'geometry', 'keys', 'layout', 'layout_map',
-    'layouts', 'message', 'message_pump', 'messages', 'page',
-    'reactive', 'screen_update', 'scrollbar', 'view', 'views', 'widget',
-    'widgets']
+    'actions',
+    'app',
+    'background',
+    'binding',
+    'case',
+    'driver',
+    'drivers',
+    'events',
+    'geometry',
+    'keys',
+    'layout',
+    'layout_map',
+    'layouts',
+    'message',
+    'message_pump',
+    'messages',
+    'page',
+    'reactive',
+    'screen_update',
+    'scrollbar',
+    'view',
+    'views',
+    'widget',
+    'widgets',
+]

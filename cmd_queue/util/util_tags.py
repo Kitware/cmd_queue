@@ -30,6 +30,7 @@ class Tags(list):
 
     def intersection(self, other: Optional[Iterable[str]]) -> Optional[Tags]:
         import ubelt as ub
+
         if other is None:
             return None
         isect = self.__class__(ub.oset(self) & set(other))

@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 r"""
 Helper script to wrap a command with sbatch, but using a more srun like syntax.
 
@@ -15,7 +16,6 @@ Helper script to wrap a command with sbatch, but using a more srun like syntax.
         -- \
             python -c 'import sys; print("hello world"); sys.exit(0)'
 """
-#!/usr/bin/env python3
 import scriptconfig as scfg
 import ubelt as ub
 
@@ -23,21 +23,35 @@ import ubelt as ub
 class SlurmifyCLI(scfg.DataConfig):
     __command__ = 'slurmify'
 
-    jobname = scfg.Value(None, help='for submit, this is the name of the new job')
+    jobname = scfg.Value(
+        None, help='for submit, this is the name of the new job'
+    )
     depends = scfg.Value(None, help='comma separated jobnames to depend on')
 
-    command = scfg.Value(None, type=str, position=1, nargs='*', help=ub.paragraph(
-        '''
+    command = scfg.Value(
+        None,
+        type=str,
+        position=1,
+        nargs='*',
+        help=ub.paragraph(
+            """
         Specifies the bash command to queue.
         Care must be taken when specifying this argument.  If specifying as a
         key/value pair argument, it is important to quote and escape the bash
         command properly.  A more convenient way to specify this command is as
         a positional argument. End all of the options to this CLI with `--` and
         then specify your full command.
-        '''))
+        """
+        ),
+    )
 
-    gpus = scfg.Value(None, help='a comma separated list of the gpu numbers to spread across. tmux backend only.')
-    workers = scfg.Value(1, help='number of concurrent queues for the tmux backend.')
+    gpus = scfg.Value(
+        None,
+        help='a comma separated list of the gpu numbers to spread across. tmux backend only.',
+    )
+    workers = scfg.Value(
+        1, help='number of concurrent queues for the tmux backend.'
+    )
 
     mem = scfg.Value(None, help='')
     partition = scfg.Value(1, help='slurm partition')
@@ -59,8 +73,11 @@ class SlurmifyCLI(scfg.DataConfig):
         """
         import rich
         from rich.markup import escape
-        config = cls.cli(argv=argv, data=kwargs, strict=True)
-        rich.print('config = ' + escape(ub.urepr(config, nl=1)))
+
+        # See main.py: ``argv=1`` is the scriptconfig idiom for sys.argv.
+        config = cls.cli(argv=argv, data=kwargs, strict=True)  # ty: ignore[invalid-argument-type]
+        # ub.urepr unions with a tuple form for the json branch; cast to str.
+        rich.print('config = ' + escape(str(ub.urepr(config, nl=1))))
 
         # import json
         # Run a new CLI queue
@@ -71,6 +88,7 @@ class SlurmifyCLI(scfg.DataConfig):
             row['depends'] = config.depends
 
         import cmd_queue
+
         queue = cmd_queue.Queue.create(
             size=max(1, config['workers']),
             backend='slurm',
@@ -87,14 +105,19 @@ class SlurmifyCLI(scfg.DataConfig):
                 if len(bash_command) == 1:
                     # hack
                     import shlex
+
                     if shlex.quote(bash_command[0]) == bash_command[0]:
                         bash_command = bash_command[0]
                     else:
                         bash_command = shlex.quote(bash_command[0])
                 else:
                     import shlex
-                    bash_command = ' '.join([shlex.quote(str(p)) for p in bash_command])
-            submitkw = ub.udict(row) & {'name', 'depends'}
+
+                    bash_command = ' '.join(
+                        [shlex.quote(str(p)) for p in bash_command]
+                    )
+            # ``ub.udict.__and__`` accepts an iterable of keys.
+            submitkw = ub.udict(row) & {'name', 'depends'}  # ty: ignore[unsupported-operator]
             queue.submit(bash_command, log=False, **submitkw)
         except Exception:
             print('row = {}'.format(ub.urepr(row, nl=1)))
@@ -103,6 +126,7 @@ class SlurmifyCLI(scfg.DataConfig):
 
         # config.cli_queue_fpath.write_text(json.dumps(row))
         # 'sbatch --job-name="test_job1" --output="$HOME/.cache/slurm/logs/job-%j-%x.out" --wrap=""
+
 
 __cli__ = SlurmifyCLI
 

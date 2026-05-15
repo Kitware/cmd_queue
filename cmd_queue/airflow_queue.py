@@ -1,6 +1,3 @@
-from __future__ import annotations
-# mypy: ignore-errors
-
 r"""Airflow backend.
 
 Note:
@@ -28,6 +25,7 @@ Example:
     >>> print((queue.dags_dpath / 'cmdq_airflow_mwe.py').exists())
     True
 """
+from __future__ import annotations
 import contextlib
 import os
 import time
@@ -43,6 +41,7 @@ class AirflowJob(base_queue.Job):
     """
     Represents a airflow job that hasn't been executed yet
     """
+
     def __init__(
         self,
         command: str,
@@ -61,7 +60,7 @@ class AirflowJob(base_queue.Job):
         if name is None:
             name = 'job-' + str(uuid.uuid4())
         if depends is not None and not ub.iterable(depends):
-            depends = [depends]
+            depends = [depends]  # type: ignore
         self.unused_kwargs = kwargs
         self.command = command
         self.name = name
@@ -132,8 +131,14 @@ class AirflowQueue(base_queue.Queue):
         self.name = name
         stamp = time.strftime('%Y%m%dT%H%M%S')
         self.unused_kwargs = kwargs
-        self.queue_id = name + '-' + stamp + '-' + ub.hash_data(uuid.uuid4())[0:8]
-        base_dpath = ub.Path(dpath) if dpath is not None else ub.Path.appdir('cmd_queue') / 'airflow'
+        self.queue_id = (
+            name + '-' + stamp + '-' + ub.hash_data(uuid.uuid4())[0:8]
+        )
+        base_dpath = (
+            ub.Path(dpath)
+            if dpath is not None
+            else ub.Path.appdir('cmd_queue') / 'airflow'
+        )
         self.dpath = (base_dpath / self.queue_id).ensuredir()
         self.dags_dpath = (self.dpath / 'dags').ensuredir()
         self.log_dpath = (self.dpath / 'logs').ensuredir()
@@ -142,7 +147,11 @@ class AirflowQueue(base_queue.Queue):
         self.preamble = []
         self.all_depends = None
         self.job_info_dpath = self.dpath / 'job_info'
-        home = ub.Path(airflow_home) if airflow_home is not None else (self.dpath / 'airflow_home')
+        home = (
+            ub.Path(airflow_home)
+            if airflow_home is not None
+            else (self.dpath / 'airflow_home')
+        )
         self.airflow_home = home.ensuredir()
         if preamble is not None:
             self.add_preamble_command(preamble)
@@ -188,7 +197,7 @@ class AirflowQueue(base_queue.Queue):
         env['AIRFLOW__CORE__LOAD_EXAMPLES'] = 'False'
         env.setdefault(
             'AIRFLOW__DATABASE__SQL_ALCHEMY_CONN',
-            f"sqlite:///{self.airflow_home / 'airflow.db'}",
+            f'sqlite:///{self.airflow_home / "airflow.db"}',
         )
         return env
 
@@ -213,16 +222,20 @@ class AirflowQueue(base_queue.Queue):
         env = self._airflow_env()
         detach = not block
         if detach:
-            raise NotImplementedError('Non-blocking airflow runs are not implemented yet')
+            raise NotImplementedError(
+                'Non-blocking airflow runs are not implemented yet'
+            )
         with self._patched_env(env):
-            from airflow.utils import db
-            from airflow.models.dagbag import DagBag
-            from airflow.models.serialized_dag import DagVersion
-            from airflow.models.dagbundle import DagBundleModel
-            from airflow.models.dag import DagModel
-            from airflow.utils.session import create_session
-            import sys
             import contextlib
+            import sys
+
+            from airflow.models.dag import DagModel
+            from airflow.models.dagbag import DagBag
+            from airflow.models.dagbundle import DagBundleModel
+            from airflow.models.serialized_dag import DagVersion
+            from airflow.utils import db
+            from airflow.utils.session import create_session
+
             if hasattr(db, 'resetdb'):
                 db.resetdb()
             elif hasattr(db, 'check_and_run_migrations'):
@@ -231,10 +244,16 @@ class AirflowQueue(base_queue.Queue):
                 db.upgradedb()
             else:
                 db.initdb()
-            dag_bag = DagBag(dag_folder=os.fspath(self.dags_dpath), include_examples=False, safe_mode=False)
+            dag_bag = DagBag(
+                dag_folder=os.fspath(self.dags_dpath),
+                include_examples=False,
+                safe_mode=False,
+            )
             dag = dag_bag.get_dag(self.name)
             if dag is None:
-                raise RuntimeError(f'Could not load DAG {self.name} from {self.dags_dpath}')
+                raise RuntimeError(
+                    f'Could not load DAG {self.name} from {self.dags_dpath}'
+                )
             # Airflow 3 requires DAG bundle versioning unless explicitly disabled.
             if not getattr(dag, 'disable_bundle_versioning', False):
                 dag.disable_bundle_versioning = True
@@ -245,7 +264,11 @@ class AirflowQueue(base_queue.Queue):
                     session.flush()
                 dag_model = session.get(DagModel, dag.dag_id)
                 if dag_model is None:
-                    dag_model = DagModel(dag_id=dag.dag_id, fileloc=dag.fileloc, bundle_name=bundle_name)
+                    dag_model = DagModel(
+                        dag_id=dag.dag_id,
+                        fileloc=dag.fileloc,
+                        bundle_name=bundle_name,
+                    )
                 else:
                     dag_model.fileloc = dag.fileloc
                     dag_model.bundle_name = bundle_name
@@ -256,7 +279,10 @@ class AirflowQueue(base_queue.Queue):
             # be closed unexpectedly. Ensure Airflow writes to the real stdout/
             # stderr streams to avoid "I/O operation on closed file" errors
             # during tests.
-            with contextlib.redirect_stdout(sys.__stdout__), contextlib.redirect_stderr(sys.__stderr__):
+            with (
+                contextlib.redirect_stdout(sys.__stdout__),
+                contextlib.redirect_stderr(sys.__stderr__),
+            ):
                 dag.test()
 
     def read_state(self):
@@ -268,22 +294,27 @@ class AirflowQueue(base_queue.Queue):
         """
         env = self._airflow_env()
         with self._patched_env(env):
-            from airflow.utils.session import create_session
             from airflow.models.dagrun import DagRun
             from airflow.models.taskinstance import TaskInstance
+            from airflow.utils.session import create_session
             from sqlalchemy import select
+
             try:
                 from airflow.utils.state import TaskInstanceState
+
                 success_state = TaskInstanceState.SUCCESS
                 failed_state = TaskInstanceState.FAILED
                 skipped_state = TaskInstanceState.SKIPPED
             except Exception:  # pragma: no cover
-                from airflow.utils.state import State as TaskInstanceState  # type: ignore
+                from airflow.utils.state import (
+                    State as TaskInstanceState,  # type: ignore
+                )
+
                 success_state = TaskInstanceState.SUCCESS
                 failed_state = TaskInstanceState.FAILED
                 skipped_state = TaskInstanceState.SKIPPED
 
-            summary = {
+            summary: Dict[str, Any] = {
                 'name': self.name,
                 'status': 'unknown',
                 'total': None,
@@ -311,33 +342,32 @@ class AirflowQueue(base_queue.Queue):
                 summary['status'] = getattr(dagrun, 'state', 'unknown')
                 summary['run_id'] = dagrun.run_id
 
-                ti_stmt = (
-                    select(TaskInstance.state)
-                    .where(
-                        TaskInstance.dag_id == dagrun.dag_id,
-                        TaskInstance.run_id == dagrun.run_id,
-                    )
+                ti_stmt = select(TaskInstance.state).where(
+                    TaskInstance.dag_id == dagrun.dag_id,
+                    TaskInstance.run_id == dagrun.run_id,
                 )
                 states = list(session.scalars(ti_stmt))
                 passed = sum(state == success_state for state in states)
                 failed = sum(state == failed_state for state in states)
                 skipped = sum(state == skipped_state for state in states)
-                summary.update({
-                    'total': len(states),
-                    'passed': passed,
-                    'failed': failed,
-                    'skipped': skipped,
-                })
+                summary.update(
+                    {
+                        'total': len(states),
+                        'passed': passed,
+                        'failed': failed,
+                        'skipped': skipped,
+                    }
+                )
         return summary
 
-    def finalize_text(self) -> str:
+    def finalize_text(self, **kwargs: Any) -> str:
         import networkx as nx
 
         graph = self._dependency_graph()
         topo_jobs = [self.named_jobs[n] for n in nx.topological_sort(graph)]
 
         header = ub.codeblock(
-            f'''
+            f"""
             from airflow import DAG
             from datetime import timezone
             from datetime import datetime as datetime_cls
@@ -350,7 +380,7 @@ class AirflowQueue(base_queue.Queue):
                 tags=['cmd_queue'],
             )
             jobs = dict()
-            '''
+            """
         )
         parts = [header]
         for job in topo_jobs:
@@ -359,7 +389,9 @@ class AirflowQueue(base_queue.Queue):
         for job in topo_jobs:
             for dep in job.depends or []:
                 if dep is not None:
-                    parts.append(f'jobs[{job.name!r}].set_upstream(jobs[{dep.name!r}])')
+                    parts.append(
+                        f'jobs[{job.name!r}].set_upstream(jobs[{dep.name!r}])'
+                    )
 
         # if depends:
         #     for dep in depends:
@@ -373,7 +405,7 @@ class AirflowQueue(base_queue.Queue):
         return text
         # pass
 
-    def submit(self, command: str, **kwargs: Any) -> AirflowJob:
+    def submit(self, command: str, **kwargs: Any) -> AirflowJob:  # ty: ignore[invalid-method-override]
         name = kwargs.get('name', None)
         if name is None:
             name = kwargs['name'] = f'J{len(self.jobs):04d}-{self.queue_id}'
@@ -398,11 +430,13 @@ class AirflowQueue(base_queue.Queue):
                 depends = [depends]
             depends = [
                 self.named_jobs[dep] if isinstance(dep, str) else dep
-                for dep in depends]
+                for dep in depends
+            ]
         job = AirflowJob(command, depends=depends, **kwargs)
         self.jobs.append(job)
         self.num_real_jobs += 1
-        self.named_jobs[job.name] = job
+        # job.name is set above before this line, but ty sees Optional.
+        self.named_jobs[job.name] = job  # ty: ignore[invalid-assignment]
         return job
 
     def print_commands(
@@ -432,9 +466,10 @@ class AirflowQueue(base_queue.Queue):
         code = self.finalize_text()
 
         if style == 'rich':
+            from rich.console import Console
             from rich.panel import Panel
             from rich.syntax import Syntax
-            from rich.console import Console
+
             console = Console()
             console.print(Panel(Syntax(code, 'python'), title=str(self.fpath)))
             # console.print(Syntax(code, 'bash'))
@@ -461,11 +496,14 @@ def demo() -> None:
         from cmd_queue.airflow_queue import *  # NOQA
         demo()
     """
-    from airflow import DAG
-    from datetime import timezone
     from datetime import datetime as datetime_cls
+    from datetime import timezone
+
+    from airflow import DAG
     from airflow.operators.bash import BashOperator
-    now = datetime_cls.utcnow().replace(tzinfo=timezone.utc)
+
+    now = datetime_cls.now(timezone.utc)
+    # now = datetime_cls.utcnow().replace(tzinfo=timezone.utc)
     dag = DAG(
         'mycustomdag',
         start_date=now,
@@ -473,9 +511,11 @@ def demo() -> None:
         tags=['example'],
     )
     t1 = BashOperator(task_id='task1', bash_command='date', dag=dag)
-    t2 = BashOperator(task_id='task2', bash_command='echo hi 1 && true', dag=dag)
+    t2 = BashOperator(
+        task_id='task2', bash_command='echo hi 1 && true', dag=dag
+    )
     t2.set_upstream(t1)
-    dag.run(verbose=True, local=True)
+    dag.run(verbose=True, local=True)  # type: ignore
 
 
 if __name__ == '__main__':

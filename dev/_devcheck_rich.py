@@ -5,13 +5,16 @@ SeeAlso:
 Cant do this with pure rich
     https://github.com/Textualize/rich/issues/2120
 """
-from rich.table import Table
-from rich.live import Live
+
 import time
+
+from rich.live import Live
+from rich.table import Table
 
 
 def random_rich_table():
     import random
+
     r = random.random()
     columns = ['name', 'status', 'finished', 'errors', 'total']
     table = Table()
@@ -42,6 +45,7 @@ def simple_update_no_pager():
 
 def simple_pager_no_update():
     from rich.console import Console
+
     console = Console()
     table = random_rich_table()
     with console.pager():
@@ -51,8 +55,8 @@ def simple_pager_no_update():
 def combined_scrolling_table():
     from textual import events
     from textual.app import App
-    from textual.widgets import ScrollView
     from textual.widget import Widget
+    from textual.widgets import ScrollView
 
     class JobTable(Widget):
         def on_mount(self):
@@ -66,10 +70,9 @@ def combined_scrolling_table():
         """An example of a very simple Textual App"""
 
         async def on_load(self, event: events.Load) -> None:
-            await self.bind("q", "quit", "Quit")
+            await self.bind('q', 'quit', 'Quit')
 
         async def on_mount(self, event: events.Mount) -> None:
-
             self.body = body = ScrollView(auto_width=True)
 
             await self.view.dock(body)
@@ -80,7 +83,7 @@ def combined_scrolling_table():
 
             await self.call_later(add_content)
 
-    MyApp.run(title="Simple App", log="textual.log")
+    MyApp.run(title='Simple App', log='textual.log')
 
 
 if __name__ == '__main__':
