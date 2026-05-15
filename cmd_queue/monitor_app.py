@@ -1,84 +1,146 @@
 from __future__ import annotations
 
-from types import ModuleType
 from typing import Any, Callable, Optional, Tuple
 
 try:
-    from textual import events
-    from textual.views import DockView
-    from textual.widget import Widget
-    from textual.widgets import ScrollView
+    from rich.text import Text
+    from textual.app import App, ComposeResult
+    from textual.containers import VerticalScroll
+    from textual.widgets import Footer, Header, Static
 
-    # from rich.panel import Panel
-    # from rich.text import Text
-    from cmd_queue.util import richer as rich
-    from cmd_queue.util import texter as textual
-    from cmd_queue.util.textual_extensions import ExtHeader, InstanceRunnableApp
-    # import ubelt as ub
+    TEXTUAL_AVAILABLE = True
 except ImportError:
-    rich: ModuleType = None  # type: ignore
-    textual: ModuleType = None  # type: ignore
-    events: ModuleType = None  # type: ignore
-    ScrollView: type = object  # type: ignore
-    Widget: type = object  # type: ignore
-    DockView: type = object  # type: ignore
-    InstanceRunnableApp: type = object  # type: ignore
-    ExtHeader: type = object  # type: ignore
+    Text: Any = None
+    ComposeResult: Any = Any
+    VerticalScroll: type = object  # type: ignore
+    Footer: type = object  # type: ignore
+    Header: type = object  # type: ignore
+    Static: type = object  # type: ignore
+    TEXTUAL_AVAILABLE = False
+
+    class App:  # type: ignore
+        """Fallback base so importing this module does not require textual."""
+
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            pass
+
+        def run(self, *args: Any, **kwargs: Any) -> None:
+            raise ImportError('The textual monitor requires the textual package')
 
 
-class JobTable(Widget):  # type: ignore
+MonitorTableFn = Callable[[], Tuple[Any, bool, Any]]
+
+
+def _missing_textual_error() -> ImportError:
+    return ImportError(
+        'The cmd_queue textual monitor requires the optional textual '
+        'dependency. Install cmd_queue with the optional/textual extras, '
+        'or run with with_textual=False.'
+    )
+
+
+class JobTable(Static):  # type: ignore[misc]
+    """A small auto-refreshing widget that displays the queue status table."""
+
+    DEFAULT_CSS = """
+    JobTable {
+        height: 1fr;
+        min-height: 8;
+        width: 100%;
+        overflow: auto;
+    }
+    """
+
     def __init__(
         self,
-        table_fn: Optional[Callable[[], Tuple[Any, bool, Any]]] = None,
+        table_fn: Optional[MonitorTableFn] = None,
+        *,
+        refresh_rate: float = 0.5,
         **kwargs: Any,
     ) -> None:
+        if not TEXTUAL_AVAILABLE:
+            raise _missing_textual_error()
         super().__init__(**kwargs)
         self.table_fn = table_fn
+        self.refresh_rate = refresh_rate
+        self.finished = False
+        self.agg_state: Any = None
 
     def on_mount(self) -> None:
-        refresh_rate = 0.5
-        self.set_interval(refresh_rate, self.refresh)
+        self.set_interval(self.refresh_rate, self.refresh_status)
+        self.refresh_status()
 
-    def render(self) -> Any:
+    def refresh_status(self) -> None:
         table_fn = self.table_fn
+        if table_fn is None:
+            self.update(Text('No status table is configured.', style='yellow'))
+            return
+
         table, finished, agg_state = table_fn()
-        # self.app.post_message_no_wait('quit')
-        # self.app.emit_no_wait('quit')
-        # if finished:
-        #     await self.app.shutdown()
-        if finished:
-            self.app.graceful_exit = True
-            self.post_message_no_wait(events.ShutdownRequest(sender=self))
-        return table
+        self.finished = bool(finished)
+        self.agg_state = agg_state
+        if table is None:
+            table = Text('No status rows yet.', style='dim')
+        self.update(table)
+
+        if self.finished:
+            app = self.app
+            app.graceful_exit = True
+            app.exit()
 
 
-class CmdQueueMonitorApp(InstanceRunnableApp):  # type: ignore
+class CmdQueueMonitorApp(App):  # type: ignore[misc]
+    """Textual app used by the tmux monitor.
+
+    The constructor and runtime attributes are intentionally stable because
+    ``TMUXMultiQueue._textual_monitor`` uses them to coordinate foreground
+    attach behavior.
     """
-    A Textual App to monitor jobs
+
+    CSS = """
+    Screen {
+        layout: vertical;
+    }
+
+    #status-scroll {
+        height: 1fr;
+        padding: 0 1;
+    }
+
+    #help-line {
+        dock: bottom;
+        height: 1;
+        padding: 0 1;
+        color: $text-muted;
+        background: $surface;
+    }
     """
 
     def __init__(
         self,
-        table_fn: Callable[[], Tuple[Any, bool, Any]],
+        table_fn: MonitorTableFn,
         kill_fn: Optional[Callable[[], Any]] = None,
         attach_session: Optional[str] = None,
         **kwargs: Any,
     ) -> None:
-        self.job_table = JobTable(table_fn)
+        if not TEXTUAL_AVAILABLE:
+            raise _missing_textual_error()
+        super().__init__(**kwargs)
+        self.job_table = JobTable(table_fn, id='job-table')
         self.kill_fn = kill_fn
         self.graceful_exit = False
         self.attach_session = attach_session
         self.attach_requested = False
-        super().__init__(**kwargs)
-        self._title = 'Command Queue'
+        self.title = 'Command Queue'
+        self.sub_title = 'Monitor'
 
     @classmethod
-    def demo(CmdQueueMonitorApp) -> CmdQueueMonitorApp:
+    def demo(cls) -> CmdQueueMonitorApp:
         """
-        This creates an app instance that we can run
+        This creates an app instance that we can run.
 
         CommandLine:
-            xdoctest -m /home/joncrall/code/cmd_queue/cmd_queue/monitor_app.py CmdQueueMonitorApp.demo:0 --interact
+            xdoctest -m cmd_queue.monitor_app CmdQueueMonitorApp.demo:0 --interact
 
         Example:
             >>> # xdoctest: +REQUIRES(module:textual)
@@ -88,6 +150,8 @@ class CmdQueueMonitorApp(InstanceRunnableApp):  # type: ignore
             >>> self.run()
             >>> print(f'self.graceful_exit={self.graceful_exit}')
         """
+        from cmd_queue.util import richer as rich
+
         countdown = 10
 
         def demo_table_fn():
@@ -96,7 +160,7 @@ class CmdQueueMonitorApp(InstanceRunnableApp):  # type: ignore
 
             r = random.random()
             columns = ['name', 'status', 'passed', 'errors', 'total']
-            table = rich.table.Table()
+            table = rich.table.Table(title='Demo queue status')
             for col in columns:
                 table.add_column(col)
 
@@ -113,50 +177,47 @@ class CmdQueueMonitorApp(InstanceRunnableApp):  # type: ignore
             agg_state = None
             return table, finished, agg_state
 
-        return CmdQueueMonitorApp(demo_table_fn)
+        return cls(demo_table_fn)
 
-    async def on_load(self, event: Any) -> None:
-        await self.bind('q', 'quit', 'Quit')
+    def compose(self) -> ComposeResult:
+        yield Header(show_clock=True)
+        with VerticalScroll(id='status-scroll'):
+            yield self.job_table
+        yield Static(self._help_text(), id='help-line')
+        yield Footer()
+
+    def on_mount(self) -> None:
+        self.bind('q', 'quit', description='Quit')
+        if self.kill_fn is not None:
+            self.bind('k', 'kill_jobs', description='Kill jobs')
         if self.attach_session is not None:
-            await self.bind('a', 'attach_monitor', 'Attach monitor')
+            self.bind('a', 'attach_monitor', description='Attach monitor')
 
-    async def action_quit(self) -> None:
-        await self.shutdown()
+    def _help_text(self) -> Text:
+        parts = ['[q] quit']
+        if self.kill_fn is not None:
+            parts.append('[k] kill jobs')
+        if self.attach_session is not None:
+            parts.append(f'[a] attach {self.attach_session}')
+        return Text('   '.join(parts), style='dim')
 
-    async def action_attach_monitor(self) -> None:
+    def action_quit(self) -> None:
+        self.exit()
+
+    def action_kill_jobs(self) -> None:
+        if self.kill_fn is not None:
+            self.kill_fn()
+        self.graceful_exit = True
+        self.exit()
+
+    def action_attach_monitor(self) -> None:
         # The actual tmux attach has to happen *after* the textual app
         # releases the terminal. Flag it and shut down; the caller
         # (TMUXMultiQueue._textual_monitor) checks ``attach_requested``
         # and performs the attach + re-launches the app.
-        self.attach_requested = True
-        await self.shutdown()
-
-    async def on_mount(self, event: Any) -> None:
-        # from textual.layouts.vertical import VerticalLayout
-
-        view: DockView = await self.push_view(DockView())  # type: ignore
-        header = ExtHeader(tall=False)
-        footer = textual.widgets.Footer()
-        # panel = rich.panel.Panel()
-
-        # text = textual.widgets.Placeholder()
-        table_view = ScrollView(auto_width=True)
-        # scrollview2 = ScrollView(auto_width=True)
-        # vlayout = VerticalLayout()
-        # vlayout.add(text)
-        # vlayout.add(table_view)
-
-        await view.dock(header, edge='top')
-        await view.dock(footer, edge='bottom')
-        await view.dock(table_view)
-        # await view.dock(scrollview2)
-
-        async def add_content():
-            # await scrollview2.update(text)
-            await table_view.update(self.job_table)
-
-        await self.call_later(add_content)
-        # await self.call_later(self.shutdown)
+        if self.attach_session is not None:
+            self.attach_requested = True
+        self.exit()
 
 
 if __name__ == '__main__':
@@ -164,9 +225,6 @@ if __name__ == '__main__':
     CommandLine:
         python ~/code/cmd_queue/cmd_queue/monitor_app.py
     """
-    # import xdoctest
-    # xdoctest.doctest_callable(CmdQueueMonitorApp.demo)
-    # CmdQueueMonitorApp.demo().run(log='textual.log', log_verbosity=10000)
     self = CmdQueueMonitorApp.demo()
     self.run()
     print(f'self.graceful_exit={self.graceful_exit}')
