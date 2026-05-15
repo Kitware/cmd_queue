@@ -1,6 +1,5 @@
-# xdev availpkg textual
-textual>=4.0.0  ; python_version < '4.0' and python_version >= '3.9'    # Python 3.13+
-textual>=0.1.18 ; python_version < '3.9' and python_version >= '3.7' 
+# Modern Textual monitor UI
+textual>=4.0.0  ; python_version < '4.0' and python_version >= '3.10'
 
 pint>=0.24.4    ; python_version < '4.0'  and python_version >= '3.13'    # Python 3.13+
 pint>=0.23      ; python_version < '3.13' and python_version >= '3.12'    # Python 3.12

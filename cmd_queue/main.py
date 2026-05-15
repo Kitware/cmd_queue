@@ -69,6 +69,28 @@ if TYPE_CHECKING:
     import cmd_queue
 
 
+CMD_QUEUE_TMUX_SESSION_PREFIXES = ('cmdq_', 'cmdq-monitor-')
+
+
+def _is_cmd_queue_tmux_session_id(session_id: str) -> bool:
+    """Return True if ``session_id`` looks managed by cmd_queue.
+
+    Worker sessions use the historical ``cmdq_`` prefix. Detached monitor
+    sessions spawned by ``monitor='hybrid'`` / ``monitor='tmux'`` use
+    ``cmdq-monitor-`` so cleanup must include both families.
+    """
+    return session_id.startswith(CMD_QUEUE_TMUX_SESSION_PREFIXES)
+
+
+def _cmd_queue_tmux_session_ids(sessions: list[dict[str, str]]) -> list[str]:
+    """Extract cmd_queue-owned tmux session ids from ``tmux.list_sessions``."""
+    return [
+        session['id']
+        for session in sessions
+        if _is_cmd_queue_tmux_session_id(session['id'])
+    ]
+
+
 class CommonConfig(scfg.DataConfig):
     qname = scfg.Value(None, position=1, help='name of the CLI queue')
 
@@ -183,8 +205,9 @@ class CmdQueueCLI(scfg.ModalCLI):
     This is a modal CLI where "action" will specify the main behavior.
     Most behaviors are related to creating and submitting custom queues.
 
-    The ``cleanup`` action is for helping to manage the tmux backend, maingly
-    killing session names that start with ``"cmdq_"``.
+    The ``cleanup`` action is for helping to manage the tmux backend, mainly
+    killing worker sessions named ``"cmdq_*"`` and detached monitor sessions
+    named ``"cmdq-monitor-*"``.
 
     Quickstart
     ##########
@@ -300,11 +323,8 @@ class CmdQueueCLI(scfg.ModalCLI):
             sessions = tmux.list_sessions()
             print('sessions = {}'.format(ub.urepr(sessions, nl=1)))
 
-            # Cleanup tmux sessions
-            sessions_ids = []
-            for session in sessions:
-                if session['id'].startswith('cmdq_'):
-                    sessions_ids.append(session['id'])
+            # Cleanup worker sessions and detached monitor sessions.
+            sessions_ids = _cmd_queue_tmux_session_ids(sessions)
             print('sessions_ids = {}'.format(ub.urepr(sessions_ids, nl=1)))
             from rich import prompt
 
