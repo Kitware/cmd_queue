@@ -11,10 +11,10 @@ from typing import Any, Dict, Tuple, Type
 
 
 _BACKEND_SPECS: Dict[str, Tuple[str, str]] = {
-    'serial': ('cmd_queue.serial_queue', 'SerialQueue'),
-    'tmux': ('cmd_queue.tmux_queue', 'TMUXMultiQueue'),
-    'slurm': ('cmd_queue.slurm_queue', 'SlurmQueue'),
-    'airflow': ('cmd_queue.airflow_queue', 'AirflowQueue'),
+    'serial': ('cmd_queue.backends.serial', 'SerialQueue'),
+    'tmux': ('cmd_queue.backends.tmux', 'TMUXMultiQueue'),
+    'slurm': ('cmd_queue.backends.slurm', 'SlurmQueue'),
+    'airflow': ('cmd_queue.backends.airflow', 'AirflowQueue'),
 }
 
 # Historically ``Queue.create(..., size=...)`` silently ignored size for every
