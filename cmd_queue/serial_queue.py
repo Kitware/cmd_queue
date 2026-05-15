@@ -1,13 +1,19 @@
 """Compatibility facade for the serial backend.
 
-The implementation lives in :mod:`cmd_queue.backends.serial`.  This historical
-module remains part of the public API, including explicit imports of private
-helpers that downstream tests or scripts may have used.
+The implementation lives in :mod:`cmd_queue.backends.serial`.  This module
+keeps the historical import path stable for external users.
 """
 
-from cmd_queue.backends import serial as _impl
+from cmd_queue.backends.serial import (
+    BashJob,
+    SerialQueue,
+    _check_bash_text_for_syntax_errors,
+    indent,
+)
 
-globals().update({
-    name: value for name, value in vars(_impl).items()
-    if not (name.startswith('__') and name.endswith('__'))
-})
+__all__ = [
+    'BashJob',
+    'SerialQueue',
+    'indent',
+    '_check_bash_text_for_syntax_errors',
+]

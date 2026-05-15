@@ -1,13 +1,21 @@
 """Compatibility facade for the tmux backend.
 
-The implementation lives in :mod:`cmd_queue.backends.tmux`.  This historical
-module remains part of the public API, including explicit imports of private
-helpers that downstream tests or scripts may have used.
+The implementation lives in :mod:`cmd_queue.backends.tmux`.  This module
+keeps the historical import path stable for external users.
 """
 
-from cmd_queue.backends import tmux as _impl
+from cmd_queue.backends.tmux import (
+    TMUXMultiQueue,
+    _attach_hint_renderable,
+    _attach_or_switch,
+    _run_live_with_attach,
+    has_stdin,
+)
 
-globals().update({
-    name: value for name, value in vars(_impl).items()
-    if not (name.startswith('__') and name.endswith('__'))
-})
+__all__ = [
+    'TMUXMultiQueue',
+    '_attach_hint_renderable',
+    '_attach_or_switch',
+    '_run_live_with_attach',
+    'has_stdin',
+]

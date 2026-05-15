@@ -931,7 +931,7 @@ class SlurmQueue(base_queue.Queue):
         import pandas as pd
         from rich.table import Table
 
-        from cmd_queue.tmux_queue import (
+        from cmd_queue.backends.tmux import (
             _attach_hint_renderable,
             _run_live_with_attach,
         )

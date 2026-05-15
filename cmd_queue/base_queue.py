@@ -188,9 +188,6 @@ class Queue(ub.NiceRepr):
         # the command in the bash script we build (i.e. if the script is
         # allowed to fail or not)
         # self.commands.append(command)
-        # hack
-        from cmd_queue import serial_queue
-
         if 'info_dpath' not in kwargs:
             kwargs['info_dpath'] = self.job_info_dpath
 
@@ -224,7 +221,9 @@ class Queue(ub.NiceRepr):
                         )
                     )
                     raise
-            job = serial_queue.BashJob(command, depends=depends, **kwargs)
+            from cmd_queue.backends.serial import BashJob
+
+            job = BashJob(command, depends=depends, **kwargs)
         elif isinstance(command, Job):
             # Assume job is already a bash job
             job = command

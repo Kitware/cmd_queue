@@ -55,7 +55,8 @@ from typing import Any, Dict, Iterable, List, Optional
 import ubelt as ub
 
 # import itertools as it
-from cmd_queue import base_queue, serial_queue
+from cmd_queue import base_queue
+from cmd_queue.backends.serial import SerialQueue
 from cmd_queue.util.util_tmux import tmux
 
 
@@ -263,7 +264,7 @@ class TMUXMultiQueue(base_queue.Queue):
         """
         return bool(ub.find_exe('tmux'))
 
-    def _new_workers(self, start: int = 0) -> List[serial_queue.SerialQueue]:
+    def _new_workers(self, start: int = 0) -> List[SerialQueue]:
         import itertools as it
 
         per_worker_environs = [self.environ] * self.size
@@ -280,7 +281,7 @@ class TMUXMultiQueue(base_queue.Queue):
             ]
 
         workers = [
-            serial_queue.SerialQueue(
+            SerialQueue(
                 name='{}{}_{:03d}'.format(
                     self._tmux_session_prefix, self.name, worker_idx
                 ),
@@ -1519,7 +1520,7 @@ class TMUXMultiQueue(base_queue.Queue):
 
         workers = []
         for w in manifest.get('workers', []):
-            worker = serial_queue.SerialQueue(
+            worker = SerialQueue(
                 name=w['name'],
                 rootid=w['rootid'],
                 dpath=ub.Path(w['dpath']),

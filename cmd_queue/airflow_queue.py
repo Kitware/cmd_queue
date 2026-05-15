@@ -1,13 +1,13 @@
 """Compatibility facade for the Airflow backend.
 
-The implementation lives in :mod:`cmd_queue.backends.airflow`.  This historical
-module remains part of the public API, including explicit imports of private
-helpers that downstream tests or scripts may have used.
+The implementation lives in :mod:`cmd_queue.backends.airflow`.  This module
+keeps the historical import path stable for external users.
 """
 
-from cmd_queue.backends import airflow as _impl
+from cmd_queue.backends.airflow import AirflowJob, AirflowQueue, demo
 
-globals().update({
-    name: value for name, value in vars(_impl).items()
-    if not (name.startswith('__') and name.endswith('__'))
-})
+__all__ = [
+    'AirflowJob',
+    'AirflowQueue',
+    'demo',
+]
