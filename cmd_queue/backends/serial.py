@@ -940,7 +940,4 @@ def _check_bash_text_for_syntax_errors(bash_text: str) -> None:
             print(info.stderr)
             raise SyntaxError('bash syntax error')
 
-# Keep historical introspection / pickle module names stable even though
 # the implementation now lives under cmd_queue.backends.
-BashJob.__module__ = 'cmd_queue.serial_queue'
-SerialQueue.__module__ = 'cmd_queue.serial_queue'

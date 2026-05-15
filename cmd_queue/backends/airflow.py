@@ -525,7 +525,4 @@ if __name__ == '__main__':
     """
     demo()
 
-# Keep historical introspection / pickle module names stable even though
 # the implementation now lives under cmd_queue.backends.
-AirflowJob.__module__ = 'cmd_queue.airflow_queue'
-AirflowQueue.__module__ = 'cmd_queue.airflow_queue'

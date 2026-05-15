@@ -1441,7 +1441,4 @@ References:
 
 """
 
-# Keep historical introspection / pickle module names stable even though
 # the implementation now lives under cmd_queue.backends.
-SlurmJob.__module__ = 'cmd_queue.slurm_queue'
-SlurmQueue.__module__ = 'cmd_queue.slurm_queue'

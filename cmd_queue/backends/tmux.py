@@ -1759,6 +1759,4 @@ if 0:
 
     """
 
-# Keep historical introspection / pickle module names stable even though
 # the implementation now lives under cmd_queue.backends.
-TMUXMultiQueue.__module__ = 'cmd_queue.tmux_queue'
