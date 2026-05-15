@@ -147,13 +147,10 @@ class Queue(ub.NiceRepr):
             Queue:
                 a reference to the queue (for chaining)
         """
-        graph = self._dependency_graph()
-        # Find the jobs that nobody depends on
-        sink_jobs = [
-            graph.nodes[n]['job'] for n, d in graph.out_degree if d == 0
-        ]
-        # All new jobs must depend on these jobs
-        self.all_depends = sink_jobs
+        from cmd_queue import _graph
+
+        # Find the jobs that nobody depends on.
+        self.all_depends = _graph.sink_jobs(self.jobs)
         return self
 
     def write(self) -> Any:
@@ -208,25 +205,18 @@ class Queue(ub.NiceRepr):
             if ':' in name:
                 raise ValueError('Name must be path-safe')
 
-            if self.all_depends:
-                depends = kwargs.get('depends', None)
-                if depends is None:
-                    depends = self.all_depends
-                else:
-                    if not ub.iterable(depends):
-                        depends = [depends]
-                    depends = self.all_depends + depends
-                kwargs['depends'] = depends
+            from cmd_queue import _graph
+
+            depends = kwargs.get('depends', None)
+            depends = _graph.merge_sync_depends(self.all_depends, depends)
+            kwargs['depends'] = depends
             depends = kwargs.pop('depends', None)
             if depends is not None:
-                # Resolve any strings to job objects
-                if not ub.iterable(depends):
-                    depends = [depends]
+                # Resolve any strings to job objects.
                 try:
-                    depends = [
-                        self.named_jobs[dep] if isinstance(dep, str) else dep
-                        for dep in depends
-                    ]
+                    depends = _graph.resolve_dependency_refs(
+                        depends, self.named_jobs
+                    )
                 except Exception:
                     print(
                         'self.named_jobs = {}'.format(
@@ -258,20 +248,9 @@ class Queue(ub.NiceRepr):
 
     @classmethod
     def _backend_classes(cls):
-        from cmd_queue import (
-            airflow_queue,
-            serial_queue,
-            slurm_queue,
-            tmux_queue,
-        )
+        from cmd_queue import _registry
 
-        lut = {
-            'serial': serial_queue.SerialQueue,
-            'tmux': tmux_queue.TMUXMultiQueue,
-            'slurm': slurm_queue.SlurmQueue,
-            'airflow': airflow_queue.AirflowQueue,
-        }
-        return lut
+        return _registry.backend_classes()
 
     @classmethod
     def available_backends(cls) -> List[str]:
@@ -292,28 +271,12 @@ class Queue(ub.NiceRepr):
                 gpus (int): number of gpus
                 size (int): only for tmux queue, number of parallel queues
         """
-        if backend == 'serial':
-            from cmd_queue import serial_queue
+        from cmd_queue import _registry
 
-            kwargs.pop('size', None)
-            self = serial_queue.SerialQueue(**kwargs)
-        elif backend == 'tmux':
-            from cmd_queue import tmux_queue
-
-            self = tmux_queue.TMUXMultiQueue(**kwargs)
-        elif backend == 'slurm':
-            from cmd_queue import slurm_queue
-
-            kwargs.pop('size', None)
-            self = slurm_queue.SlurmQueue(**kwargs)
-        elif backend == 'airflow':
-            from cmd_queue import airflow_queue
-
-            kwargs.pop('size', None)
-            self = airflow_queue.AirflowQueue(**kwargs)
-        else:
+        try:
+            return _registry.create_backend(backend, **kwargs)
+        except _registry.UnknownBackendName:
             raise UnknownBackendError(backend)
-        return self
 
     def write_network_text(
         self,
@@ -480,24 +443,9 @@ class Queue(ub.NiceRepr):
             >>> graph = self._dependency_graph()
             >>> self.print_graph()
         """
-        import networkx as nx
+        from cmd_queue import _graph
 
-        graph = nx.DiGraph()
-        duplicate_names = ub.find_duplicates(self.jobs, key=lambda x: x.name)
-        if duplicate_names:
-            print(
-                'duplicate_names = {}'.format(ub.urepr(duplicate_names, nl=1))
-            )
-            raise Exception('Job names must be unique')
-
-        for index, job in enumerate(self.jobs):
-            graph.add_node(job.name, job=job, index=index)
-        for index, job in enumerate(self.jobs):
-            if job.depends:
-                for dep in job.depends:
-                    if dep is not None:
-                        graph.add_edge(dep.name, job.name)
-        return graph
+        return _graph.build_dependency_graph(self.jobs)
 
     def monitor(
         self,
@@ -533,16 +481,6 @@ class Queue(ub.NiceRepr):
         with_rich: Optional[bool] = None,
         colors: bool | int = True,
     ) -> str:
-        # Helper
-        if with_rich is not None:
-            ub.schedule_deprecation(
-                'cmd_queue',
-                'with_rich',
-                'arg',
-                migration='use style="rich" instead',
-            )
-            if with_rich:
-                style = 'rich'
-        if style == 'auto':
-            style = 'colors' if colors else 'plain'
-        return style
+        from cmd_queue import _rendering
+
+        return _rendering.coerce_style(style, with_rich, colors)

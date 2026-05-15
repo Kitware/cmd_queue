@@ -19,8 +19,8 @@ This guide orients AI coding agents and developers working in this repository. I
   - `slurm_queue.py` / `slurmify.py`: slurm submission logic and sbatch templating.
   - `airflow_queue.py`: experimental Airflow DAG generator.
   - `monitor_app.py`: runtime monitoring UI (rich/textual-driven).
-  - `util/`: shared helpers (`util_bash.py`, `util_networkx.py`, `util_tmux.py`, `util_network_text.py`, `util_yaml.py`, `richer.py`, etc.) plus `.pyi` stubs to aid type checkers.
-  - `*.pyi` files mirror public interfaces for static analysis (`py.typed` included).
+  - `util/`: shared helpers (`util_bash.py`, `util_networkx.py`, `util_tmux.py`, `util_network_text.py`, `util_yaml.py`, `richer.py`, etc.).
+  - `py.typed` is included; prefer typed Python source and internal dataclasses/protocols for new code.
 - `tests/`: pytest suites covering CLI flows, bash job error handling, import sanity, and tmux queue error handling (skips when tmux unavailable).
 - `docs/`: Sphinx configuration (`Makefile`, `source/conf.py`, `source/index.rst`, manual notes in `source/manual/pitch.rst`).
 - `examples/`: sample queue definitions.
@@ -28,7 +28,7 @@ This guide orients AI coding agents and developers working in this repository. I
 - `dev/`: helper scripts/keys for internal CI (generally not needed for day-to-day development).
 
 ## Environment Setup
-- Requires Python **>=3.8** (per `pyproject.toml` metadata). Create and activate a virtual environment before installing.
+- Requires Python **>=3.10** (per `setup.py` / `pyproject.toml` metadata). Create and activate a virtual environment before installing.
 - Quick setup (installs dependencies and editable package):
   ```bash
   ./run_developer_setup.sh
@@ -77,7 +77,10 @@ This guide orients AI coding agents and developers working in this repository. I
 - Use `--backend` to select `serial`, `tmux`, or `slurm`. The Airflow backend emits a DAG scaffold but is not fully supported.
 
 ## Extending / Refactoring Tips
-- Queue/backends: extend `BaseQueue` patterns in `base_queue.py`; mirror interfaces in corresponding `.pyi` stubs to keep static typing consistent.
+- Backwards compatibility is a first-class constraint. Preserve historical imports from `cmd_queue.serial_queue`, `cmd_queue.tmux_queue`, `cmd_queue.slurm_queue`, and `cmd_queue.airflow_queue` even if backend internals move elsewhere.
+- Prefer additive APIs and private helpers before public API changes. Use `ub.schedule_deprecation` for behavior changes that users may observe.
+- Queue/backends: keep `Queue.create`, `Queue.available_backends`, `Queue.submit`, `Queue.sync`, `finalize_text`, `print_commands`, `run`, and `read_state` behavior stable unless a change is deliberate and covered by compatibility tests.
+- Internal shared logic belongs in private modules such as `_registry.py`, `_graph.py`, `_rendering.py`, and `_types.py`; the historical modules should remain valid user import paths.
 - Jobs: `serial_queue.BashJob` encapsulates command strings, logging, and dependency wiring; reuse its helpers when adding new behaviors.
 - Utilities: prefer existing helpers in `cmd_queue/util/` for bash quoting, graph formatting, tmux control, and YAML serialization instead of reimplementing.
 - Monitoring: `monitor_app.py` integrates rich/textual views; ensure new backend events surface there for consistent UX.
