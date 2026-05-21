@@ -118,13 +118,13 @@ def load_queue_for_monitoring(manifest_path: Any) -> Any:
     manifest = read_manifest(manifest_path)
     backend = manifest['backend']
     if backend == 'tmux':
-        from cmd_queue import tmux_queue
+        from cmd_queue.backends.tmux import TMUXMultiQueue
 
-        return tmux_queue.TMUXMultiQueue._from_manifest(manifest)
+        return TMUXMultiQueue._from_manifest(manifest)
     elif backend == 'slurm':
-        from cmd_queue import slurm_queue
+        from cmd_queue.backends.slurm import SlurmQueue
 
-        return slurm_queue.SlurmQueue._from_manifest(manifest)
+        return SlurmQueue._from_manifest(manifest)
     else:
         raise NotImplementedError(
             f'Monitor reattach is not implemented for backend {backend!r}'

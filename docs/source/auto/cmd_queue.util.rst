@@ -9,7 +9,6 @@ Submodules
 
    cmd_queue.util.richer
    cmd_queue.util.texter
-   cmd_queue.util.textual_extensions
    cmd_queue.util.util_algo
    cmd_queue.util.util_network_text
    cmd_queue.util.util_networkx

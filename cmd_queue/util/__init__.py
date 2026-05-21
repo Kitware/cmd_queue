@@ -43,7 +43,6 @@ def lazy_import(module_name, submodules, submod_attrs):
 __getattr__ = lazy_import(
     __name__,
     submodules={
-        'textual_extensions',
         'util_algo',
         'util_networkx',
     },
@@ -55,4 +54,4 @@ def __dir__():
     return __all__
 
 
-__all__ = ['textual_extensions', 'util_algo', 'util_networkx']
+__all__ = ['util_algo', 'util_networkx']
