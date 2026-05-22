@@ -166,6 +166,12 @@ dev_status = "beta"
 use_uv = true
 use_setup_py = false
 use_pyproject_requirements = false
+ci_extras.full-loose = [
+  "airflow",
+]
+ci_extras.full-strict = [
+  "airflow",
+]
 entry_points.console_scripts = [
   "cmd_queue = cmd_queue.__main__:main",
 ]
