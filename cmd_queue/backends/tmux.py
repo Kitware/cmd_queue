@@ -846,6 +846,7 @@ class TMUXMultiQueue(base_queue.Queue):
                 with_textual=with_textual,
                 onfail=onfail,
                 onexit=onexit,
+                manifest_path=manifest_path,
             )
         if monitor == 'hybrid':
             side_session = None
@@ -882,6 +883,7 @@ class TMUXMultiQueue(base_queue.Queue):
                     onfail=onfail,
                     onexit=onexit,
                     side_session=side_session,
+                    manifest_path=manifest_path,
                 )
             finally:
                 if side_session and tmux.has_session(side_session):
@@ -1004,6 +1006,7 @@ class TMUXMultiQueue(base_queue.Queue):
         onfail: str = '',
         onexit: str = '',
         side_session: Optional[str] = None,
+        manifest_path: Optional[Any] = None,
     ) -> None:
         """
         Monitor progress until the jobs are done.
@@ -1077,9 +1080,9 @@ class TMUXMultiQueue(base_queue.Queue):
                 with_textual = False
 
         if with_textual:
-            self._textual_monitor(side_session=side_session)
+            self._textual_monitor(side_session=side_session, manifest_path=manifest_path)
         else:
-            self._simple_rich_monitor(refresh_rate, side_session=side_session)
+            self._simple_rich_monitor(refresh_rate, side_session=side_session, manifest_path=manifest_path)
         table, finished, agg_state = self._build_status_table()
         if onexit == 'capture':
             self.capture()
@@ -1088,24 +1091,30 @@ class TMUXMultiQueue(base_queue.Queue):
         self._print_done_summary(agg_state)
         return agg_state
 
-    def _textual_monitor(self, side_session: Optional[str] = None):
+    def _textual_monitor(
+        self,
+        side_session: Optional[str] = None,
+        manifest_path: Optional[Any] = None,
+    ):
         from rich import print as rich_print
 
-        if 0:
-            print('Kill commands:')
-            for command in self._kill_commands():
-                print(command)
+        if manifest_path is not None:
+            rich_print(
+                f'[dim]To reattach: cmd_queue monitor --manifest={manifest_path}[/dim]'
+            )
 
         is_running = True
         while is_running:
-            table_fn = self._build_status_table
+            table_fn = lambda: self._build_live_renderable(side_session=side_session)
             app = CmdQueueMonitorApp(
                 table_fn, kill_fn=self.kill, attach_session=side_session
             )
             app.run()
 
-            table, finished, agg_state = self._build_status_table()
-            rich_print(table)
+            renderable, finished, agg_state = self._build_live_renderable(
+                side_session=side_session
+            )
+            rich_print(renderable)
 
             if getattr(app, 'attach_requested', False):
                 # User pressed 'a' inside the textual UI; perform the
@@ -1121,7 +1130,7 @@ class TMUXMultiQueue(base_queue.Queue):
             else:
                 from rich.prompt import Confirm
 
-                flag = Confirm.ask('do you to kill the procs?')
+                flag = Confirm.ask('Do you want to kill the procs?')
                 if flag:
                     self.kill()
                     is_running = False
@@ -1252,14 +1261,19 @@ class TMUXMultiQueue(base_queue.Queue):
         return renderable, finished, agg_state
 
     def _simple_rich_monitor(
-        self, refresh_rate=0.4, side_session: Optional[str] = None
+        self,
+        refresh_rate=0.4,
+        side_session: Optional[str] = None,
+        manifest_path: Optional[Any] = None,
     ):
         import sys
 
-        if 0:
-            print('Kill commands:')
-            for command in self._kill_commands():
-                print(command)
+        from rich import print as rich_print
+
+        if manifest_path is not None:
+            rich_print(
+                f'[dim]To reattach: cmd_queue monitor --manifest={manifest_path}[/dim]'
+            )
 
         use_keys = side_session is not None and sys.stdin.isatty()
         try:
@@ -1273,7 +1287,7 @@ class TMUXMultiQueue(base_queue.Queue):
         except KeyboardInterrupt:
             from rich.prompt import Confirm
 
-            flag = Confirm.ask('do you to kill the procs?')
+            flag = Confirm.ask('Do you want to kill the procs?')
             if flag:
                 self.kill()
 
