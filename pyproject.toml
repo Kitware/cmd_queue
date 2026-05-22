@@ -5,6 +5,11 @@ requires = [
   "wheel>=0.37.1",
 ]
 
+[tool.uv]
+# Supply-chain guard: never resolve packages published after this date.
+# Bump manually when intentionally pulling in newer upstream releases.
+exclude-newer = "2026-05-22"
+
 [project]
 name = "cmd_queue"
 description = "The cmd_queue module for a DAG of bash commands"
