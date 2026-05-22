@@ -185,7 +185,7 @@ stages:
     python -m uv pip install pygments
     python --version  # Print out python version for debugging
   script:
-  - export INSTALL_EXTRAS="tests,optional"
+  - export INSTALL_EXTRAS="tests,optional,airflow"
   - export USE_UV_LOCK="false"
   - export LOCK_REQUIREMENTS=""
   - echo "Finding the path to the wheel"
@@ -383,9 +383,9 @@ stages:
     python -m uv pip install pygments
     python --version  # Print out python version for debugging
   script:
-  - export INSTALL_EXTRAS="tests,optional"
+  - export INSTALL_EXTRAS="tests,optional,airflow"
   - export USE_UV_LOCK="true"
-  - export LOCK_REQUIREMENTS="requirements/locks/tests-optional.txt"
+  - export LOCK_REQUIREMENTS="requirements/locks/tests-optional-airflow.txt"
   - echo "Finding the path to the wheel"
   - ls dist || echo "dist does not exist"
   - 'echo "Installing helpers: update pip"'
