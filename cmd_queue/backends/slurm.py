@@ -284,8 +284,13 @@ class SlurmJob(base_queue.Job):
         if depends is not None and not ub.iterable(depends):
             depends = [depends]  # type: ignore
         self.unused_kwargs = kwargs
-        self.command = command
-        self.name = name
+        # The base ``Job`` types ``command`` as ``str | None``; a SlurmJob always
+        # has a concrete command, so narrow it (keeps the ``--wrap`` join and
+        # ``shlex.quote`` well-typed).
+        self.command: str = command
+        # ``name`` is filled with a uuid above when omitted, so it is always a
+        # concrete ``str`` here (the base ``Job`` types it as ``str | None``).
+        self.name: str = name
         self.output_fpath = output_fpath
         self.depends = depends
         self.cpus = cpus
@@ -450,11 +455,17 @@ class SlurmJob(base_queue.Job):
 
         import shlex
 
-        _preamble = []
+        _preamble: List[str] = []
         if global_preamble:
             _preamble.extend(global_preamble)
         if self.preamble:
-            _preamble.append(self.preamble)
+            # ``preamble`` may be a single string or a list of steps; flatten a
+            # list into the ``&&`` chain rather than appending it as one element
+            # (which would crash the join below).
+            if isinstance(self.preamble, str):
+                _preamble.append(self.preamble)
+            else:
+                _preamble.extend(self.preamble)
 
         if self.teardown:
             # Guaranteed cleanup co-located in the job. EXIT runs teardown once;
@@ -476,9 +487,9 @@ class SlurmJob(base_queue.Job):
             main = self.command
 
         if _preamble:
-            wrp_command = shlex.quote(' && '.join(_preamble + [main]))  # ty: ignore[invalid-argument-type]
+            wrp_command = shlex.quote(' && '.join(_preamble + [main]))
         else:
-            wrp_command = shlex.quote(main)  # ty: ignore[invalid-argument-type]
+            wrp_command = shlex.quote(main)
 
         if self.shell:
             wrp_command = shlex.quote(self.shell + ' -c ' + wrp_command)
@@ -621,8 +632,8 @@ class SlurmQueue(base_queue.Queue):
             )
             status['has_working_nodes'] = has_working_nodes
 
-    @staticmethod
-    def is_available() -> bool:
+    @classmethod
+    def is_available(cls) -> bool:
         """
         Determines if we can run the slurm queue or not.
         """

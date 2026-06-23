@@ -251,6 +251,15 @@ class Queue(ub.NiceRepr):
         return job
 
     @classmethod
+    def is_available(cls) -> bool:
+        """
+        Check if this backend can run on the current system. Each concrete
+        backend overrides this; the base declares it so it is part of the
+        common queue contract (see :meth:`available_backends`).
+        """
+        raise NotImplementedError
+
+    @classmethod
     def _backend_classes(cls):
         from cmd_queue import _registry
 

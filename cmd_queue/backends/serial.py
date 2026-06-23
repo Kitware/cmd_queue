@@ -125,7 +125,9 @@ class BashJob(base_queue.Job):
         self.pathid = self.name + '_' + ub.hash_data(uuid.uuid4())[0:8]
         self.kwargs = kwargs  # unused kwargs
         self.cwd = cwd
-        self.command = command
+        # The base ``Job`` types ``command`` as ``str | None``; a BashJob always
+        # has a concrete command, so narrow it (keeps ``'\n'.join`` well-typed).
+        self.command: str = command
         self.depends: List[base_queue.Job] = list(depends) if depends else []
         self.bookkeeper = bookkeeper
         self.log = log

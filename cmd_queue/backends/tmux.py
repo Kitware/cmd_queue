@@ -49,6 +49,7 @@ Example:
 
 """
 from __future__ import annotations
+import os
 import uuid
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -299,7 +300,7 @@ class TMUXMultiQueue(base_queue.Queue):
         return str(ub.urepr(self.jobs))
 
     def _semaphore_wait_command(
-        self, flag_fpaths: Iterable[str], msg: str
+        self, flag_fpaths: Iterable[str | os.PathLike], msg: str
     ) -> str:
         r"""
         TODO: use flock? or inotify?
@@ -1561,7 +1562,9 @@ class TMUXMultiQueue(base_queue.Queue):
                         depends=list(j.get('depends') or []),
                     )
                 )
-            worker.jobs = stubs
+            # These are deliberately lightweight duck-typed stubs (only the
+            # attributes the failed-jobs renderer reads), not full Job objects.
+            worker.jobs = stubs  # ty: ignore[invalid-assignment]
             workers.append(worker)
         self.workers = workers
         return self

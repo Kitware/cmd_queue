@@ -41,7 +41,7 @@ def _missing_textual_error() -> ImportError:
     )
 
 
-class JobTable(Static):  # type: ignore[misc]
+class JobTable(Static):  # type: ignore[misc]  # ty: ignore[unsupported-base]
     """A small auto-refreshing widget that displays the queue status table."""
 
     DEFAULT_CSS = """
@@ -91,7 +91,7 @@ class JobTable(Static):  # type: ignore[misc]
             app.exit()
 
 
-class ConfirmKillScreen(ModalScreen):  # type: ignore[misc]
+class ConfirmKillScreen(ModalScreen):  # type: ignore[misc]  # ty: ignore[unsupported-base]
     """Modal confirmation dialog shown before killing jobs."""
 
     CSS = """
@@ -126,7 +126,7 @@ class ConfirmKillScreen(ModalScreen):  # type: ignore[misc]
         self.dismiss(False)
 
 
-class CmdQueueMonitorApp(App):  # type: ignore[misc]
+class CmdQueueMonitorApp(App):  # type: ignore[misc]  # ty: ignore[unsupported-base]
     """Textual app used by the tmux monitor.
 
     The constructor and runtime attributes are intentionally stable because
