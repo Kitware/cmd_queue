@@ -307,8 +307,8 @@ class SlurmJob(base_queue.Job):
         self.preamble = preamble
         # ``setup`` is a gating precondition: fold it into the preamble (slurm
         # joins ``preamble && command``, so a failing setup short-circuits the
-        # command). Keep ``preamble`` a string, matching how it is consumed in
-        # :meth:`_build_sbatch_args`.
+        # command). Folding collapses ``preamble`` to a single string here;
+        # :meth:`_build_sbatch_args` also accepts a plain list preamble.
         if isinstance(setup, str):
             setup = [setup]
         if setup:

@@ -10,6 +10,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Added:
 * First-class job `setup` / `teardown` lifecycle on `BashJob` (serial/tmux) and `SlurmJob`. `setup` is a gating precondition (shares the preamble's `PREAMBLE_OK` gating; a failing setup skips the command and marks the job failed). `teardown` always runs after the command — on success, failure, and SIGINT/SIGTERM — provided setup succeeded. It is rendered as a per-job, signal-safe cleanup (a scoped subshell trap for serial/tmux so it cannot leak across the many jobs in one script; an in-`--wrap` trap for slurm). The main command's exit code stays authoritative (a teardown failure does not flip the job result). A hard SIGKILL cannot be trapped — an out-of-band reclaim (e.g. a lease TTL) is the only backstop for that. This is the job-level try/finally for bracketing an external resource (e.g. acquire/release a GPU lease).
 
+### Fixed:
+* A list-valued `preamble` passed to `SlurmJob` (e.g. `submit(..., preamble=['a', 'b'])`) no longer crashes script construction; list steps are now flattened into the `&&` chain instead of being appended as a single element.
+
 
 ## Version 0.3.0 - Released 2026-05-21
 
