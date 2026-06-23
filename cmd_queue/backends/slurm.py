@@ -247,6 +247,8 @@ class SlurmJob(base_queue.Job):
         shell: Optional[Any] = None,
         tags: Optional[Any] = None,
         preamble: List[str] | str | None = None,
+        setup: List[str] | str | None = None,
+        teardown: List[str] | str | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__()
@@ -273,6 +275,30 @@ class SlurmJob(base_queue.Job):
         self._sbatch_kvargs = ub.udict(kwargs) & SLURM_SBATCH_KVARGS  # ty: ignore[unsupported-operator]
         self._sbatch_flags = ub.udict(kwargs) & SLURM_SBATCH_FLAGS  # ty: ignore[unsupported-operator]
         self.preamble = preamble
+        # ``setup`` is a gating precondition: fold it into the preamble (slurm
+        # joins ``preamble && command``, so a failing setup short-circuits the
+        # command). Keep ``preamble`` a string, matching how it is consumed in
+        # :meth:`_build_sbatch_args`.
+        if isinstance(setup, str):
+            setup = [setup]
+        if setup:
+            setup_str = ' && '.join(setup)
+            if self.preamble:
+                base = (
+                    self.preamble
+                    if isinstance(self.preamble, str)
+                    else ' && '.join(self.preamble)
+                )
+                self.preamble = base + ' && ' + setup_str
+            else:
+                self.preamble = setup_str
+        # ``teardown`` always runs after the command (success, failure, or
+        # SIGTERM within the scancel/timeout ``--signal`` grace window) provided
+        # setup succeeded. Each slurm job is its own process, so a shell-level
+        # trap in ``--wrap`` is correctly scoped. See :meth:`_build_sbatch_args`.
+        if isinstance(teardown, str):
+            teardown = [teardown]
+        self.teardown = list(teardown) if teardown else None
         # if shell not in {None, 'bash'}:
         #     raise NotImplementedError(shell)
 
@@ -405,10 +431,29 @@ class SlurmJob(base_queue.Job):
         if self.preamble:
             _preamble.append(self.preamble)
 
-        if _preamble:
-            wrp_command = shlex.quote(' && '.join(_preamble + [self.command]))  # ty: ignore[invalid-argument-type]
+        if self.teardown:
+            # Guaranteed cleanup co-located in the job. EXIT runs teardown once;
+            # INT/TERM ``exit`` (firing EXIT) so a scancel/timeout (SIGTERM,
+            # given a ``--signal=B:TERM@<sec>`` grace window) still cleans up.
+            # The ``setup && { ... }`` shape gates teardown on setup success:
+            # if the preamble/setup precondition fails, the group (which sets
+            # the trap) never runs, so nothing is torn down.
+            teardown_str = ' ; '.join(self.teardown)
+            main = (
+                '{ '
+                f'__cmdq_teardown() {{ {teardown_str} ; }} ; '
+                'trap __cmdq_teardown EXIT ; '
+                "trap 'exit 143' TERM ; trap 'exit 130' INT ; "
+                f'{self.command} ; '
+                '}'
+            )
         else:
-            wrp_command = shlex.quote(self.command)  # ty: ignore[invalid-argument-type]
+            main = self.command
+
+        if _preamble:
+            wrp_command = shlex.quote(' && '.join(_preamble + [main]))  # ty: ignore[invalid-argument-type]
+        else:
+            wrp_command = shlex.quote(main)  # ty: ignore[invalid-argument-type]
 
         if self.shell:
             wrp_command = shlex.quote(self.shell + ' -c ' + wrp_command)
