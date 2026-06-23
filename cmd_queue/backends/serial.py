@@ -113,9 +113,9 @@ class BashJob(base_queue.Job):
         tags: Optional[Any] = None,
         allow_indent: bool = True,
         cwd: Optional[str] = None,
-        preamble: Optional[List[str]] = None,
-        setup: Optional[List[str]] = None,
-        teardown: Optional[List[str]] = None,
+        preamble: List[str] | str | None = None,
+        setup: List[str] | str | None = None,
+        teardown: List[str] | str | None = None,
         **kwargs: Any,
     ) -> None:
         if depends is not None and not ub.iterable(depends):

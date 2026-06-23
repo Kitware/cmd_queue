@@ -39,7 +39,7 @@ def test_primary_bash_job_text_variants():
     dep = BashJob('echo hi', name='job1')
 
     for variant in main_variants:
-        job_kwargs = {}
+        job_kwargs: dict = {}
         if variant['depends']:
             job_kwargs['depends'] = [dep]
         if variant['cwd']:
@@ -96,7 +96,7 @@ def test_bash_job_variants_syntax_grided():
     dep = BashJob('echo hi', name='job1')
 
     for variant in grid_variants:
-        job_kwargs = {}
+        job_kwargs: dict = {}
         if variant['depends']:
             job_kwargs['depends'] = [dep]
         if variant['cwd']:
