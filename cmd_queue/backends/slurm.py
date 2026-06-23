@@ -223,6 +223,31 @@ class SlurmJob(base_queue.Job):
     """
     Represents a slurm job that hasn't been submitted yet
 
+    Args:
+        command (str): the command line to execute.
+
+        preamble (str | List[str] | None):
+            job-specific setup step(s) executed before the command. Folded
+            into the ``&&`` chain ahead of the command, so a failing preamble
+            short-circuits (skips) the command.
+
+        setup (str | List[str] | None):
+            A gating precondition run before the command. It is folded into the
+            preamble (slurm joins ``preamble && command``), so a failing setup
+            short-circuits the command and the job exits non-zero. Pairs with
+            ``teardown`` to bracket an external resource (e.g. acquire a GPU
+            lease before the job).
+
+        teardown (str | List[str] | None):
+            Cleanup run after the command regardless of success, failure, or
+            SIGINT/SIGTERM (within the scancel/timeout ``--signal`` grace
+            window), provided ``setup`` succeeded -- the job-level try/finally.
+            Each slurm job is its own process, so it is rendered as a trap
+            inside ``--wrap``. The command's exit code stays authoritative (a
+            teardown failure does not flip the job result). A hard SIGKILL
+            cannot be trapped; an out-of-band reclaim (e.g. a lease TTL) is the
+            only backstop for that.
+
     Example:
         >>> # xdoctest: +REQUIRES(module:pint)
         >>> from cmd_queue.slurm_queue import *  # NOQA
@@ -673,6 +698,13 @@ class SlurmQueue(base_queue.Queue):
                 name (str | None): name of job
                 shell (str | None): shell to use, defaults to bash
                 depends (str | List[str] | None): name of jobs to depend on
+                setup (str | List[str] | None): a gating precondition run
+                    before the command (a failing setup skips the command and
+                    fails the job); pairs with ``teardown``. See
+                    :class:`SlurmJob`.
+                teardown (str | List[str] | None): cleanup that always runs
+                    after the command -- on success, failure, or signal --
+                    provided ``setup`` succeeded. See :class:`SlurmJob`.
                 **slurm_options:see SLURM_SBATCH_KVARGS and SLURM_SBATCH_FLAGS
 
         Returns:

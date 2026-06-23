@@ -182,7 +182,12 @@ class Queue(ub.NiceRepr):
         Args:
             command (str | Job): The command to execute
             name: specify the name of the job
-            **kwargs: passed to :class:`cmd_queue.serial_queue.BashJob`
+            **kwargs: passed to :class:`cmd_queue.serial_queue.BashJob`.
+                Notably this includes ``setup`` (a gating precondition run
+                before the command) and ``teardown`` (cleanup that always runs
+                after the command -- on success, failure, or SIGINT/SIGTERM --
+                provided ``setup`` succeeded), which together bracket an
+                external resource. See :class:`cmd_queue.serial_queue.BashJob`.
         """
         # TODO: we could accept additional args here that modify how we handle
         # the command in the bash script we build (i.e. if the script is
