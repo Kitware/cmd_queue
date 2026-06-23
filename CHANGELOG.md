@@ -11,6 +11,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## Version 0.3.0 - Released 2026-05-21
 
 ### Added:
+* First-class job `setup` / `teardown` lifecycle on `BashJob` (serial/tmux) and `SlurmJob`. `setup` is a gating precondition (shares the preamble's `PREAMBLE_OK` gating; a failing setup skips the command and marks the job failed). `teardown` always runs after the command — on success, failure, and SIGINT/SIGTERM — provided setup succeeded. It is rendered as a per-job, signal-safe cleanup (a scoped subshell trap for serial/tmux so it cannot leak across the many jobs in one script; an in-`--wrap` trap for slurm). The main command's exit code stays authoritative (a teardown failure does not flip the job result). A hard SIGKILL cannot be trapped — an out-of-band reclaim (e.g. a lease TTL) is the only backstop for that. This is the job-level try/finally for bracketing an external resource (e.g. acquire/release a GPU lease).
 * generalized the monitor so it can be launched in an independent process and reports errors better.
 * New `monitor='hybrid'` mode (now the default for tmux and slurm `run()`): renders the live status table inline in the current shell and *also* spawns a detached `cmd_queue monitor` tmux session. Press `[a]` from the inline UI to attach (or `switch-client` when already inside tmux), `[q]` to stop watching while the queue keeps running. The side session is killed when the inline monitor exits.
 
