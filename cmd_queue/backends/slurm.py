@@ -513,7 +513,7 @@ class SlurmQueue(base_queue.Queue):
         >>> self.write()
         >>> self.print_commands()
         >>> # xdoctest: +REQUIRES(--run)
-        >>> if not self.is_available():
+        >>> if self.is_available():
         >>>     self.run()
 
     Example:
@@ -530,7 +530,7 @@ class SlurmQueue(base_queue.Queue):
         >>> self.write()
         >>> self.print_commands()
         >>> # xdoctest: +REQUIRES(--run)
-        >>> if not self.is_available():
+        >>> if self.is_available():
         >>>     self.run()
 
     Example:
