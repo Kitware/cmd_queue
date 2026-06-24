@@ -142,11 +142,13 @@ def test_backend_executes_setup_teardown(backend):
 
 
 @pytest.mark.parametrize('backend', BACKENDS)
-def test_backend_setup_failure_skips_command_and_teardown(backend):
-    """A failing setup gates the command (skipped) and teardown (not run).
+def test_backend_setup_failure_fails_job_and_skips_command(backend):
+    """A failing setup marks the job failed and gates the command (skipped)
+    and teardown (not run).
 
     setup is the resource acquisition: if it fails the resource was never
-    acquired, so neither the command nor the release (teardown) should run.
+    acquired, so the job fails and neither the command nor the release
+    (teardown) should run.
     """
     dpath = _work_dpath(f'setup-fail-{backend}')
     queue = _make_queue(backend, 'cmdq-exec-stfail', dpath / 'qdir')
@@ -154,7 +156,7 @@ def test_backend_setup_failure_skips_command_and_teardown(backend):
     cmd_marker = dpath / 'cmd.marker'
     teardown_marker = dpath / 'teardown.marker'
 
-    queue.submit(
+    job = queue.submit(
         f'echo cmd > "{cmd_marker}"',
         name='bracketed',
         setup='false',  # gating precondition fails
@@ -167,3 +169,10 @@ def test_backend_setup_failure_skips_command_and_teardown(backend):
     assert not teardown_marker.exists(), (
         'teardown must not run when setup never succeeded'
     )
+    # The failing setup must mark the job failed (not passed). serial/tmux
+    # record this in on-disk pass/fail markers; slurm tracks job state through
+    # the scheduler (no marker), and its "setup failure exits non-zero" is
+    # covered by test_slurm_variants.py.
+    if backend != 'slurm':
+        assert job.fail_fpath.exists(), 'a failing setup must fail the job'
+        assert not job.pass_fpath.exists(), 'a failed job must not pass'
