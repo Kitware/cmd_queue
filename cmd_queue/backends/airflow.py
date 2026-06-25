@@ -265,7 +265,7 @@ class AirflowQueue(base_queue.Queue):
             # ``AIRFLOW__CORE__LOAD_EXAMPLES`` in ``_airflow_env``). Only pass
             # kwargs that the installed signature actually accepts so we stay
             # compatible across Airflow 3.1 - 3.3+.
-            dagbag_kwargs = {
+            dagbag_kwargs: Dict[str, Any] = {
                 'dag_folder': os.fspath(self.dags_dpath),
                 'include_examples': False,
                 'safe_mode': False,

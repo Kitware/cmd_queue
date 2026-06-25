@@ -49,7 +49,7 @@ def balanced_number_partitioning(
     for item_index in sortx:
         # Assign item to the smallest bin
         item_weight = item_weights[item_index]
-        bin_index = bin_sums.argmin()
+        bin_index = int(np.argmin(bin_sums))
         bin_assignments[bin_index].append(item_index)
         bin_sums[bin_index] += item_weight
 
