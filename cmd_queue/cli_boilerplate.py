@@ -168,6 +168,9 @@ class CMDQueueConfig(scfg.DataConfig):
 
     monitor = scfg.Value(
         'inline',
+        # NOTE: type=str is important. Without it scriptconfig smartcasts the
+        # string 'none' to Python None, which then fails choices validation.
+        type=str,
         help=ub.paragraph(
             """
             Where the live status UI runs while jobs execute.
