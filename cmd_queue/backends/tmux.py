@@ -59,6 +59,7 @@ import ubelt as ub
 from cmd_queue import base_queue
 from cmd_queue.backends.serial import SerialQueue
 from cmd_queue.util.util_tmux import tmux
+from cmd_queue.util.util_tmux import block_deadline
 
 
 class TMUXMultiQueue(base_queue.Queue):
@@ -959,10 +960,12 @@ class TMUXMultiQueue(base_queue.Queue):
         """
         import time
 
+        check_deadline = block_deadline(label=f'queue {self.name}')
         while True:
             table, finished, agg_state = self._build_status_table()
             if finished:
                 return agg_state
+            check_deadline()
             time.sleep(refresh_rate)
 
     def read_state(self) -> Any:
@@ -1611,12 +1614,15 @@ def _run_live_with_attach(
 
     from rich.live import Live
 
+    check_deadline = block_deadline(label='queue')
+
     if side_session is None:
         # Plain path with no input handling — preserves old behavior
         # exactly when there is no side session to attach to.
         renderable, finished, _ = build_renderable()
         with Live(renderable, refresh_per_second=4) as live:
             while not finished:
+                check_deadline()
                 time.sleep(refresh_rate)
                 renderable, finished, _ = build_renderable()
                 live.update(renderable)
@@ -1635,6 +1641,7 @@ def _run_live_with_attach(
             renderable, finished, _ = build_renderable()
             with Live(renderable, refresh_per_second=4) as live:
                 while not finished:
+                    check_deadline()
                     ready, _, _ = select.select(
                         [sys.stdin], [], [], refresh_rate
                     )

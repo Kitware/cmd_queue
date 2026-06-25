@@ -8,6 +8,70 @@ from typing import Any, Dict, List, Optional
 import ubelt as ub
 
 
+def resolve_block_timeout(explicit: Any = None) -> float | None:
+    """
+    Resolve the wall-clock timeout (in seconds) for a blocking monitor loop.
+
+    Production queues may run for days or weeks, so the default is to wait
+    forever (returns None). Under pytest we impose a finite bound instead, so
+    a worker that never finishes fails the test loudly rather than hanging the
+    suite (or slowly growing captured output until the runner is OOM-killed).
+
+    Resolution order (first match wins):
+        1. ``explicit`` argument, if not None and not ``'auto'``. A value of
+           ``0`` or ``inf`` means wait forever (returns None).
+        2. ``CMD_QUEUE_BLOCK_TIMEOUT`` env var, which applies in *all* contexts
+           so production can opt into a bound. Numeric seconds, or one of
+           ``none``/``inf``/``infinite``/``forever`` to wait forever.
+        3. If running under pytest (``PYTEST_CURRENT_TEST`` is set):
+           ``CMD_QUEUE_PYTEST_BLOCK_TIMEOUT`` (default 300 seconds).
+        4. Otherwise None (wait forever).
+
+    Returns:
+        float | None: seconds to wait, or None to wait forever.
+    """
+    import os
+
+    if explicit is not None and explicit != 'auto':
+        return None if float(explicit) in (0.0, float('inf')) else float(explicit)
+
+    env_val = os.environ.get('CMD_QUEUE_BLOCK_TIMEOUT', '').strip()
+    if env_val:
+        if env_val.lower() in ('none', 'inf', 'infinite', 'forever'):
+            return None
+        return float(env_val)
+
+    if os.environ.get('PYTEST_CURRENT_TEST'):
+        return float(os.environ.get('CMD_QUEUE_PYTEST_BLOCK_TIMEOUT', '300'))
+
+    return None
+
+
+def block_deadline(label: str = 'queue', explicit: Any = None) -> Any:
+    """
+    Build a ``check()`` callable that enforces :func:`resolve_block_timeout`.
+
+    The returned callable is a no-op when the resolved timeout is None (the
+    production default), and otherwise raises ``TimeoutError`` once the
+    deadline has passed. Call it once per iteration of a blocking poll loop.
+    """
+    import time
+
+    timeout = resolve_block_timeout(explicit)
+    deadline = None if timeout is None else time.monotonic() + timeout
+
+    def check() -> None:
+        if deadline is not None and time.monotonic() > deadline:
+            raise TimeoutError(
+                f'cmd_queue: timed out after {timeout}s waiting for {label} '
+                'to finish. This bound only applies under pytest or when '
+                'CMD_QUEUE_BLOCK_TIMEOUT is set; production waits forever by '
+                'default.'
+            )
+
+    return check
+
+
 class tmux:
     """
     TODO:
@@ -171,8 +235,11 @@ class tmux:
         import sys
         import time
 
+        check_deadline = block_deadline(label=label)
+
         if not sys.stdin.isatty():
             while not is_finished_fn():
+                check_deadline()
                 time.sleep(refresh_rate)
             return
 
@@ -204,6 +271,7 @@ class tmux:
             while True:
                 if is_finished_fn():
                     return
+                check_deadline()
                 ready, _, _ = select.select([sys.stdin], [], [], refresh_rate)
                 if not ready:
                     continue
