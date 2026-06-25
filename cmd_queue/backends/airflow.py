@@ -199,6 +199,14 @@ class AirflowQueue(base_queue.Queue):
             'AIRFLOW__DATABASE__SQL_ALCHEMY_CONN',
             f'sqlite:///{self.airflow_home / "airflow.db"}',
         )
+        # Airflow 3.3+ runs tasks through the Task SDK execution API, which
+        # requires a JWT secret to be configured even for local ``dag.test``
+        # runs. Provide a deterministic per-queue secret so the embedded run
+        # works out of the box. Ignored by older Airflow versions.
+        env.setdefault(
+            'AIRFLOW__API_AUTH__JWT_SECRET',
+            ub.hash_data(self.queue_id)[0:32],
+        )
         return env
 
     @contextlib.contextmanager
@@ -227,10 +235,17 @@ class AirflowQueue(base_queue.Queue):
             )
         with self._patched_env(env):
             import contextlib
+            import inspect
             import sys
 
             from airflow.models.dag import DagModel
-            from airflow.models.dagbag import DagBag
+            try:
+                # Canonical location since Airflow 3.2 (AIP-66). Importing it
+                # directly avoids the DeprecationWarning emitted by the
+                # ``airflow.models.dagbag`` compatibility shim.
+                from airflow.dag_processing.dagbag import DagBag
+            except ImportError:
+                from airflow.models.dagbag import DagBag
             from airflow.models.dagbundle import DagBundleModel
             from airflow.models.serialized_dag import DagVersion
             from airflow.utils import db
@@ -244,11 +259,27 @@ class AirflowQueue(base_queue.Queue):
                 db.upgradedb()
             else:
                 db.initdb()
-            dag_bag = DagBag(
-                dag_folder=os.fspath(self.dags_dpath),
-                include_examples=False,
-                safe_mode=False,
+            # Build kwargs defensively: ``include_examples`` was removed from
+            # ``DagBag`` in Airflow 3.3 (example loading is now controlled only
+            # by the ``core.load_examples`` config, which we already disable via
+            # ``AIRFLOW__CORE__LOAD_EXAMPLES`` in ``_airflow_env``). Only pass
+            # kwargs that the installed signature actually accepts so we stay
+            # compatible across Airflow 3.1 - 3.3+.
+            dagbag_kwargs = {
+                'dag_folder': os.fspath(self.dags_dpath),
+                'include_examples': False,
+                'safe_mode': False,
+            }
+            params = inspect.signature(DagBag.__init__).parameters
+            accepts_varkw = any(
+                p.kind == inspect.Parameter.VAR_KEYWORD
+                for p in params.values()
             )
+            if not accepts_varkw:
+                dagbag_kwargs = {
+                    k: v for k, v in dagbag_kwargs.items() if k in params
+                }
+            dag_bag = DagBag(**dagbag_kwargs)
             dag = dag_bag.get_dag(self.name)
             if dag is None:
                 raise RuntimeError(
