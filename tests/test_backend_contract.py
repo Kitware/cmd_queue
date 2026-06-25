@@ -33,8 +33,14 @@ def test_backend_classes_support_minimal_contract(backend, tmp_path):
     combined_text = text
     if backend == 'tmux':
         # ``TMUXMultiQueue.finalize_text`` returns the driver script.  The
-        # per-worker scripts contain the actual job commands.
-        combined_text += '\n'.join(worker.finalize_text() for worker in queue.workers)
+        # per-worker scripts contain the actual job commands. ``workers`` is a
+        # tmux-only attribute, so narrow the base ``Queue`` to the concrete type.
+        from typing import cast
+        from cmd_queue.backends.tmux import TMUXMultiQueue
+        tmux_queue = cast(TMUXMultiQueue, queue)
+        combined_text += '\n'.join(
+            worker.finalize_text() for worker in tmux_queue.workers
+        )
 
     assert isinstance(text, str)
     assert 'echo first' in combined_text

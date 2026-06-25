@@ -5,7 +5,19 @@ We are currently working on porting this changelog to the specifications in
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## Version 0.3.0 - Unreleased
+## Version 0.3.1 - Unreleased
+
+### Added:
+* First-class job `setup` / `teardown` lifecycle on `BashJob` (serial/tmux) and `SlurmJob`. `setup` is a gating precondition (shares the preamble's `PREAMBLE_OK` gating; a failing setup skips the command and marks the job failed). `teardown` always runs after the command — on success, failure, and SIGINT/SIGTERM — provided setup succeeded. It is rendered as a per-job, signal-safe cleanup (a scoped subshell trap for serial/tmux so it cannot leak across the many jobs in one script; an in-`--wrap` trap for slurm). The main command's exit code stays authoritative (a teardown failure does not flip the job result). A hard SIGKILL cannot be trapped — an out-of-band reclaim (e.g. a lease TTL) is the only backstop for that. This is the job-level try/finally for bracketing an external resource (e.g. acquire/release a GPU lease).
+
+* Backend execution tests (`tests/test_backend_execution.py`) that actually run a queue — simple DAGs and the `setup`/`teardown` lifecycle — on the serial backend, and on tmux/slurm when those backends report themselves available (skipped otherwise).
+
+### Fixed:
+* A list-valued `preamble` passed to `SlurmJob` (e.g. `submit(..., preamble=['a', 'b'])`) no longer crashes script construction; list steps are now flattened into the `&&` chain instead of being appended as a single element.
+* Corrected the inverted ``is_available()`` guard in two ``SlurmQueue`` ``--run`` doctests (they read `if not self.is_available(): self.run()`, which would only submit when slurm was *un*available).
+
+
+## Version 0.3.0 - Released 2026-05-21
 
 ### Added:
 * generalized the monitor so it can be launched in an independent process and reports errors better.

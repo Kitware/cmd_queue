@@ -43,6 +43,21 @@ class BashJob(base_queue.Job):
         preamble (str | List[str] | None):
             One or more setup steps to execute before all commands.
 
+        setup (str | List[str] | None):
+            A gating precondition run before the main command (shares the
+            preamble's gating: if it fails, the command is skipped and the job
+            is marked failed). Pairs with ``teardown`` to bracket a resource
+            (e.g. acquire a GPU lease before the job).
+
+        teardown (str | List[str] | None):
+            Cleanup run after the main command regardless of success, failure,
+            or SIGINT/SIGTERM (provided ``setup`` succeeded) -- the job-level
+            try/finally. Rendered as a per-job subshell with a trap so it is
+            scoped to this job (serial/tmux concatenate many jobs into one
+            script) and runs exactly once even when the command is signalled.
+            A hard SIGKILL cannot be trapped; an out-of-band reclaim (e.g. a
+            lease TTL) is the only backstop for that.
+
         allow_indent (bool):
             In some cases indentation matters for the shell command.
             In that case ensure this is False at the cost of readability in the
@@ -98,7 +113,9 @@ class BashJob(base_queue.Job):
         tags: Optional[Any] = None,
         allow_indent: bool = True,
         cwd: Optional[str] = None,
-        preamble: Optional[List[str]] = None,
+        preamble: List[str] | str | None = None,
+        setup: List[str] | str | None = None,
+        teardown: List[str] | str | None = None,
         **kwargs: Any,
     ) -> None:
         if depends is not None and not ub.iterable(depends):
@@ -108,7 +125,9 @@ class BashJob(base_queue.Job):
         self.pathid = self.name + '_' + ub.hash_data(uuid.uuid4())[0:8]
         self.kwargs = kwargs  # unused kwargs
         self.cwd = cwd
-        self.command = command
+        # The base ``Job`` types ``command`` as ``str | None``; a BashJob always
+        # has a concrete command, so narrow it (keeps ``'\n'.join`` well-typed).
+        self.command: str = command
         self.depends: List[base_queue.Job] = list(depends) if depends else []
         self.bookkeeper = bookkeeper
         self.log = log
@@ -124,7 +143,22 @@ class BashJob(base_queue.Job):
         self.allow_indent = allow_indent
         if isinstance(preamble, str):
             preamble = [preamble]
-        self.preamble: Optional[List[str]] = preamble
+        if isinstance(setup, str):
+            setup = [setup]
+        # ``setup`` is a gating precondition: it shares the preamble's
+        # PREAMBLE_OK gating (a failing setup skips the command and marks the
+        # job failed). It is kept as a distinct, well-named argument so it can
+        # pair with ``teardown`` for resource-bracketing (acquire / release).
+        combined_pre = list(preamble or []) + list(setup or [])
+        self.preamble: Optional[List[str]] = combined_pre or None
+        if isinstance(teardown, str):
+            teardown = [teardown]
+        # ``teardown`` always runs after the command -- on success, failure, and
+        # SIGINT/SIGTERM -- provided ``setup`` succeeded. It is the job-level
+        # try/finally for any bracketed resource. See :meth:`finalize_text`.
+        self.teardown: Optional[List[str]] = (
+            list(teardown) if teardown else None
+        )
 
     def _test_bash_syntax_errors(self) -> None:
         """
@@ -264,7 +298,32 @@ class BashJob(base_queue.Job):
             script.append('# ********')
             script.append('# command:')
 
-        if self.log:
+        if self.teardown:
+            # Per-job cleanup that runs even on failure or signal. Wrap the
+            # command in a SUBSHELL so the trap is scoped to THIS job -- serial
+            # and tmux concatenate many jobs into one bash script, so a
+            # script-level ``trap ... EXIT`` would leak across jobs. EXIT runs
+            # the teardown exactly once; INT/TERM merely ``exit`` (which fires
+            # EXIT), so a signalled command still cleans up and teardown never
+            # double-runs. The subshell exits with the main command's status
+            # (the EXIT trap does not alter it), so RETURN_CODE stays
+            # authoritative -- a teardown failure does not flip the job result.
+            teardown_str = ' ; '.join(self.teardown)
+            sub_lines = [
+                '(',
+                f'  __cmdq_teardown() {{ {teardown_str} ; }}',
+                '  trap __cmdq_teardown EXIT',
+                "  trap 'exit 143' TERM",
+                "  trap 'exit 130' INT",
+                f'  {self.command}',
+                ')',
+            ]
+            subshell = '\n'.join(sub_lines)
+            if self.log:
+                script.append(f'{subshell} 2>&1 | tee {self.log_fpath}')
+            else:
+                script.append(subshell)
+        elif self.log:
             # If the user requested logging, we use tee to log all output to
             # disk
             logged_command = f'({self.command}) 2>&1 | tee {self.log_fpath}'

@@ -1,0 +1,47 @@
+# cmd_queue single-node Slurm config template.
+#
+# This is rendered into a real ``slurm.conf`` by ``render_slurm_conf.sh``,
+# which substitutes the @PLACEHOLDER@ tokens with values discovered on the
+# host (or container) it is running on. The same template is shared by the
+# native setup (``setup_slurm_local.sh``) and the Docker image so the two
+# stay in lockstep.
+#
+# The goal is the *smallest* config that makes ``SlurmQueue.is_available()``
+# return True and lets ``sbatch`` actually run jobs on one machine:
+#   * proctrack/linuxproc + task/none keeps process tracking off cgroups.
+#   * accounting_storage/slurmdbd is REQUIRED: ``accounting_storage/none`` is
+#     deprecated as of Slurm 23.11, and without a slurmdbd association every
+#     job is rejected with ``Reason=InvalidAccount`` and never runs. The boot
+#     scripts stand up a tiny MariaDB + slurmdbd and register an association.
+#   * ReturnToService=2 brings the node back UP automatically after a reboot
+#     even if it was previously marked DOWN.
+ClusterName=cmdq
+SlurmctldHost=@HOSTNAME@
+
+SlurmUser=slurm
+StateSaveLocation=@STATE_DIR@
+SlurmdSpoolDir=@SPOOL_DIR@
+SlurmctldPidFile=@RUN_DIR@/slurmctld.pid
+SlurmdPidFile=@RUN_DIR@/slurmd.pid
+SlurmctldLogFile=@LOG_DIR@/slurmctld.log
+SlurmdLogFile=@LOG_DIR@/slurmd.log
+
+# Keep the footprint tiny and cgroup-free for process tracking.
+ProctrackType=proctrack/linuxproc
+TaskPlugin=task/none
+MpiDefault=none
+SwitchType=switch/none
+
+SchedulerType=sched/backfill
+SelectType=select/cons_tres
+SelectTypeParameters=CR_Core
+ReturnToService=2
+
+# Accounting via slurmdbd (see note above). Host is local to this machine.
+AccountingStorageType=accounting_storage/slurmdbd
+AccountingStorageHost=localhost
+
+# One node, one partition. RealMemory is deliberately a little below the
+# physical total so slurm never marks the node invalid for over-reporting.
+NodeName=@HOSTNAME@ CPUs=@CPUS@ RealMemory=@MEM@ State=UNKNOWN
+PartitionName=debug Nodes=ALL Default=YES MaxTime=INFINITE State=UP

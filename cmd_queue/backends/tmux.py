@@ -49,6 +49,7 @@ Example:
 
 """
 from __future__ import annotations
+import os
 import uuid
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -58,6 +59,7 @@ import ubelt as ub
 from cmd_queue import base_queue
 from cmd_queue.backends.serial import SerialQueue
 from cmd_queue.util.util_tmux import tmux
+from cmd_queue.util.util_tmux import block_deadline
 
 
 class TMUXMultiQueue(base_queue.Queue):
@@ -299,7 +301,7 @@ class TMUXMultiQueue(base_queue.Queue):
         return str(ub.urepr(self.jobs))
 
     def _semaphore_wait_command(
-        self, flag_fpaths: Iterable[str], msg: str
+        self, flag_fpaths: Iterable[str | os.PathLike], msg: str
     ) -> str:
         r"""
         TODO: use flock? or inotify?
@@ -846,6 +848,7 @@ class TMUXMultiQueue(base_queue.Queue):
                 with_textual=with_textual,
                 onfail=onfail,
                 onexit=onexit,
+                manifest_path=manifest_path,
             )
         if monitor == 'hybrid':
             side_session = None
@@ -882,6 +885,7 @@ class TMUXMultiQueue(base_queue.Queue):
                     onfail=onfail,
                     onexit=onexit,
                     side_session=side_session,
+                    manifest_path=manifest_path,
                 )
             finally:
                 if side_session and tmux.has_session(side_session):
@@ -956,10 +960,12 @@ class TMUXMultiQueue(base_queue.Queue):
         """
         import time
 
+        check_deadline = block_deadline(label=f'queue {self.name}')
         while True:
             table, finished, agg_state = self._build_status_table()
             if finished:
                 return agg_state
+            check_deadline()
             time.sleep(refresh_rate)
 
     def read_state(self) -> Any:
@@ -1004,6 +1010,7 @@ class TMUXMultiQueue(base_queue.Queue):
         onfail: str = '',
         onexit: str = '',
         side_session: Optional[str] = None,
+        manifest_path: Optional[Any] = None,
     ) -> None:
         """
         Monitor progress until the jobs are done.
@@ -1077,9 +1084,9 @@ class TMUXMultiQueue(base_queue.Queue):
                 with_textual = False
 
         if with_textual:
-            self._textual_monitor(side_session=side_session)
+            self._textual_monitor(side_session=side_session, manifest_path=manifest_path)
         else:
-            self._simple_rich_monitor(refresh_rate, side_session=side_session)
+            self._simple_rich_monitor(refresh_rate, side_session=side_session, manifest_path=manifest_path)
         table, finished, agg_state = self._build_status_table()
         if onexit == 'capture':
             self.capture()
@@ -1088,24 +1095,30 @@ class TMUXMultiQueue(base_queue.Queue):
         self._print_done_summary(agg_state)
         return agg_state
 
-    def _textual_monitor(self, side_session: Optional[str] = None):
+    def _textual_monitor(
+        self,
+        side_session: Optional[str] = None,
+        manifest_path: Optional[Any] = None,
+    ):
         from rich import print as rich_print
 
-        if 0:
-            print('Kill commands:')
-            for command in self._kill_commands():
-                print(command)
+        if manifest_path is not None:
+            rich_print(
+                f'[dim]To reattach: cmd_queue monitor --manifest={manifest_path}[/dim]'
+            )
 
         is_running = True
         while is_running:
-            table_fn = self._build_status_table
+            table_fn = lambda: self._build_live_renderable(side_session=side_session)
             app = CmdQueueMonitorApp(
                 table_fn, kill_fn=self.kill, attach_session=side_session
             )
             app.run()
 
-            table, finished, agg_state = self._build_status_table()
-            rich_print(table)
+            renderable, finished, agg_state = self._build_live_renderable(
+                side_session=side_session
+            )
+            rich_print(renderable)
 
             if getattr(app, 'attach_requested', False):
                 # User pressed 'a' inside the textual UI; perform the
@@ -1121,7 +1134,7 @@ class TMUXMultiQueue(base_queue.Queue):
             else:
                 from rich.prompt import Confirm
 
-                flag = Confirm.ask('do you to kill the procs?')
+                flag = Confirm.ask('Do you want to kill the procs?')
                 if flag:
                     self.kill()
                     is_running = False
@@ -1252,14 +1265,19 @@ class TMUXMultiQueue(base_queue.Queue):
         return renderable, finished, agg_state
 
     def _simple_rich_monitor(
-        self, refresh_rate=0.4, side_session: Optional[str] = None
+        self,
+        refresh_rate=0.4,
+        side_session: Optional[str] = None,
+        manifest_path: Optional[Any] = None,
     ):
         import sys
 
-        if 0:
-            print('Kill commands:')
-            for command in self._kill_commands():
-                print(command)
+        from rich import print as rich_print
+
+        if manifest_path is not None:
+            rich_print(
+                f'[dim]To reattach: cmd_queue monitor --manifest={manifest_path}[/dim]'
+            )
 
         use_keys = side_session is not None and sys.stdin.isatty()
         try:
@@ -1273,7 +1291,7 @@ class TMUXMultiQueue(base_queue.Queue):
         except KeyboardInterrupt:
             from rich.prompt import Confirm
 
-            flag = Confirm.ask('do you to kill the procs?')
+            flag = Confirm.ask('Do you want to kill the procs?')
             if flag:
                 self.kill()
 
@@ -1547,7 +1565,9 @@ class TMUXMultiQueue(base_queue.Queue):
                         depends=list(j.get('depends') or []),
                     )
                 )
-            worker.jobs = stubs
+            # These are deliberately lightweight duck-typed stubs (only the
+            # attributes the failed-jobs renderer reads), not full Job objects.
+            worker.jobs = stubs  # ty: ignore[invalid-assignment]
             workers.append(worker)
         self.workers = workers
         return self
@@ -1594,12 +1614,15 @@ def _run_live_with_attach(
 
     from rich.live import Live
 
+    check_deadline = block_deadline(label='queue')
+
     if side_session is None:
         # Plain path with no input handling — preserves old behavior
         # exactly when there is no side session to attach to.
         renderable, finished, _ = build_renderable()
         with Live(renderable, refresh_per_second=4) as live:
             while not finished:
+                check_deadline()
                 time.sleep(refresh_rate)
                 renderable, finished, _ = build_renderable()
                 live.update(renderable)
@@ -1618,6 +1641,7 @@ def _run_live_with_attach(
             renderable, finished, _ = build_renderable()
             with Live(renderable, refresh_per_second=4) as live:
                 while not finished:
+                    check_deadline()
                     ready, _, _ = select.select(
                         [sys.stdin], [], [], refresh_rate
                     )

@@ -23,7 +23,9 @@ def test_serial_generated_text_invariants(tmp_path):
 
 
 def test_tmux_generated_text_invariants(tmp_path):
+    from typing import cast
     from cmd_queue import Queue
+    from cmd_queue.backends.tmux import TMUXMultiQueue
 
     queue = Queue.create(
         backend='tmux', name='compat_tmux', rootid='root', dpath=tmp_path, size=1
@@ -32,9 +34,10 @@ def test_tmux_generated_text_invariants(tmp_path):
     queue.submit('echo second', name='second', depends=first)
 
     text = queue.finalize_text(with_status=False, with_gaurds=False, with_locks=False)
+    # ``workers`` is a tmux-only attribute; narrow to the concrete queue type.
     worker_text = '\n'.join(
         worker.finalize_text(with_status=False, with_gaurds=False)
-        for worker in queue.workers
+        for worker in cast(TMUXMultiQueue, queue).workers
     )
     assert 'tmux new-session' in text
     assert 'source ' in text

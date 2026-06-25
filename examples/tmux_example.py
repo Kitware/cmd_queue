@@ -64,6 +64,7 @@ class TmuxExampleConfig(scfg.DataConfig):
 
     mode = scfg.Value(
         'hybrid',
+        type=str,
         help='Where the monitor UI runs.',
         choices=['hybrid', 'inline', 'tmux', 'none'],
     )

@@ -223,6 +223,31 @@ class SlurmJob(base_queue.Job):
     """
     Represents a slurm job that hasn't been submitted yet
 
+    Args:
+        command (str): the command line to execute.
+
+        preamble (str | List[str] | None):
+            job-specific setup step(s) executed before the command. Folded
+            into the ``&&`` chain ahead of the command, so a failing preamble
+            short-circuits (skips) the command.
+
+        setup (str | List[str] | None):
+            A gating precondition run before the command. It is folded into the
+            preamble (slurm joins ``preamble && command``), so a failing setup
+            short-circuits the command and the job exits non-zero. Pairs with
+            ``teardown`` to bracket an external resource (e.g. acquire a GPU
+            lease before the job).
+
+        teardown (str | List[str] | None):
+            Cleanup run after the command regardless of success, failure, or
+            SIGINT/SIGTERM (within the scancel/timeout ``--signal`` grace
+            window), provided ``setup`` succeeded -- the job-level try/finally.
+            Each slurm job is its own process, so it is rendered as a trap
+            inside ``--wrap``. The command's exit code stays authoritative (a
+            teardown failure does not flip the job result). A hard SIGKILL
+            cannot be trapped; an out-of-band reclaim (e.g. a lease TTL) is the
+            only backstop for that.
+
     Example:
         >>> # xdoctest: +REQUIRES(module:pint)
         >>> from cmd_queue.slurm_queue import *  # NOQA
@@ -247,6 +272,8 @@ class SlurmJob(base_queue.Job):
         shell: Optional[Any] = None,
         tags: Optional[Any] = None,
         preamble: List[str] | str | None = None,
+        setup: List[str] | str | None = None,
+        teardown: List[str] | str | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__()
@@ -257,8 +284,13 @@ class SlurmJob(base_queue.Job):
         if depends is not None and not ub.iterable(depends):
             depends = [depends]  # type: ignore
         self.unused_kwargs = kwargs
-        self.command = command
-        self.name = name
+        # The base ``Job`` types ``command`` as ``str | None``; a SlurmJob always
+        # has a concrete command, so narrow it (keeps the ``--wrap`` join and
+        # ``shlex.quote`` well-typed).
+        self.command: str = command
+        # ``name`` is filled with a uuid above when omitted, so it is always a
+        # concrete ``str`` here (the base ``Job`` types it as ``str | None``).
+        self.name: str = name
         self.output_fpath = output_fpath
         self.depends = depends
         self.cpus = cpus
@@ -273,6 +305,30 @@ class SlurmJob(base_queue.Job):
         self._sbatch_kvargs = ub.udict(kwargs) & SLURM_SBATCH_KVARGS  # ty: ignore[unsupported-operator]
         self._sbatch_flags = ub.udict(kwargs) & SLURM_SBATCH_FLAGS  # ty: ignore[unsupported-operator]
         self.preamble = preamble
+        # ``setup`` is a gating precondition: fold it into the preamble (slurm
+        # joins ``preamble && command``, so a failing setup short-circuits the
+        # command). Folding collapses ``preamble`` to a single string here;
+        # :meth:`_build_sbatch_args` also accepts a plain list preamble.
+        if isinstance(setup, str):
+            setup = [setup]
+        if setup:
+            setup_str = ' && '.join(setup)
+            if self.preamble:
+                base = (
+                    self.preamble
+                    if isinstance(self.preamble, str)
+                    else ' && '.join(self.preamble)
+                )
+                self.preamble = base + ' && ' + setup_str
+            else:
+                self.preamble = setup_str
+        # ``teardown`` always runs after the command (success, failure, or
+        # SIGTERM within the scancel/timeout ``--signal`` grace window) provided
+        # setup succeeded. Each slurm job is its own process, so a shell-level
+        # trap in ``--wrap`` is correctly scoped. See :meth:`_build_sbatch_args`.
+        if isinstance(teardown, str):
+            teardown = [teardown]
+        self.teardown = list(teardown) if teardown else None
         # if shell not in {None, 'bash'}:
         #     raise NotImplementedError(shell)
 
@@ -399,16 +455,41 @@ class SlurmJob(base_queue.Job):
 
         import shlex
 
-        _preamble = []
+        _preamble: List[str] = []
         if global_preamble:
             _preamble.extend(global_preamble)
         if self.preamble:
-            _preamble.append(self.preamble)
+            # ``preamble`` may be a single string or a list of steps; flatten a
+            # list into the ``&&`` chain rather than appending it as one element
+            # (which would crash the join below).
+            if isinstance(self.preamble, str):
+                _preamble.append(self.preamble)
+            else:
+                _preamble.extend(self.preamble)
+
+        if self.teardown:
+            # Guaranteed cleanup co-located in the job. EXIT runs teardown once;
+            # INT/TERM ``exit`` (firing EXIT) so a scancel/timeout (SIGTERM,
+            # given a ``--signal=B:TERM@<sec>`` grace window) still cleans up.
+            # The ``setup && { ... }`` shape gates teardown on setup success:
+            # if the preamble/setup precondition fails, the group (which sets
+            # the trap) never runs, so nothing is torn down.
+            teardown_str = ' ; '.join(self.teardown)
+            main = (
+                '{ '
+                f'__cmdq_teardown() {{ {teardown_str} ; }} ; '
+                'trap __cmdq_teardown EXIT ; '
+                "trap 'exit 143' TERM ; trap 'exit 130' INT ; "
+                f'{self.command} ; '
+                '}'
+            )
+        else:
+            main = self.command
 
         if _preamble:
-            wrp_command = shlex.quote(' && '.join(_preamble + [self.command]))  # ty: ignore[invalid-argument-type]
+            wrp_command = shlex.quote(' && '.join(_preamble + [main]))
         else:
-            wrp_command = shlex.quote(self.command)  # ty: ignore[invalid-argument-type]
+            wrp_command = shlex.quote(main)
 
         if self.shell:
             wrp_command = shlex.quote(self.shell + ' -c ' + wrp_command)
@@ -432,7 +513,7 @@ class SlurmQueue(base_queue.Queue):
         >>> self.write()
         >>> self.print_commands()
         >>> # xdoctest: +REQUIRES(--run)
-        >>> if not self.is_available():
+        >>> if self.is_available():
         >>>     self.run()
 
     Example:
@@ -449,7 +530,7 @@ class SlurmQueue(base_queue.Queue):
         >>> self.write()
         >>> self.print_commands()
         >>> # xdoctest: +REQUIRES(--run)
-        >>> if not self.is_available():
+        >>> if self.is_available():
         >>>     self.run()
 
     Example:
@@ -551,8 +632,8 @@ class SlurmQueue(base_queue.Queue):
             )
             status['has_working_nodes'] = has_working_nodes
 
-    @staticmethod
-    def is_available() -> bool:
+    @classmethod
+    def is_available(cls) -> bool:
         """
         Determines if we can run the slurm queue or not.
         """
@@ -628,6 +709,13 @@ class SlurmQueue(base_queue.Queue):
                 name (str | None): name of job
                 shell (str | None): shell to use, defaults to bash
                 depends (str | List[str] | None): name of jobs to depend on
+                setup (str | List[str] | None): a gating precondition run
+                    before the command (a failing setup skips the command and
+                    fails the job); pairs with ``teardown``. See
+                    :class:`SlurmJob`.
+                teardown (str | List[str] | None): cleanup that always runs
+                    after the command -- on success, failure, or signal --
+                    provided ``setup`` succeeded. See :class:`SlurmJob`.
                 **slurm_options:see SLURM_SBATCH_KVARGS and SLURM_SBATCH_FLAGS
 
         Returns:

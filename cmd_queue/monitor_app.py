@@ -6,6 +6,7 @@ try:
     from rich.text import Text
     from textual.app import App, ComposeResult
     from textual.containers import VerticalScroll
+    from textual.screen import ModalScreen
     from textual.widgets import Footer, Header, Static
 
     TEXTUAL_AVAILABLE = True
@@ -15,6 +16,7 @@ except ImportError:
     VerticalScroll: type = object  # type: ignore
     Footer: type = object  # type: ignore
     Header: type = object  # type: ignore
+    ModalScreen: type = object  # type: ignore
     Static: type = object  # type: ignore
     TEXTUAL_AVAILABLE = False
 
@@ -39,7 +41,7 @@ def _missing_textual_error() -> ImportError:
     )
 
 
-class JobTable(Static):  # type: ignore[misc]
+class JobTable(Static):  # type: ignore[misc]  # ty: ignore[unsupported-base]
     """A small auto-refreshing widget that displays the queue status table."""
 
     DEFAULT_CSS = """
@@ -89,7 +91,42 @@ class JobTable(Static):  # type: ignore[misc]
             app.exit()
 
 
-class CmdQueueMonitorApp(App):  # type: ignore[misc]
+class ConfirmKillScreen(ModalScreen):  # type: ignore[misc]  # ty: ignore[unsupported-base]
+    """Modal confirmation dialog shown before killing jobs."""
+
+    CSS = """
+    ConfirmKillScreen {
+        align: center middle;
+    }
+    #confirm-dialog {
+        padding: 1 2;
+        width: 52;
+        height: 5;
+        border: double red;
+        background: $surface;
+        content-align: center middle;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        yield Static(
+            '[bold red]Kill all jobs?[/bold red]\n'
+            '[dim][[y]] confirm kill   [[n]] cancel[/dim]',
+            id='confirm-dialog',
+        )
+
+    def on_mount(self) -> None:
+        self.bind('y', 'confirm_kill', description='Confirm kill')
+        self.bind('n', 'cancel_kill', description='Cancel')
+
+    def action_confirm_kill(self) -> None:
+        self.dismiss(True)
+
+    def action_cancel_kill(self) -> None:
+        self.dismiss(False)
+
+
+class CmdQueueMonitorApp(App):  # type: ignore[misc]  # ty: ignore[unsupported-base]
     """Textual app used by the tmux monitor.
 
     The constructor and runtime attributes are intentionally stable because
@@ -205,10 +242,14 @@ class CmdQueueMonitorApp(App):  # type: ignore[misc]
         self.exit()
 
     def action_kill_jobs(self) -> None:
-        if self.kill_fn is not None:
-            self.kill_fn()
-        self.graceful_exit = True
-        self.exit()
+        def _on_confirmed(confirmed: bool) -> None:
+            if confirmed:
+                if self.kill_fn is not None:
+                    self.kill_fn()
+                self.graceful_exit = True
+                self.exit()
+
+        self.push_screen(ConfirmKillScreen(), _on_confirmed)
 
     def action_attach_monitor(self) -> None:
         # The actual tmux attach has to happen *after* the textual app

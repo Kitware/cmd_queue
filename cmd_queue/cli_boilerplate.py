@@ -168,9 +168,17 @@ class CMDQueueConfig(scfg.DataConfig):
 
     monitor = scfg.Value(
         'inline',
-        help=('where the live status UI runs while'),
+        help=ub.paragraph(
+            """
+            Where the live status UI runs while jobs execute.
+            hybrid = inline monitor + attachable tmux session (best for
+            interactive use); inline = inline only (default); tmux =
+            detached tmux session only (survives the calling shell); none
+            = headless (reattach hint still printed).
+            """
+        ),
         group='cmd-queue',
-        choices=['inline', 'tmux'],
+        choices=['hybrid', 'inline', 'tmux', 'none'],
     )
 
     queue_name = scfg.Value(
