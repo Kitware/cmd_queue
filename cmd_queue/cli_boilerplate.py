@@ -415,11 +415,12 @@ class CmdQueueConfigMixin(kw.Config):
         >>> my_cli_main(argv=False, run=0, print_queue=1, print_commands=1, backend='serial')
     """
 
-    run: bool = kw.Flag(
+    # NOTE: do NOT add a ``: bool`` annotation here. kwconf coerces a
+    # bool-annotated flag, so ``--run=0`` becomes ``bool('0')`` -> True.
+    # Leaving it unannotated keeps the historical semantics: ``--run=0`` is
+    # falsy, ``--run=1`` truthy, and bare ``--run`` True.
+    run = kw.Flag(
         False,
-        # ``validate=False`` keeps the ``bool`` static type while staying lenient
-        # about the common ``run=0`` / ``run=1`` integer idiom at runtime.
-        validate=False,
         help='if False, only prints the commands, otherwise executes them',
         group='cmd-queue',
     )
