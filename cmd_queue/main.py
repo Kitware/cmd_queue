@@ -11,10 +11,11 @@ For help run:
 
 """
 from __future__ import annotations
-from typing import TYPE_CHECKING, Any, Callable
 
+from typing import TYPE_CHECKING, Any, Callable, Sequence
+
+import kwconf as kw
 import rich
-import scriptconfig as scfg
 import ubelt as ub
 
 __todo__ = """
@@ -91,10 +92,10 @@ def _cmd_queue_tmux_session_ids(sessions: list[dict[str, str]]) -> list[str]:
     ]
 
 
-class CommonConfig(scfg.DataConfig):
-    qname = scfg.Value(None, position=1, help='name of the CLI queue')
+class CommonConfig(kw.Config):
+    qname = kw.Value(None, position=1, help='name of the CLI queue')
 
-    dpath = scfg.Value(
+    dpath = kw.Value(
         'auto',
         help=ub.paragraph(
             """
@@ -103,44 +104,58 @@ class CommonConfig(scfg.DataConfig):
         ),
     )
 
-    verbose = scfg.Value(1, help='verbosity level')
+    verbose = kw.Value(1, help='verbosity level')
 
     def __post_init__(config) -> None:
         if config['dpath'] == 'auto':
             config['dpath'] = str(ub.Path.appdir('cmd_queue/cli'))
 
+    def cli_queue_dpath(config) -> ub.Path:
+        """Directory holding this CLI's intermediate queue files.
+
+        Defined as a method rather than an attribute/property because kwconf's
+        metaclass collects class-level data attributes as config fields.
+        """
+        return ub.Path(config['dpath'])
+
+    def cli_queue_fpath(config) -> ub.Path:
+        """Path to this queue's ``*.cmd_queue.json`` state file."""
+        return config.cli_queue_dpath() / (
+            str(config['qname']) + '.cmd_queue.json'
+        )
+
     @classmethod
-    def main(cls, argv: int = 1, **kwargs: Any) -> None:
-        # scriptconfig ``argv`` accepts True/None/list[str]; the integer
-        # idiom (``1`` => use sys.argv) is undocumented but in use here.
-        config = cls.cli(argv=argv, data=kwargs, strict=True)  # ty: ignore[invalid-argument-type]
+    def main(
+        cls, argv: Sequence[str] | str | int | None = 1, **kwargs: Any
+    ) -> None:
+        # ``argv=1``/True reads sys.argv; ``argv=0``/False uses only ``data``.
+        # kwconf's ``cli`` takes a bool (not int) for the sys.argv toggle.
+        if isinstance(argv, int):
+            argv = bool(argv)
+        config = cls.cli(
+            argv=argv, data=kwargs, strict=True, special_options=True
+        )
         if config.verbose:
             # ub.urepr's return type is unioned with a tuple form for
             # the json branch; the str cast is always-safe here.
             rich.print('config = ' + str(ub.urepr(config, nl=1)))
-        cli_queue_name = config['qname']
-        # scriptconfig allows attaching arbitrary attributes to a Config
-        # instance at runtime.
-        config.cli_queue_dpath = ub.Path(config['dpath'])  # ty: ignore[unresolved-attribute]
-        config.cli_queue_fpath = config.cli_queue_dpath / (  # ty: ignore[unresolved-attribute]
-            str(cli_queue_name) + '.cmd_queue.json'
-        )
         config.run()
 
 
 class CommonShowRun(CommonConfig):
-    workers = scfg.Value(
+    workers = kw.Value(
         1, help='number of concurrent queues for the tmux backend.'
     )
 
-    backend = scfg.Value(
+    backend = kw.Value(
         'tmux',
         help='the execution backend to use',
         choices=['tmux', 'slurm', 'serial', 'airflow'],
     )
 
-    gpus = scfg.Value(
+    gpus = kw.Value(
         None,
+        parser='csv',
         help='a comma separated list of the gpu numbers to spread across. tmux backend only.',
     )
 
@@ -156,7 +171,7 @@ class CommonShowRun(CommonConfig):
             gpus=config['gpus'],
         )
         # Run a new CLI queue
-        data = json.loads(config.cli_queue_fpath.read_text())
+        data = json.loads(config.cli_queue_fpath().read_text())
         print('data = {}'.format(ub.urepr(data, nl=1)))
         row = None
         try:
@@ -198,7 +213,7 @@ class CommonShowRun(CommonConfig):
         return queue
 
 
-class CmdQueueCLI(scfg.ModalCLI):
+class CmdQueueCLI(kw.ModalCLI):
     r"""
     The cmd_queue CLI for building, executing, and managing queues from bash.
 
@@ -308,9 +323,8 @@ class CmdQueueCLI(scfg.ModalCLI):
         cleanup tmux sessions
         """
 
-        yes = scfg.Value(
+        yes = kw.Flag(
             False,
-            isflag=True,
             help='if True say yes to prompts',
             short_alias=['y'],
         )
@@ -358,7 +372,7 @@ class CmdQueueCLI(scfg.ModalCLI):
 
         __command__ = 'monitor'
 
-        manifest = scfg.Value(
+        manifest = kw.Value(
             None,
             help=ub.paragraph(
                 """
@@ -368,7 +382,7 @@ class CmdQueueCLI(scfg.ModalCLI):
             ),
         )
 
-        onfail = scfg.Value(
+        onfail = kw.Value(
             '',
             choices=['', 'kill'],
             help=ub.paragraph(
@@ -379,7 +393,7 @@ class CmdQueueCLI(scfg.ModalCLI):
             ),
         )
 
-        onexit = scfg.Value(
+        onexit = kw.Value(
             '',
             choices=['', 'capture'],
             help=ub.paragraph(
@@ -390,9 +404,9 @@ class CmdQueueCLI(scfg.ModalCLI):
             ),
         )
 
-        refresh_rate = scfg.Value(0.4, help='monitor refresh rate, seconds')
+        refresh_rate = kw.Value(0.4, help='monitor refresh rate, seconds')
 
-        with_textual = scfg.Value(
+        with_textual = kw.Value(
             'auto', help='use textual UI if available (tmux backend only)'
         )
 
@@ -400,8 +414,7 @@ class CmdQueueCLI(scfg.ModalCLI):
             from cmd_queue import monitor_manifest as mm
 
             if config.manifest:
-                # scriptconfig descriptor narrows to str at runtime.
-                manifest_path = ub.Path(config.manifest).expand().absolute()  # ty: ignore[invalid-argument-type]
+                manifest_path = ub.Path(config.manifest).expand().absolute()
                 if not manifest_path.exists():
                     raise FileNotFoundError(manifest_path)
             else:
@@ -452,14 +465,16 @@ class CmdQueueCLI(scfg.ModalCLI):
 
         __command__ = 'submit'
 
-        jobname = scfg.Value(
+        jobname = kw.Value(
             None, help='for submit, this is the name of the new job'
         )
-        depends = scfg.Value(None, help='comma separated jobnames to depend on')
+        depends = kw.Value(
+            None, parser='csv', help='comma separated jobnames to depend on'
+        )
 
-        command = scfg.Value(
+        command = kw.Value(
             None,
-            type=str,
+            parser=str,
             position=2,
             nargs='*',
             help=ub.paragraph(
@@ -523,14 +538,14 @@ class CmdQueueCLI(scfg.ModalCLI):
             import json
 
             # Run a new CLI queue
-            data = json.loads(config.cli_queue_fpath.read_text())
+            data = json.loads(config.cli_queue_fpath().read_text())
             row = {'type': 'command', 'command': config['command']}
             if config.jobname:
                 row['name'] = config.jobname
             if config.depends:
                 row['depends'] = config.depends
             data.append(row)
-            config.cli_queue_fpath.write_text(json.dumps(data))
+            config.cli_queue_fpath().write_text(json.dumps(data))
 
     class new(CommonConfig):
         """
@@ -538,7 +553,7 @@ class CmdQueueCLI(scfg.ModalCLI):
         """
 
         __command__ = 'new'
-        header = scfg.Value(
+        header = kw.Value(
             None,
             help='a header command to execute in every session (e.g. activating a virtualenv). Only used when action is new',
         )
@@ -549,12 +564,12 @@ class CmdQueueCLI(scfg.ModalCLI):
             # Start a new CLI queue
             data = []
             config = config
-            config.cli_queue_fpath.parent.ensuredir()
+            config.cli_queue_fpath().parent.ensuredir()
 
             if config.header is not None:
                 data.append({'type': 'header', 'header': config.header})
 
-            config.cli_queue_fpath.write_text(json.dumps(data))
+            config.cli_queue_fpath().write_text(json.dumps(data))
 
     class list(CommonConfig):
         """
@@ -565,7 +580,7 @@ class CmdQueueCLI(scfg.ModalCLI):
 
         def run(config) -> None:
             print(
-                ub.urepr(list(config.cli_queue_dpath.glob('*.cmd_queue.json')))
+                ub.urepr(list(config.cli_queue_dpath().glob('*.cmd_queue.json')))
             )
 
 

@@ -16,21 +16,25 @@ Helper script to wrap a command with sbatch, but using a more srun like syntax.
         -- \
             python -c 'import sys; print("hello world"); sys.exit(0)'
 """
-import scriptconfig as scfg
+from typing import Any, Sequence
+
+import kwconf as kw
 import ubelt as ub
 
 
-class SlurmifyCLI(scfg.DataConfig):
+class SlurmifyCLI(kw.Config):
     __command__ = 'slurmify'
 
-    jobname = scfg.Value(
+    jobname = kw.Value(
         None, help='for submit, this is the name of the new job'
     )
-    depends = scfg.Value(None, help='comma separated jobnames to depend on')
+    depends = kw.Value(
+        None, parser='csv', help='comma separated jobnames to depend on'
+    )
 
-    command = scfg.Value(
+    command = kw.Value(
         None,
-        type=str,
+        parser=str,
         position=1,
         nargs='*',
         help=ub.paragraph(
@@ -45,23 +49,24 @@ class SlurmifyCLI(scfg.DataConfig):
         ),
     )
 
-    gpus = scfg.Value(
+    gpus = kw.Value(
         None,
+        parser='csv',
         help='a comma separated list of the gpu numbers to spread across. tmux backend only.',
     )
-    workers = scfg.Value(
+    workers = kw.Value(
         1, help='number of concurrent queues for the tmux backend.'
     )
 
-    mem = scfg.Value(None, help='')
-    partition = scfg.Value(1, help='slurm partition')
+    mem = kw.Value(None, help='')
+    partition = kw.Value(1, help='slurm partition')
 
-    ntasks = scfg.Value(None, help='')
-    ntasks_per_node = scfg.Value(None, help='')
-    cpus_per_task = scfg.Value(None, help='')
+    ntasks = kw.Value(None, help='')
+    ntasks_per_node = kw.Value(None, help='')
+    cpus_per_task = kw.Value(None, help='')
 
     @classmethod
-    def main(cls, argv=1, **kwargs):
+    def main(cls, argv: Sequence[str] | str | int | None = 1, **kwargs: Any):
         """
         Example:
             >>> # xdoctest: +SKIP
@@ -74,8 +79,12 @@ class SlurmifyCLI(scfg.DataConfig):
         import rich
         from rich.markup import escape
 
-        # See main.py: ``argv=1`` is the scriptconfig idiom for sys.argv.
-        config = cls.cli(argv=argv, data=kwargs, strict=True)  # ty: ignore[invalid-argument-type]
+        # ``argv=1``/True reads sys.argv; kwconf's ``cli`` takes a bool toggle.
+        if isinstance(argv, int):
+            argv = bool(argv)
+        config = cls.cli(
+            argv=argv, data=kwargs, strict=True, special_options=True
+        )
         # ub.urepr unions with a tuple form for the json branch; cast to str.
         rich.print('config = ' + escape(str(ub.urepr(config, nl=1))))
 
