@@ -38,7 +38,8 @@ Example:
     >>>         print('output does not exist')
 """
 from __future__ import annotations
-from typing import Any, Dict, Iterable, List, Optional, Union
+
+from typing import Any, Dict, List, Optional, Union
 
 import ubelt as ub
 
@@ -264,7 +265,7 @@ class SlurmJob(base_queue.Job):
         command: str,
         name: Optional[str] = None,
         output_fpath: Optional[Any] = None,
-        depends: Optional[Iterable[base_queue.Job]] = None,
+        depends: base_queue.JobDepends = None,
         cpus: Optional[Any] = None,
         gpus: Optional[Any] = None,
         mem: Optional[Any] = None,
@@ -281,8 +282,6 @@ class SlurmJob(base_queue.Job):
             import uuid
 
             name = 'job-' + str(uuid.uuid4())
-        if depends is not None and not ub.iterable(depends):
-            depends = [depends]  # type: ignore
         self.unused_kwargs = kwargs
         # The base ``Job`` types ``command`` as ``str | None``; a SlurmJob always
         # has a concrete command, so narrow it (keeps the ``--wrap`` join and
@@ -292,7 +291,7 @@ class SlurmJob(base_queue.Job):
         # concrete ``str`` here (the base ``Job`` types it as ``str | None``).
         self.name: str = name
         self.output_fpath = output_fpath
-        self.depends = depends
+        self.depends: List[base_queue.Job] = base_queue.coerce_job_depends(depends)
         self.cpus = cpus
         self.gpus = gpus
         self.mem = mem
@@ -753,8 +752,7 @@ class SlurmQueue(base_queue.Queue):
         job = SlurmJob(command, depends=depends, preamble=preamble, **_kwargs)
         self.jobs.append(job)
         self.num_real_jobs += 1
-        # job.name is always populated above, but ty sees ``str | None``.
-        self.named_jobs[job.name] = job  # ty: ignore[invalid-assignment]
+        self._register_named_job(job)
         return job
 
     def order_jobs(self) -> List[SlurmJob]:

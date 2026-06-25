@@ -26,11 +26,12 @@ Example:
     True
 """
 from __future__ import annotations
+
 import contextlib
 import os
 import time
 import uuid
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, List, Optional
 
 import ubelt as ub
 
@@ -47,7 +48,7 @@ class AirflowJob(base_queue.Job):
         command: str,
         name: Optional[str] = None,
         output_fpath: Optional[Any] = None,
-        depends: Optional[Iterable[base_queue.Job]] = None,
+        depends: base_queue.JobDepends = None,
         partition: Optional[Any] = None,
         cpus: Optional[Any] = None,
         gpus: Optional[Any] = None,
@@ -59,13 +60,11 @@ class AirflowJob(base_queue.Job):
         super().__init__()
         if name is None:
             name = 'job-' + str(uuid.uuid4())
-        if depends is not None and not ub.iterable(depends):
-            depends = [depends]  # type: ignore
         self.unused_kwargs = kwargs
         self.command = command
         self.name = name
         self.output_fpath = output_fpath
-        self.depends = depends
+        self.depends: List[base_queue.Job] = base_queue.coerce_job_depends(depends)
         self.cpus = cpus
         self.gpus = gpus
         self.mem = mem
@@ -466,8 +465,7 @@ class AirflowQueue(base_queue.Queue):
         job = AirflowJob(command, depends=depends, **kwargs)
         self.jobs.append(job)
         self.num_real_jobs += 1
-        # job.name is set above before this line, but ty sees Optional.
-        self.named_jobs[job.name] = job  # ty: ignore[invalid-assignment]
+        self._register_named_job(job)
         return job
 
     def print_commands(
