@@ -862,6 +862,12 @@ class SlurmQueue(base_queue.Queue):
         manifest_path = self._write_monitor_manifest()
         ub.cmd(f'bash {self.fpath}', verbose=3, check=True, system=system)
         if not block:
+            from rich import print as rich_print
+
+            rich_print(
+                '[bold]Queue submitted (not blocking).[/bold] '
+                f'Reattach with: cmd_queue monitor --manifest={manifest_path}'
+            )
             return None
         if monitor == 'inline':
             return self.monitor(onfail=onfail, onexit=onexit)
@@ -908,11 +914,15 @@ class SlurmQueue(base_queue.Queue):
         if monitor == 'none':
             from rich import print as rich_print
 
+            # Reached only when block=True (the not-block case returned above).
+            # No live UI, but still block until every job is terminal — matching
+            # this backend's docstring and the tmux backend's headless `none`.
+            # The hint lets you attach a live view in another shell meanwhile.
             rich_print(
-                '[bold]Queue running detached.[/bold] '
-                f'Reattach with: cmd_queue monitor --manifest={manifest_path}'
+                '[bold]Queue running (headless).[/bold] '
+                f'Attach a live view with: cmd_queue monitor --manifest={manifest_path}'
             )
-            return None
+            return self.monitor(onfail=onfail, onexit=onexit, headless=True)
         if monitor == 'tmux':
             if not ub.find_exe('tmux'):
                 import warnings
@@ -976,6 +986,7 @@ class SlurmQueue(base_queue.Queue):
         onfail: str = '',
         onexit: str = '',
         side_session: Optional[str] = None,
+        headless: bool = False,
     ) -> Optional[Any]:
         """
         Monitor progress until the jobs are done.
@@ -991,6 +1002,12 @@ class SlurmQueue(base_queue.Queue):
                 fires on failure.
             onexit (str): currently unused for slurm (kept for API
                 parity with the tmux backend).
+
+            headless (bool): if set, block until every job is terminal
+                without rendering the live status table (per-job
+                pass/fail/skip lines still print). This is how
+                ``run(block=True, monitor='none')`` blocks, matching the
+                tmux backend's headless ``none`` mode.
 
         CommandLine:
             xdoctest -m cmd_queue.slurm_queue SlurmQueue.monitor --dev --run
@@ -1215,6 +1232,7 @@ class SlurmQueue(base_queue.Queue):
 
         try:
             import sys
+            import time as _time
 
             from rich.console import Group
 
@@ -1231,12 +1249,22 @@ class SlurmQueue(base_queue.Queue):
                 return renderable, finished, None
 
             refresh_rate = 0.4
-            use_keys = side_session is not None and sys.stdin.isatty()
-            _run_live_with_attach(
-                build_renderable=_build_renderable,
-                refresh_rate=refresh_rate,
-                side_session=side_session if use_keys else None,
-            )
+            if headless:
+                # Block without a live display: poll until every job is
+                # terminal. The per-job pass/fail/skip lines still print
+                # (update_jobid_status runs inside update_status_table).
+                while True:
+                    _table, finished = update_status_table()
+                    if finished:
+                        break
+                    _time.sleep(refresh_rate)
+            else:
+                use_keys = side_session is not None and sys.stdin.isatty()
+                _run_live_with_attach(
+                    build_renderable=_build_renderable,
+                    refresh_rate=refresh_rate,
+                    side_session=side_session if use_keys else None,
+                )
             _update_agg_state()
         except KeyboardInterrupt:
             from rich.prompt import Confirm
