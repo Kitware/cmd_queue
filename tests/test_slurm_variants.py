@@ -156,3 +156,22 @@ def test_slurm_teardown_executes_as_documented():
     assert r.returncode != 0, 'setup failure fails the job'
     assert 'CMD' not in r.stdout, 'command should not run if setup fails'
     assert 'TD' not in r.stdout, 'teardown should not run if setup fails'
+
+
+def test_parse_scontrol_output_tolerates_bare_tokens():
+    """scontrol output varies across slurm versions: a value with a space for a
+    key not in special_keys (or an empty/bare token) must not crash the parser.
+    Regression for `ValueError: not enough values to unpack` on aiq-gpu.
+    """
+    from cmd_queue.backends.slurm import parse_scontrol_output
+
+    sample = '\n'.join([
+        'JobId=123 JobState=COMPLETED ExitCode=0:0',
+        'JobName=smol_135_01_abc',
+        'Reason=Memory Required Not Available BareToken',  # space value, unknown key
+        'TRES=cpu=4,mem=16G,gres/gpu=2',
+    ])
+    info = parse_scontrol_output(sample)
+    assert info['JobState'] == 'COMPLETED'
+    assert info['ExitCode'] == '0:0'
+    assert info['JobName'] == 'smol_135_01_abc'

@@ -1448,11 +1448,19 @@ def parse_scontrol_output(output: str) -> dict:
             parsed_data[key] = value.strip()
             line = leading_part
 
-        # Now, handle the general case: split by spaces and then by "="
+        # Now, handle the general case: split on whitespace and then by "=".
         line = line.strip()
         if line:
-            parts = line.split(' ')
+            parts = line.split()
             for part in parts:
+                if '=' not in part:
+                    # A bare token: a fragment of a space-containing value whose
+                    # key wasn't in ``special_keys`` (those are extracted per-line
+                    # above), or an empty token. Skip rather than crash -- the
+                    # keys the monitor needs (JobState, ExitCode, ...) are plain
+                    # ``key=value`` and parse fine. scontrol output varies across
+                    # slurm versions, so be lenient here.
+                    continue
                 key, value = part.split('=', 1)
                 parsed_data[key] = value
 
