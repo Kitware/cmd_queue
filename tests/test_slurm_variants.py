@@ -175,3 +175,16 @@ def test_parse_scontrol_output_tolerates_bare_tokens():
     assert info['JobState'] == 'COMPLETED'
     assert info['ExitCode'] == '0:0'
     assert info['JobName'] == 'smol_135_01_abc'
+
+
+def test_sacct_job_state_is_best_effort():
+    """_sacct_job_state never raises; returns '' for an unknown/bogus job id."""
+    from cmd_queue.backends.slurm import _sacct_job_state
+    assert _sacct_job_state('not-a-real-jobid-zzz') == ''
+
+
+def test_parse_scontrol_missing_jobstate():
+    """A purged/invalid job yields no JobState -> the monitor must use .get()."""
+    from cmd_queue.backends.slurm import parse_scontrol_output
+    assert parse_scontrol_output('').get('JobState') is None
+    assert parse_scontrol_output('slurm_load_jobs error: Invalid job id specified').get('JobState') is None

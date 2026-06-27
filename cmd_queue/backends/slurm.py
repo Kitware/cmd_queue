@@ -1070,6 +1070,18 @@ class SlurmQueue(base_queue.Queue):
             import rich
 
             assert job_status_table is not None
+            # Terminal slurm states (besides COMPLETED/CANCELLED) that mean the
+            # job is done and failed -- treat them as terminal so the monitor
+            # neither hangs waiting nor mislabels them. ``str.startswith`` takes a
+            # tuple of prefixes.
+            TERMINAL_FAIL = (
+                'FAILED', 'TIMEOUT', 'NODE_FAIL', 'OUT_OF_MEMORY',
+                'BOOT_FAIL', 'DEADLINE', 'PREEMPTED', 'SPECIAL_EXIT',
+            )
+            TRANSIENT = (
+                'PENDING', 'CONFIGURING', 'COMPLETING', 'SUSPENDED',
+                'RESIZING', 'REQUEUED', 'SIGNALING', 'STAGE_OUT', 'STOPPED',
+            )
             for row in job_status_table:
                 if row['needs_update']:
                     job_id = row['job_id']
@@ -1077,29 +1089,40 @@ class SlurmQueue(base_queue.Queue):
                     # ub.cmd().stdout is typed ``str | bytes | None`` but
                     # is always a str here.
                     info = parse_scontrol_output(out.stdout)  # ty: ignore[invalid-argument-type]
-                    row['JobState'] = info['JobState']
+                    state = info.get('JobState')
+                    if not state:
+                        # The controller no longer knows this job (completed and
+                        # purged past MinJobAge, or an invalid id). Recover the
+                        # final state from accounting; if that's unavailable,
+                        # assume terminal so the monitor neither KeyErrors nor
+                        # hangs polling a job that will never reappear.
+                        state = _sacct_job_state(job_id) or 'COMPLETED'
+                    name = info.get('JobName', row['job_varname'])
+                    row['JobState'] = state
                     row['ExitCode'] = info.get('ExitCode', None)
                     # https://slurm.schedmd.com/job_state_codes.html
-                    if info['JobState'].startswith('FAILED'):
-                        row['status'] = 'failed'
-                        rich.print(f'[red] Failed job: {info["JobName"]}')
-                        if info['StdErr'] == info['StdOut']:
-                            rich.print(f'[red]  * Logs: {info["StdErr"]}')
-                        else:
-                            rich.print(f'[red] StdErr: {info["StdErr"]}')
-                            rich.print(f'[red] StdOut: {info["StdOut"]}')
-                        row['needs_update'] = False
-                    elif info['JobState'].startswith('CANCELLED'):
-                        rich.print(f'[yellow] Skip job: {info["JobName"]}')
-                        row['status'] = 'skipped'
-                        row['needs_update'] = False
-                    elif info['JobState'].startswith('COMPLETED'):
-                        rich.print(f'[green] Completed job: {info["JobName"]}')
+                    if state.startswith('COMPLETED'):
+                        rich.print(f'[green] Completed job: {name}')
                         row['status'] = 'passed'
                         row['needs_update'] = False
-                    elif info['JobState'].startswith('RUNNING'):
+                    elif state.startswith('CANCELLED'):
+                        rich.print(f'[yellow] Skip job: {name}')
+                        row['status'] = 'skipped'
+                        row['needs_update'] = False
+                    elif state.startswith(TERMINAL_FAIL):
+                        row['status'] = 'failed'
+                        rich.print(f'[red] Failed job ({state}): {name}')
+                        stderr = info.get('StdErr')
+                        stdout = info.get('StdOut')
+                        if stderr and stderr == stdout:
+                            rich.print(f'[red]  * Logs: {stderr}')
+                        elif stderr or stdout:
+                            rich.print(f'[red] StdErr: {stderr}')
+                            rich.print(f'[red] StdOut: {stdout}')
+                        row['needs_update'] = False
+                    elif state.startswith('RUNNING'):
                         row['status'] = 'running'
-                    elif info['JobState'].startswith('PENDING'):
+                    elif state.startswith(TRANSIENT):
                         row['status'] = 'pending'
                     else:
                         row['status'] = 'unknown'
@@ -1465,6 +1488,31 @@ def parse_scontrol_output(output: str) -> dict:
                 parsed_data[key] = value
 
     return parsed_data
+
+
+def _sacct_job_state(job_id: Any) -> str:
+    """Final state of a job from slurm accounting, for jobs that ``scontrol show
+    job`` no longer knows (completed + purged past MinJobAge, or invalid id).
+
+    Returns a slurm state string (e.g. ``'COMPLETED'``, ``'FAILED'``,
+    ``'TIMEOUT'``) for the primary job record, or ``''`` if accounting is
+    unavailable / the job is unknown. Best-effort: never raises.
+    """
+    try:
+        out = ub.cmd(
+            f'sacct -j "{job_id}" --noheader --parsable2 --format=State'
+        )
+    except Exception:
+        return ''
+    if getattr(out, 'returncode', 1) != 0:
+        return ''
+    for line in (out.stdout or '').splitlines():
+        line = line.strip()
+        if line:
+            # First (primary) record; drop any trailing reason like
+            # "CANCELLED by 1234" so the caller's startswith() checks still work.
+            return line.split('|', 1)[0].strip()
+    return ''
 
 
 SLURM_NOTES = r"""
