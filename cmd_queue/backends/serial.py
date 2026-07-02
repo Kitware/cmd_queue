@@ -314,6 +314,11 @@ class BashJob(base_queue.Job):
                 '  trap __cmdq_teardown EXIT',
                 "  trap 'exit 143' TERM",
                 "  trap 'exit 130' INT",
+                # tmux kill-session delivers SIGHUP (never TERM). Bash happens
+                # to run the EXIT trap on an unhandled group-HUP, but that is
+                # an undocumented nicety -- trap it explicitly so teardown
+                # semantics on kill are defined, not lucky.
+                "  trap 'exit 129' HUP",
                 f'  {self.command}',
                 ')',
             ]
@@ -354,7 +359,7 @@ class BashJob(base_queue.Job):
                 script.append('RETURN_CODE=$?')
 
         if self.cwd is not None:
-            script.append('[["$CHDIR_OK" == "1"]] && popd')
+            script.append('[[ "$CHDIR_OK" == "1" ]] && popd')
 
         if internal_conditionals:
             # Use exit code 3 for error in preamble / chdir.

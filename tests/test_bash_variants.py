@@ -715,3 +715,49 @@ def test_bashjob_exec_teardown_runs_on_sigterm():
                 break
             time.sleep(0.1)
         assert td_marker.exists(), 'teardown should run on SIGTERM'
+
+
+def test_bashjob_exec_cwd_restores_worker_dir():
+    """Regression: the popd guard was rendered as `[["$CHDIR_OK" ...` (no space
+    after `[[`), which bash resolves as an unknown command — popd never ran, so
+    every job AFTER a cwd job executed in the wrong working directory."""
+    with tempfile.TemporaryDirectory() as tmp_path:
+        tmp_path = ub.Path(tmp_path)
+        workdir = tmp_path / 'workdir'
+        workdir.mkdir()
+
+        job = BashJob('true', name='job_cwd', cwd=str(workdir))
+        job.log = False
+        job.stat_fpath = tmp_path / 'job.status.json'
+        job.pass_fpath = tmp_path / 'job.pass'
+        job.fail_fpath = tmp_path / 'job.fail'
+
+        text = job.finalize_text(with_status=True, with_gaurds=True)
+        # the guard must be real bash syntax, not a `[["...` command lookup
+        assert '[[ "$CHDIR_OK" == "1" ]] && popd' in text
+
+        # behavioral: after the job, the worker shell is back where it started
+        probe = tmp_path / 'pwd_after.txt'
+        script = text + f'\npwd -P > "{probe}"\n'
+        subprocess.run(
+            ['bash'], input=script, text=True, cwd=str(tmp_path),
+            capture_output=True, check=False,
+        )
+        assert job.pass_fpath.exists()
+        assert probe.read_text().strip() == str(tmp_path.resolve()), (
+            'the worker shell must popd back after a cwd job'
+        )
+
+
+def test_bashjob_teardown_traps_hup():
+    """tmux kill-session delivers SIGHUP; the teardown subshell must give it
+    defined exit semantics rather than relying on bash's undocumented
+    run-EXIT-trap-on-unhandled-group-HUP behavior."""
+    with tempfile.TemporaryDirectory() as tmp_path:
+        tmp_path = ub.Path(tmp_path)
+        job, _ = _make_teardown_job(
+            tmp_path, 'true', teardown='echo done'
+        )
+        text = job.finalize_text(with_status=True, with_gaurds=True)
+        assert "trap 'exit 129' HUP" in text
+        subprocess.run(['bash', '-n'], input=text, text=True, check=True)

@@ -402,7 +402,7 @@ class SlurmJob(base_queue.Job):
         for key, flag in self._sbatch_flags.items():
             if flag:
                 key = key.replace('_', '-')
-                sbatch_args.append(f'--{key}"')
+                sbatch_args.append(f'--{key}')
 
         if self.depends:
             # TODO: other depends parts

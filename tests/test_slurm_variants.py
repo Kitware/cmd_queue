@@ -188,3 +188,17 @@ def test_parse_scontrol_missing_jobstate():
     from cmd_queue.backends.slurm import parse_scontrol_output
     assert parse_scontrol_output('').get('JobState') is None
     assert parse_scontrol_output('slurm_load_jobs error: Invalid job id specified').get('JobState') is None
+
+
+def test_sbatch_boolean_flags_render_cleanly():
+    """Regression: boolean sbatch flags rendered as `--hold"` (stray trailing
+    double-quote, f'--{key}"') — a malformed sbatch line that errors on submit
+    or quote-pairs with a later argument."""
+    queue = SlurmQueue(preamble=None)
+    job = queue.submit('echo CMD', hold=True, requeue=True)
+    sbatch_args = job._build_sbatch_args(global_preamble=queue.header_commands)
+    assert '--hold' in sbatch_args
+    assert '--requeue' in sbatch_args
+    assert not any('"' in a and not a.startswith(('--wrap', '--job-name', '--output'))
+                   for a in sbatch_args if a in ('--hold"', '--requeue"')), sbatch_args
+    assert '--hold"' not in sbatch_args and '--requeue"' not in sbatch_args
