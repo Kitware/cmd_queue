@@ -3,9 +3,11 @@ References:
     https://jmmv.dev/2018/03/shell-readability-strict-mode.html
     https://stackoverflow.com/questions/13195655/bash-set-x-without-it-being-printed
 """
+
 from __future__ import annotations
+
 import uuid
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, List, Optional
 
 import ubelt as ub
 
@@ -103,7 +105,7 @@ class BashJob(base_queue.Job):
         self,
         command: str,
         name: Optional[str] = None,
-        depends: Optional[Iterable[base_queue.Job]] = None,
+        depends: base_queue.JobDepends = None,
         gpus: Optional[Any] = None,
         cpus: Optional[Any] = None,
         mem: Optional[Any] = None,
@@ -118,8 +120,6 @@ class BashJob(base_queue.Job):
         teardown: List[str] | str | None = None,
         **kwargs: Any,
     ) -> None:
-        if depends is not None and not ub.iterable(depends):
-            depends = [depends]  # type: ignore
         self.name = name
         assert self.name is not None
         self.pathid = self.name + '_' + ub.hash_data(uuid.uuid4())[0:8]
@@ -128,7 +128,9 @@ class BashJob(base_queue.Job):
         # The base ``Job`` types ``command`` as ``str | None``; a BashJob always
         # has a concrete command, so narrow it (keeps ``'\n'.join`` well-typed).
         self.command: str = command
-        self.depends: List[base_queue.Job] = list(depends) if depends else []
+        self.depends: List[base_queue.Job] = base_queue.coerce_job_depends(
+            depends
+        )
         self.bookkeeper = bookkeeper
         self.log = log
         if info_dpath is None:
@@ -315,6 +317,11 @@ class BashJob(base_queue.Job):
                 '  trap __cmdq_teardown EXIT',
                 "  trap 'exit 143' TERM",
                 "  trap 'exit 130' INT",
+                # tmux kill-session delivers SIGHUP (never TERM). Bash happens
+                # to run the EXIT trap on an unhandled group-HUP, but that is
+                # an undocumented nicety -- trap it explicitly so teardown
+                # semantics on kill are defined, not lucky.
+                "  trap 'exit 129' HUP",
                 f'  {self.command}',
                 ')',
             ]
@@ -355,7 +362,7 @@ class BashJob(base_queue.Job):
                 script.append('RETURN_CODE=$?')
 
         if self.cwd is not None:
-            script.append('[["$CHDIR_OK" == "1"]] && popd')
+            script.append('[[ "$CHDIR_OK" == "1" ]] && popd')
 
         if internal_conditionals:
             # Use exit code 3 for error in preamble / chdir.
@@ -998,5 +1005,6 @@ def _check_bash_text_for_syntax_errors(bash_text: str) -> None:
         if info.returncode != 0:
             print(info.stderr)
             raise SyntaxError('bash syntax error')
+
 
 # the implementation now lives under cmd_queue.backends.

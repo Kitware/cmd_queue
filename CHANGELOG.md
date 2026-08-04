@@ -5,7 +5,86 @@ We are currently working on porting this changelog to the specifications in
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## Version 0.3.1 - Unreleased
+## Version 0.3.2 - Unreleased
+
+### Added:
+* `CmdQueueConfigMixin`, a :mod:`kwconf`-based equivalent of `CMDQueueConfig`
+  carrying the same fields and the same `create_queue` / `run_queue` API. Use
+  it for new code.
+* A headless mode for the slurm backend's `monitor()`: it polls until every job
+  is terminal without rendering a live table, and still prints per-job
+  pass/fail/skip lines.
+* Nine ordered planning documents under `docs/planning/`, from a full-repo
+  audit: hygiene, shell-quoting hardening, core/tmux/slurm/airflow
+  correctness, the test suite, packaging/CI/docs, and dead-code cleanup.
+
+### Changed:
+* The internal CLIs (`main.py`, `slurmify.py`) are now kwconf-based. kwconf does
+  not auto-split comma strings, so `--depends` and `--gpus` use `parser='csv'`
+  to preserve the documented comma-separated behavior.
+
+  **For downstream CLIs:** kwconf's `cli()` takes `argv=` rather than
+  `cmdline=`, and its sys.argv toggle is a `bool` rather than scriptconfig's
+  `int` -- so `main(argv=1)` becomes `main(argv=True)`.
+* `Job.depends` is typed `List[Job]` rather than `Optional[Iterable[Job]]`,
+  which is what constructors actually receive: string references are resolved
+  at the queue level before construction. A new `base_queue.JobDepends` alias
+  and `coerce_job_depends()` helper normalize it, and `Queue._register_named_job()`
+  narrows optional job names. This replaced blanket `type: ignore` comments with
+  structural fixes.
+* `TMUXMultiQueue.kill_other_queues` no longer requires the `parse` package,
+  which was imported but declared in no requirements file -- so the tmux
+  backend raised `ModuleNotFoundError` on any install that did not happen to
+  have it.
+
+### Deprecated:
+* `CMDQueueConfig`, the scriptconfig-based boilerplate base. Subclassing it now
+  emits a `DeprecationWarning` naming `CmdQueueConfigMixin` as the replacement.
+  (The 0.3.2 migration documented this warning but never raised one.) The warning fires on
+  subclassing rather than on import, because importing `cli_boilerplate` is
+  also how a caller reaches the kwconf class. `scriptconfig` remains a
+  dependency for as long as this class exists.
+
+### Fixed:
+* **serial/tmux: every job after a `cwd` job ran in the wrong directory.** The
+  cwd restore was rendered as `[["$CHDIR_OK" == "1"]]` -- no space after `[[`,
+  which bash resolves as an unknown command -- so `popd` never ran.
+* **serial/tmux: a teardown could be skipped on `tmux kill-session`.** The
+  teardown subshell now traps `HUP` explicitly rather than relying on bash's
+  undocumented run-the-EXIT-trap-on-unhandled-group-HUP behavior, which the
+  release-on-kill path was riding on.
+* **slurm: boolean `sbatch` flags rendered with a stray trailing quote**
+  (`--hold"`), malforming the sbatch line for any boolean in
+  `SLURM_SBATCH_FLAGS`.
+* **slurm: the monitor crashed on purged or unknown jobs.** `scontrol show job`
+  returns no `JobState` once a job is past `MinJobAge`, so `info['JobState']`
+  raised `KeyError` when re-attaching after a run. The final state is now
+  recovered from accounting via `sacct`, all fields are read with `.get()`, and
+  `TIMEOUT` / `OUT_OF_MEMORY` / `NODE_FAIL` and friends are treated as
+  terminal-failed rather than `'unknown'`, which used to hang the completion
+  check.
+* **slurm: `parse_scontrol_output` raised on some slurm versions.** It assumed
+  every whitespace token was `key=value`; a space-containing value for a
+  non-special key yielded a bare token and "not enough values to unpack". Bare
+  tokens are now skipped.
+* **slurm: `run(block=True, monitor='none')` did not block.** It printed "Queue
+  running detached" and returned immediately, so a scripted run could act on
+  results before any job finished -- contradicting both the tmux backend and
+  this backend's own docstring. `block=False` is now the genuinely
+  non-blocking case, and carries the reattach hint.
+* **`--run=0` executed the queue.** `run` was declared
+  `run: bool = kw.Flag(False, ...)`, and the `: bool` annotation made kwconf
+  coerce with `bool()`, so `'0'` became `True`. Dropping the annotation
+  restores `--run=0` falsy, `--run=1` truthy, bare `--run` true.
+* `monitor='none'` was smartcast to `None` by scriptconfig in `CMDQueueConfig`.
+* **`kill_other_queues` could offer to kill an unrelated queue's sessions.** It
+  matched session ids with a non-greedy `{name}_{rootid}` template, so a queue
+  named `my_queue` parsed as `my`: it missed its own sessions, and a queue
+  actually named `my` matched `my_queue`'s. Session ownership is now decided by
+  the full `<prefix><name>_` prefix.
+
+
+## Version 0.3.1 - Released 2026-06-25
 
 ### Added:
 * First-class job `setup` / `teardown` lifecycle on `BashJob` (serial/tmux) and `SlurmJob`. `setup` is a gating precondition (shares the preamble's `PREAMBLE_OK` gating; a failing setup skips the command and marks the job failed). `teardown` always runs after the command — on success, failure, and SIGINT/SIGTERM — provided setup succeeded. It is rendered as a per-job, signal-safe cleanup (a scoped subshell trap for serial/tmux so it cannot leak across the many jobs in one script; an in-`--wrap` trap for slurm). The main command's exit code stays authoritative (a teardown failure does not flip the job result). A hard SIGKILL cannot be trapped — an out-of-band reclaim (e.g. a lease TTL) is the only backstop for that. This is the job-level try/finally for bracketing an external resource (e.g. acquire/release a GPU lease).

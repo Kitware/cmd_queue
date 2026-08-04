@@ -37,8 +37,10 @@ Example:
     >>>     else:
     >>>         print('output does not exist')
 """
+
 from __future__ import annotations
-from typing import Any, Dict, Iterable, List, Optional, Union
+
+from typing import Any, Dict, List, Optional, Union, cast
 
 import ubelt as ub
 
@@ -264,7 +266,7 @@ class SlurmJob(base_queue.Job):
         command: str,
         name: Optional[str] = None,
         output_fpath: Optional[Any] = None,
-        depends: Optional[Iterable[base_queue.Job]] = None,
+        depends: base_queue.JobDepends = None,
         cpus: Optional[Any] = None,
         gpus: Optional[Any] = None,
         mem: Optional[Any] = None,
@@ -281,8 +283,6 @@ class SlurmJob(base_queue.Job):
             import uuid
 
             name = 'job-' + str(uuid.uuid4())
-        if depends is not None and not ub.iterable(depends):
-            depends = [depends]  # type: ignore
         self.unused_kwargs = kwargs
         # The base ``Job`` types ``command`` as ``str | None``; a SlurmJob always
         # has a concrete command, so narrow it (keeps the ``--wrap`` join and
@@ -292,7 +292,9 @@ class SlurmJob(base_queue.Job):
         # concrete ``str`` here (the base ``Job`` types it as ``str | None``).
         self.name: str = name
         self.output_fpath = output_fpath
-        self.depends = depends
+        self.depends: List[base_queue.Job] = base_queue.coerce_job_depends(
+            depends
+        )
         self.cpus = cpus
         self.gpus = gpus
         self.mem = mem
@@ -403,7 +405,7 @@ class SlurmJob(base_queue.Job):
         for key, flag in self._sbatch_flags.items():
             if flag:
                 key = key.replace('_', '-')
-                sbatch_args.append(f'--{key}"')
+                sbatch_args.append(f'--{key}')
 
         if self.depends:
             # TODO: other depends parts
@@ -753,8 +755,7 @@ class SlurmQueue(base_queue.Queue):
         job = SlurmJob(command, depends=depends, preamble=preamble, **_kwargs)
         self.jobs.append(job)
         self.num_real_jobs += 1
-        # job.name is always populated above, but ty sees ``str | None``.
-        self.named_jobs[job.name] = job  # ty: ignore[invalid-assignment]
+        self._register_named_job(job)
         return job
 
     def order_jobs(self) -> List[SlurmJob]:
@@ -864,6 +865,12 @@ class SlurmQueue(base_queue.Queue):
         manifest_path = self._write_monitor_manifest()
         ub.cmd(f'bash {self.fpath}', verbose=3, check=True, system=system)
         if not block:
+            from rich import print as rich_print
+
+            rich_print(
+                '[bold]Queue submitted (not blocking).[/bold] '
+                f'Reattach with: cmd_queue monitor --manifest={manifest_path}'
+            )
             return None
         if monitor == 'inline':
             return self.monitor(onfail=onfail, onexit=onexit)
@@ -910,11 +917,15 @@ class SlurmQueue(base_queue.Queue):
         if monitor == 'none':
             from rich import print as rich_print
 
+            # Reached only when block=True (the not-block case returned above).
+            # No live UI, but still block until every job is terminal — matching
+            # this backend's docstring and the tmux backend's headless `none`.
+            # The hint lets you attach a live view in another shell meanwhile.
             rich_print(
-                '[bold]Queue running detached.[/bold] '
-                f'Reattach with: cmd_queue monitor --manifest={manifest_path}'
+                '[bold]Queue running (headless).[/bold] '
+                f'Attach a live view with: cmd_queue monitor --manifest={manifest_path}'
             )
-            return None
+            return self.monitor(onfail=onfail, onexit=onexit, headless=True)
         if monitor == 'tmux':
             if not ub.find_exe('tmux'):
                 import warnings
@@ -978,6 +989,7 @@ class SlurmQueue(base_queue.Queue):
         onfail: str = '',
         onexit: str = '',
         side_session: Optional[str] = None,
+        headless: bool = False,
     ) -> Optional[Any]:
         """
         Monitor progress until the jobs are done.
@@ -993,6 +1005,12 @@ class SlurmQueue(base_queue.Queue):
                 fires on failure.
             onexit (str): currently unused for slurm (kept for API
                 parity with the tmux backend).
+
+            headless (bool): if set, block until every job is terminal
+                without rendering the live status table (per-job
+                pass/fail/skip lines still print). This is how
+                ``run(block=True, monitor='none')`` blocks, matching the
+                tmux backend's headless ``none`` mode.
 
         CommandLine:
             xdoctest -m cmd_queue.slurm_queue SlurmQueue.monitor --dev --run
@@ -1055,6 +1073,31 @@ class SlurmQueue(base_queue.Queue):
             import rich
 
             assert job_status_table is not None
+            # Terminal slurm states (besides COMPLETED/CANCELLED) that mean the
+            # job is done and failed -- treat them as terminal so the monitor
+            # neither hangs waiting nor mislabels them. ``str.startswith`` takes a
+            # tuple of prefixes.
+            TERMINAL_FAIL = (
+                'FAILED',
+                'TIMEOUT',
+                'NODE_FAIL',
+                'OUT_OF_MEMORY',
+                'BOOT_FAIL',
+                'DEADLINE',
+                'PREEMPTED',
+                'SPECIAL_EXIT',
+            )
+            TRANSIENT = (
+                'PENDING',
+                'CONFIGURING',
+                'COMPLETING',
+                'SUSPENDED',
+                'RESIZING',
+                'REQUEUED',
+                'SIGNALING',
+                'STAGE_OUT',
+                'STOPPED',
+            )
             for row in job_status_table:
                 if row['needs_update']:
                     job_id = row['job_id']
@@ -1062,29 +1105,40 @@ class SlurmQueue(base_queue.Queue):
                     # ub.cmd().stdout is typed ``str | bytes | None`` but
                     # is always a str here.
                     info = parse_scontrol_output(out.stdout)  # ty: ignore[invalid-argument-type]
-                    row['JobState'] = info['JobState']
+                    state = info.get('JobState')
+                    if not state:
+                        # The controller no longer knows this job (completed and
+                        # purged past MinJobAge, or an invalid id). Recover the
+                        # final state from accounting; if that's unavailable,
+                        # assume terminal so the monitor neither KeyErrors nor
+                        # hangs polling a job that will never reappear.
+                        state = _sacct_job_state(job_id) or 'COMPLETED'
+                    name = info.get('JobName', row['job_varname'])
+                    row['JobState'] = state
                     row['ExitCode'] = info.get('ExitCode', None)
                     # https://slurm.schedmd.com/job_state_codes.html
-                    if info['JobState'].startswith('FAILED'):
-                        row['status'] = 'failed'
-                        rich.print(f'[red] Failed job: {info["JobName"]}')
-                        if info['StdErr'] == info['StdOut']:
-                            rich.print(f'[red]  * Logs: {info["StdErr"]}')
-                        else:
-                            rich.print(f'[red] StdErr: {info["StdErr"]}')
-                            rich.print(f'[red] StdOut: {info["StdOut"]}')
-                        row['needs_update'] = False
-                    elif info['JobState'].startswith('CANCELLED'):
-                        rich.print(f'[yellow] Skip job: {info["JobName"]}')
-                        row['status'] = 'skipped'
-                        row['needs_update'] = False
-                    elif info['JobState'].startswith('COMPLETED'):
-                        rich.print(f'[green] Completed job: {info["JobName"]}')
+                    if state.startswith('COMPLETED'):
+                        rich.print(f'[green] Completed job: {name}')
                         row['status'] = 'passed'
                         row['needs_update'] = False
-                    elif info['JobState'].startswith('RUNNING'):
+                    elif state.startswith('CANCELLED'):
+                        rich.print(f'[yellow] Skip job: {name}')
+                        row['status'] = 'skipped'
+                        row['needs_update'] = False
+                    elif state.startswith(TERMINAL_FAIL):
+                        row['status'] = 'failed'
+                        rich.print(f'[red] Failed job ({state}): {name}')
+                        stderr = info.get('StdErr')
+                        stdout = info.get('StdOut')
+                        if stderr and stderr == stdout:
+                            rich.print(f'[red]  * Logs: {stderr}')
+                        elif stderr or stdout:
+                            rich.print(f'[red] StdErr: {stderr}')
+                            rich.print(f'[red] StdOut: {stdout}')
+                        row['needs_update'] = False
+                    elif state.startswith('RUNNING'):
                         row['status'] = 'running'
-                    elif info['JobState'].startswith('PENDING'):
+                    elif state.startswith(TRANSIENT):
                         row['status'] = 'pending'
                     else:
                         row['status'] = 'unknown'
@@ -1217,6 +1271,7 @@ class SlurmQueue(base_queue.Queue):
 
         try:
             import sys
+            import time as _time
 
             from rich.console import Group
 
@@ -1233,12 +1288,22 @@ class SlurmQueue(base_queue.Queue):
                 return renderable, finished, None
 
             refresh_rate = 0.4
-            use_keys = side_session is not None and sys.stdin.isatty()
-            _run_live_with_attach(
-                build_renderable=_build_renderable,
-                refresh_rate=refresh_rate,
-                side_session=side_session if use_keys else None,
-            )
+            if headless:
+                # Block without a live display: poll until every job is
+                # terminal. The per-job pass/fail/skip lines still print
+                # (update_jobid_status runs inside update_status_table).
+                while True:
+                    _table, finished = update_status_table()
+                    if finished:
+                        break
+                    _time.sleep(refresh_rate)
+            else:
+                use_keys = side_session is not None and sys.stdin.isatty()
+                _run_live_with_attach(
+                    build_renderable=_build_renderable,
+                    refresh_rate=refresh_rate,
+                    side_session=side_session if use_keys else None,
+                )
             _update_agg_state()
         except KeyboardInterrupt:
             from rich.prompt import Confirm
@@ -1422,15 +1487,51 @@ def parse_scontrol_output(output: str) -> dict:
             parsed_data[key] = value.strip()
             line = leading_part
 
-        # Now, handle the general case: split by spaces and then by "="
+        # Now, handle the general case: split on whitespace and then by "=".
         line = line.strip()
         if line:
-            parts = line.split(' ')
+            parts = line.split()
             for part in parts:
+                if '=' not in part:
+                    # A bare token: a fragment of a space-containing value whose
+                    # key wasn't in ``special_keys`` (those are extracted per-line
+                    # above), or an empty token. Skip rather than crash -- the
+                    # keys the monitor needs (JobState, ExitCode, ...) are plain
+                    # ``key=value`` and parse fine. scontrol output varies across
+                    # slurm versions, so be lenient here.
+                    continue
                 key, value = part.split('=', 1)
                 parsed_data[key] = value
 
     return parsed_data
+
+
+def _sacct_job_state(job_id: Any) -> str:
+    """Final state of a job from slurm accounting, for jobs that ``scontrol show
+    job`` no longer knows (completed + purged past MinJobAge, or invalid id).
+
+    Returns a slurm state string (e.g. ``'COMPLETED'``, ``'FAILED'``,
+    ``'TIMEOUT'``) for the primary job record, or ``''`` if accounting is
+    unavailable / the job is unknown. Best-effort: never raises.
+    """
+    try:
+        out = ub.cmd(
+            f'sacct -j "{job_id}" --noheader --parsable2 --format=State'
+        )
+    except Exception:
+        return ''
+    if getattr(out, 'returncode', 1) != 0:
+        return ''
+    # ``ub.cmd`` returns text unless ``binary=True``; its annotation is the
+    # wider ``str | bytes``.
+    stdout = cast(str, out.stdout or '')
+    for line in stdout.splitlines():
+        line = line.strip()
+        if line:
+            # First (primary) record; drop any trailing reason like
+            # "CANCELLED by 1234" so the caller's startswith() checks still work.
+            return line.split('|', 1)[0].strip()
+    return ''
 
 
 SLURM_NOTES = r"""

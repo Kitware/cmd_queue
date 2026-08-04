@@ -45,7 +45,10 @@ def test_create_preserves_size_argument_compatibility(tmp_path):
     from cmd_queue.tmux_queue import TMUXMultiQueue
 
     serial = Queue.create(
-        backend='serial', size=999, name='compat_serial', dpath=tmp_path / 'serial'
+        backend='serial',
+        size=999,
+        name='compat_serial',
+        dpath=tmp_path / 'serial',
     )
     tmux = Queue.create(
         backend='tmux', size=1, name='compat_tmux', dpath=tmp_path / 'tmux'

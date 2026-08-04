@@ -1,5 +1,6 @@
 from __future__ import annotations
-from typing import Any, Dict, Iterable, List, Optional, Union
+
+from typing import Any, Dict, Iterable, List, Optional, TypeAlias, Union
 
 import ubelt as ub
 
@@ -35,15 +36,13 @@ class Job(ub.NiceRepr):
         self,
         command: Optional[str] = None,
         name: Optional[str] = None,
-        depends: Optional[Iterable[Job]] = None,
+        depends: JobDepends = None,
         **kwargs: Any,
     ) -> None:
         # This is unused, should the slurm and bash job reuse this?
-        if depends is not None and not ub.iterable(depends):
-            depends = [depends]  # type: ignore
         self.name = name
         self.command = command
-        self.depends = depends
+        self.depends: List[Job] = coerce_job_depends(depends)
         self.kwargs = kwargs
 
     def __nice__(self) -> str:
@@ -52,6 +51,30 @@ class Job(ub.NiceRepr):
     def finalize_text(self, *args: Any, **kwargs: Any) -> str:
         """Render this job to a bash snippet. Implemented by subclasses."""
         raise NotImplementedError
+
+
+# The dependencies accepted by a *Job constructor*. String references are
+# resolved to concrete ``Job`` objects at the queue level (see
+# ``Queue.submit`` and the backend ``submit`` overrides) before any Job is
+# constructed, so the constructors only ever see a single ``Job`` or an
+# iterable of ``Job``. Contrast with :data:`cmd_queue._types.DependencyRefs`,
+# which additionally allows the unresolved string form accepted by ``submit``.
+JobDepends: TypeAlias = Union[Job, Iterable[Job], None]
+
+
+def coerce_job_depends(depends: JobDepends) -> List[Job]:
+    """Normalize a job-constructor ``depends`` argument to a ``list``.
+
+    Accepts a single :class:`Job`, an iterable of jobs, or ``None`` and always
+    returns a (possibly empty) ``list`` of jobs. Using ``isinstance`` (rather
+    than ``ubelt.iterable``) lets the type checker narrow the union, so callers
+    get a precise ``List[Job]`` without a ``type: ignore``.
+    """
+    if depends is None:
+        return []
+    if isinstance(depends, Job):
+        return [depends]
+    return list(depends)
 
 
 class Queue(ub.NiceRepr):
@@ -122,19 +145,18 @@ class Queue(ub.NiceRepr):
         new = Queue.create(backend=backend, **kwargs)
         for job_name, job in self.named_jobs.items():
             new_depends = []
-            if job.depends:
-                for dep in job.depends:
-                    # named_jobs only contains non-None-named jobs by
-                    # construction, but ``Job.name`` is typed Optional.
-                    new_dep = new.named_jobs[dep.name]  # ty: ignore[invalid-argument-type]
-                    new_depends.append(new_dep)
-            # TODO: carry over metadata
-            new.submit(job.command, depends=new_depends, name=job.name)  # ty: ignore[invalid-argument-type]
+            for dep in job.depends:
+                # ``Job.name`` is typed Optional, but every dependency was
+                # registered under a concrete name (see ``_register_named_job``).
+                dep_name = dep.name
+                if dep_name is not None:
+                    new_depends.append(new.named_jobs[dep_name])
+            # TODO: carry over metadata. ``job_name`` is the (non-None) dict
+            # key, and a registered job always has a concrete command.
+            command = job.command
+            if command is not None:
+                new.submit(command, depends=new_depends, name=job_name)
         return new
-
-        for job in self.jobs:
-            new.submit(job.commands)
-            pass
 
     def __len__(self) -> int:
         return self.num_real_jobs
@@ -242,13 +264,24 @@ class Queue(ub.NiceRepr):
         except Exception:
             raise
 
-        # job.name is set by submit() above before this line, but ty
-        # only sees ``Optional[str]`` from the Job base class.
-        self.named_jobs[job.name] = job  # ty: ignore[invalid-assignment]
+        self._register_named_job(job)
 
         if not job.bookkeeper:
             self.num_real_jobs += 1
         return job
+
+    def _register_named_job(self, job: Job) -> None:
+        """Index ``job`` in :attr:`named_jobs` by its name.
+
+        ``Job.name`` is typed ``Optional[str]`` on the base class, but a job is
+        always given a concrete name by the time it is submitted (each backend's
+        ``submit`` fills one in). The explicit check narrows that to ``str`` for
+        the ``Dict[str, Job]`` key and fails loudly if the invariant is broken.
+        """
+        name = job.name
+        if name is None:
+            raise ValueError('submitted jobs must have a name')
+        self.named_jobs[name] = job
 
     @classmethod
     def is_available(cls) -> bool:
@@ -486,7 +519,6 @@ class Queue(ub.NiceRepr):
 
     def read_state(self, *args: Any, **kwargs: Any) -> Any:
         raise NotImplementedError
-
 
     def _coerce_style(
         self,

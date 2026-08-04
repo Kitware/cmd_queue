@@ -20,6 +20,7 @@ node, and the marker files must land somewhere the submitting process can
 read them back. ``$HOME`` is shared across nodes on a typical cluster,
 whereas ``/tmp`` is often node-local.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -176,3 +177,30 @@ def test_backend_setup_failure_fails_job_and_skips_command(backend):
     if backend != 'slurm':
         assert job.fail_fpath.exists(), 'a failing setup must fail the job'
         assert not job.pass_fpath.exists(), 'a failed job must not pass'
+
+
+def test_slurm_monitor_none_blocks():
+    """slurm ``run(block=True, monitor='none')`` must BLOCK until every job is
+    terminal (headless) — matching the tmux backend and this backend's own
+    docstring — not return immediately and leave jobs running. Regression for the
+    fix where slurm's ``none`` printed "detached" and returned.
+    """
+    import time
+
+    if 'slurm' not in _AVAILABLE:
+        pytest.skip('slurm backend is not available on this machine')
+    dpath = _work_dpath('slurm-none-blocks')
+    queue = _make_queue('slurm', 'cmdq-none-blocks', dpath / 'qdir')
+    marker = dpath / 'done.marker'
+    queue.submit(f'sleep 3 && echo done > "{marker}"', name='blockjob')
+
+    t0 = time.time()
+    queue.run(block=True, monitor='none', with_textual=False)
+    dt = time.time() - t0
+
+    assert marker.exists(), (
+        'run() returned before the job finished -- monitor=none did not block'
+    )
+    assert dt >= 2.5, (
+        f'run() returned too fast ({dt:.1f}s); monitor=none did not block'
+    )

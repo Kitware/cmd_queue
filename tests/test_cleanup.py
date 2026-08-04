@@ -1,4 +1,5 @@
 """Tests for cmd_queue cleanup helpers."""
+
 from __future__ import annotations
 
 

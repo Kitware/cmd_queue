@@ -13,6 +13,7 @@ because the suite itself runs under pytest, ``PYTEST_CURRENT_TEST`` is
 already set in the environment; the "production" cases delete it via
 ``monkeypatch`` (which restores it after each test).
 """
+
 from __future__ import annotations
 
 import time

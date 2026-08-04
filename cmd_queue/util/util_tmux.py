@@ -33,7 +33,9 @@ def resolve_block_timeout(explicit: Any = None) -> float | None:
     import os
 
     if explicit is not None and explicit != 'auto':
-        return None if float(explicit) in (0.0, float('inf')) else float(explicit)
+        return (
+            None if float(explicit) in (0.0, float('inf')) else float(explicit)
+        )
 
     env_val = os.environ.get('CMD_QUEUE_BLOCK_TIMEOUT', '').strip()
     if env_val:

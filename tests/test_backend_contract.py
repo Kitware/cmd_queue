@@ -36,7 +36,9 @@ def test_backend_classes_support_minimal_contract(backend, tmp_path):
         # per-worker scripts contain the actual job commands. ``workers`` is a
         # tmux-only attribute, so narrow the base ``Queue`` to the concrete type.
         from typing import cast
+
         from cmd_queue.backends.tmux import TMUXMultiQueue
+
         tmux_queue = cast(TMUXMultiQueue, queue)
         combined_text += '\n'.join(
             worker.finalize_text() for worker in tmux_queue.workers

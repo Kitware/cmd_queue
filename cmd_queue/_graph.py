@@ -4,6 +4,7 @@ These helpers are deliberately small and behavior-preserving.  They centralize
 logic that was historically implemented directly on ``Queue`` so later backend
 refactors can share one dependency model.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, Iterable, List, Optional
@@ -36,7 +37,9 @@ def merge_sync_depends(all_depends: Optional[List[Any]], depends: Any) -> Any:
     return depends
 
 
-def resolve_dependency_refs(depends: Any, named_jobs: Dict[str, Any]) -> Optional[List[Any]]:
+def resolve_dependency_refs(
+    depends: Any, named_jobs: Dict[str, Any]
+) -> Optional[List[Any]]:
     """Resolve string dependency references against a queue's named jobs."""
 
     coerced = coerce_depends(depends)
