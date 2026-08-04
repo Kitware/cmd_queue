@@ -25,6 +25,7 @@ Example:
     >>> print((queue.dags_dpath / 'cmdq_airflow_mwe.py').exists())
     True
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -64,7 +65,9 @@ class AirflowJob(base_queue.Job):
         self.command = command
         self.name = name
         self.output_fpath = output_fpath
-        self.depends: List[base_queue.Job] = base_queue.coerce_job_depends(depends)
+        self.depends: List[base_queue.Job] = base_queue.coerce_job_depends(
+            depends
+        )
         self.cpus = cpus
         self.gpus = gpus
         self.mem = mem
@@ -238,6 +241,7 @@ class AirflowQueue(base_queue.Queue):
             import sys
 
             from airflow.models.dag import DagModel
+
             try:
                 # Canonical location since Airflow 3.2 (AIP-66). Importing it
                 # directly avoids the DeprecationWarning emitted by the
@@ -271,8 +275,7 @@ class AirflowQueue(base_queue.Queue):
             }
             params = inspect.signature(DagBag.__init__).parameters
             accepts_varkw = any(
-                p.kind == inspect.Parameter.VAR_KEYWORD
-                for p in params.values()
+                p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()
             )
             if not accepts_varkw:
                 dagbag_kwargs = {

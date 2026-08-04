@@ -20,6 +20,7 @@ node, and the marker files must land somewhere the submitting process can
 read them back. ``$HOME`` is shared across nodes on a typical cluster,
 whereas ``/tmp`` is often node-local.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -185,6 +186,7 @@ def test_slurm_monitor_none_blocks():
     fix where slurm's ``none`` printed "detached" and returned.
     """
     import time
+
     if 'slurm' not in _AVAILABLE:
         pytest.skip('slurm backend is not available on this machine')
     dpath = _work_dpath('slurm-none-blocks')
@@ -199,4 +201,6 @@ def test_slurm_monitor_none_blocks():
     assert marker.exists(), (
         'run() returned before the job finished -- monitor=none did not block'
     )
-    assert dt >= 2.5, f'run() returned too fast ({dt:.1f}s); monitor=none did not block'
+    assert dt >= 2.5, (
+        f'run() returned too fast ({dt:.1f}s); monitor=none did not block'
+    )

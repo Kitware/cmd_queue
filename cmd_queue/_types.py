@@ -3,17 +3,28 @@
 This module is intentionally private.  It gives refactors a shared place for
 small typed data containers without changing the public API.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 from os import PathLike
-from typing import Any, Dict, Iterable, Optional, Protocol, TypeAlias, Union, runtime_checkable
-
+from typing import (
+    Any,
+    Dict,
+    Iterable,
+    Optional,
+    Protocol,
+    TypeAlias,
+    Union,
+    runtime_checkable,
+)
 
 Pathish: TypeAlias = Union[str, PathLike[str]]
 JobName: TypeAlias = str
-DependencyRef: TypeAlias = Union[JobName, "JobProtocol"]
-DependencyRefs: TypeAlias = Optional[Union[DependencyRef, Iterable[DependencyRef]]]
+DependencyRef: TypeAlias = Union[JobName, 'JobProtocol']
+DependencyRefs: TypeAlias = Optional[
+    Union[DependencyRef, Iterable[DependencyRef]]
+]
 BackendName: TypeAlias = str
 
 

@@ -16,6 +16,7 @@ Helper script to wrap a command with sbatch, but using a more srun like syntax.
         -- \
             python -c 'import sys; print("hello world"); sys.exit(0)'
 """
+
 from typing import Any, Sequence
 
 import kwconf as kw
@@ -25,9 +26,7 @@ import ubelt as ub
 class SlurmifyCLI(kw.Config):
     __command__ = 'slurmify'
 
-    jobname = kw.Value(
-        None, help='for submit, this is the name of the new job'
-    )
+    jobname = kw.Value(None, help='for submit, this is the name of the new job')
     depends = kw.Value(
         None, parser='csv', help='comma separated jobnames to depend on'
     )

@@ -9,6 +9,7 @@ A regression where ``submit`` drops or shadows the ``log`` kwarg would
 silently disable tee logging without any other test catching it, which
 is exactly the kind of thing this test is here to catch.
 """
+
 import cmd_queue
 
 
@@ -26,7 +27,9 @@ def _command_section(text: str) -> str:
 
 
 def test_submit_with_log_true_produces_tee():
-    queue = cmd_queue.Queue.create(backend='serial', name='log-flag-true', size=1)
+    queue = cmd_queue.Queue.create(
+        backend='serial', name='log-flag-true', size=1
+    )
     job = queue.submit('echo hi', name='job1', log=True)
 
     assert job.log is True, 'log=True should land on BashJob.log'
@@ -45,7 +48,9 @@ def test_submit_with_log_true_produces_tee():
 
 
 def test_submit_with_log_false_omits_tee():
-    queue = cmd_queue.Queue.create(backend='serial', name='log-flag-false', size=1)
+    queue = cmd_queue.Queue.create(
+        backend='serial', name='log-flag-false', size=1
+    )
     job = queue.submit('echo hi', name='job1', log=False)
 
     assert job.log is False, 'log=False should land on BashJob.log'
@@ -64,7 +69,9 @@ def test_submit_log_default_omits_tee():
     compatibility. If a caller does not pass ``log``, no tee should
     appear. Tracked here so any default flip is caught explicitly.
     """
-    queue = cmd_queue.Queue.create(backend='serial', name='log-flag-default', size=1)
+    queue = cmd_queue.Queue.create(
+        backend='serial', name='log-flag-default', size=1
+    )
     job = queue.submit('echo hi', name='job1')
 
     assert job.log is False, 'BashJob.log default is False'

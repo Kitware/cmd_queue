@@ -15,6 +15,7 @@ plumbing layer:
 
 The tmux helpers are monkeypatched so the tests run without a tmux server.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, List
@@ -22,7 +23,9 @@ from typing import Any, Dict, List
 import pytest
 
 
-def _patch_tmux_helpers(monkeypatch: pytest.MonkeyPatch) -> Dict[str, List[Any]]:
+def _patch_tmux_helpers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Dict[str, List[Any]]:
     """Replace the tmux helper static methods with recorders.
 
     Returns a dict of call-log lists keyed by helper name so each test
@@ -69,12 +72,8 @@ def _patch_tmux_helpers(monkeypatch: pytest.MonkeyPatch) -> Dict[str, List[Any]]
     monkeypatch.setattr(
         util_tmux.tmux, 'spawn_monitor_session', staticmethod(fake_spawn)
     )
-    monkeypatch.setattr(
-        util_tmux.tmux, 'kill_session', staticmethod(fake_kill)
-    )
-    monkeypatch.setattr(
-        util_tmux.tmux, 'has_session', staticmethod(fake_has)
-    )
+    monkeypatch.setattr(util_tmux.tmux, 'kill_session', staticmethod(fake_kill))
+    monkeypatch.setattr(util_tmux.tmux, 'has_session', staticmethod(fake_has))
     monkeypatch.setattr(
         util_tmux.tmux, 'attach_or_switch', staticmethod(fake_attach)
     )
@@ -159,7 +158,7 @@ def test_inline_mode_does_not_spawn(monkeypatch, tmp_path):
         with_textual='auto',
     )
 
-    assert calls['spawn'] == [], "inline mode must not spawn a side session"
+    assert calls['spawn'] == [], 'inline mode must not spawn a side session'
     assert calls['kill'] == [], 'no kill if nothing was spawned'
     assert 'side_session' not in seen[0], (
         'inline path goes through the legacy monitor() signature, '
@@ -226,9 +225,7 @@ def test_textual_app_binds_a_only_when_attach_session_set():
     def table_fn():
         return None, True, {}
 
-    app_with = CmdQueueMonitorApp(
-        table_fn, attach_session='cmdq-monitor-x'
-    )
+    app_with = CmdQueueMonitorApp(table_fn, attach_session='cmdq-monitor-x')
     app_without = CmdQueueMonitorApp(table_fn)
 
     assert app_with.attach_session == 'cmdq-monitor-x'

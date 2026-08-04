@@ -114,7 +114,9 @@ def test_slurm_setup_gates_teardown():
     # ``setup && { trap...; command; }``: when setup fails the whole group
     # (which installs the trap) never runs, so nothing is torn down.
     queue = SlurmQueue(preamble=None)
-    job = queue.submit('echo CMD', setup='acquire_lease', teardown='release_lease')
+    job = queue.submit(
+        'echo CMD', setup='acquire_lease', teardown='release_lease'
+    )
     sbatch_args = job._build_sbatch_args(global_preamble=queue.header_commands)
     payload = _extract_wrap_payload(sbatch_args)
 
@@ -127,31 +129,36 @@ def test_slurm_teardown_executes_as_documented():
     # Execute the rendered wrap payload to confirm the runtime contract:
     # the command's exit code stays authoritative and teardown always runs.
     import subprocess
+
     queue = SlurmQueue(preamble=None)
 
     # command fails -> exit code preserved, teardown still runs
-    job = queue.submit('echo CMD; exit 5', name='a',
-                       setup='echo SETUP', teardown='echo TD')
+    job = queue.submit(
+        'echo CMD; exit 5', name='a', setup='echo SETUP', teardown='echo TD'
+    )
     payload = _extract_wrap_payload(
-        job._build_sbatch_args(global_preamble=queue.header_commands))
+        job._build_sbatch_args(global_preamble=queue.header_commands)
+    )
     r = subprocess.run(['bash', '-c', payload], capture_output=True, text=True)
     assert r.returncode == 5, 'command exit code stays authoritative'
     assert 'TD' in r.stdout, 'teardown runs even when command fails'
 
     # teardown fails -> does not flip a passing command
-    job = queue.submit('echo CMD', name='b',
-                       setup='echo SETUP', teardown='echo TD; false')
+    job = queue.submit(
+        'echo CMD', name='b', setup='echo SETUP', teardown='echo TD; false'
+    )
     payload = _extract_wrap_payload(
-        job._build_sbatch_args(global_preamble=queue.header_commands))
+        job._build_sbatch_args(global_preamble=queue.header_commands)
+    )
     r = subprocess.run(['bash', '-c', payload], capture_output=True, text=True)
     assert r.returncode == 0, 'teardown failure must not flip the result'
     assert 'TD' in r.stdout
 
     # setup fails -> command skipped, teardown not run
-    job = queue.submit('echo CMD', name='c',
-                       setup='false', teardown='echo TD')
+    job = queue.submit('echo CMD', name='c', setup='false', teardown='echo TD')
     payload = _extract_wrap_payload(
-        job._build_sbatch_args(global_preamble=queue.header_commands))
+        job._build_sbatch_args(global_preamble=queue.header_commands)
+    )
     r = subprocess.run(['bash', '-c', payload], capture_output=True, text=True)
     assert r.returncode != 0, 'setup failure fails the job'
     assert 'CMD' not in r.stdout, 'command should not run if setup fails'
@@ -165,12 +172,14 @@ def test_parse_scontrol_output_tolerates_bare_tokens():
     """
     from cmd_queue.backends.slurm import parse_scontrol_output
 
-    sample = '\n'.join([
-        'JobId=123 JobState=COMPLETED ExitCode=0:0',
-        'JobName=smol_135_01_abc',
-        'Reason=Memory Required Not Available BareToken',  # space value, unknown key
-        'TRES=cpu=4,mem=16G,gres/gpu=2',
-    ])
+    sample = '\n'.join(
+        [
+            'JobId=123 JobState=COMPLETED ExitCode=0:0',
+            'JobName=smol_135_01_abc',
+            'Reason=Memory Required Not Available BareToken',  # space value, unknown key
+            'TRES=cpu=4,mem=16G,gres/gpu=2',
+        ]
+    )
     info = parse_scontrol_output(sample)
     assert info['JobState'] == 'COMPLETED'
     assert info['ExitCode'] == '0:0'
@@ -180,14 +189,21 @@ def test_parse_scontrol_output_tolerates_bare_tokens():
 def test_sacct_job_state_is_best_effort():
     """_sacct_job_state never raises; returns '' for an unknown/bogus job id."""
     from cmd_queue.backends.slurm import _sacct_job_state
+
     assert _sacct_job_state('not-a-real-jobid-zzz') == ''
 
 
 def test_parse_scontrol_missing_jobstate():
     """A purged/invalid job yields no JobState -> the monitor must use .get()."""
     from cmd_queue.backends.slurm import parse_scontrol_output
+
     assert parse_scontrol_output('').get('JobState') is None
-    assert parse_scontrol_output('slurm_load_jobs error: Invalid job id specified').get('JobState') is None
+    assert (
+        parse_scontrol_output(
+            'slurm_load_jobs error: Invalid job id specified'
+        ).get('JobState')
+        is None
+    )
 
 
 def test_sbatch_boolean_flags_render_cleanly():
@@ -199,6 +215,9 @@ def test_sbatch_boolean_flags_render_cleanly():
     sbatch_args = job._build_sbatch_args(global_preamble=queue.header_commands)
     assert '--hold' in sbatch_args
     assert '--requeue' in sbatch_args
-    assert not any('"' in a and not a.startswith(('--wrap', '--job-name', '--output'))
-                   for a in sbatch_args if a in ('--hold"', '--requeue"')), sbatch_args
+    assert not any(
+        '"' in a and not a.startswith(('--wrap', '--job-name', '--output'))
+        for a in sbatch_args
+        if a in ('--hold"', '--requeue"')
+    ), sbatch_args
     assert '--hold"' not in sbatch_args and '--requeue"' not in sbatch_args

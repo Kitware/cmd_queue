@@ -548,8 +548,12 @@ def test_bashjob_exec_teardown_runs_on_success():
         text = job.finalize_text(with_status=True, with_gaurds=True)
         subprocess.run(['bash', '-n'], input=text, text=True, check=True)
         subprocess.run(
-            ['bash'], input=text, text=True, cwd=str(tmp_path),
-            capture_output=True, check=False,
+            ['bash'],
+            input=text,
+            text=True,
+            cwd=str(tmp_path),
+            capture_output=True,
+            check=False,
         )
 
         assert td_marker.exists(), 'teardown should run on success'
@@ -574,8 +578,12 @@ def test_bashjob_exec_teardown_runs_on_command_failure():
         text = job.finalize_text(with_status=True, with_gaurds=True)
         subprocess.run(['bash', '-n'], input=text, text=True, check=True)
         subprocess.run(
-            ['bash'], input=text, text=True, cwd=str(tmp_path),
-            capture_output=True, check=False,
+            ['bash'],
+            input=text,
+            text=True,
+            cwd=str(tmp_path),
+            capture_output=True,
+            check=False,
         )
 
         assert td_marker.exists(), 'teardown should run even when command fails'
@@ -601,8 +609,12 @@ def test_bashjob_exec_teardown_skipped_when_setup_fails():
         text = job.finalize_text(with_status=True, with_gaurds=True)
         subprocess.run(['bash', '-n'], input=text, text=True, check=True)
         subprocess.run(
-            ['bash'], input=text, text=True, cwd=str(tmp_path),
-            capture_output=True, check=False,
+            ['bash'],
+            input=text,
+            text=True,
+            cwd=str(tmp_path),
+            capture_output=True,
+            check=False,
         )
 
         assert not outfile.exists(), 'command should not run if setup fails'
@@ -627,8 +639,12 @@ def test_bashjob_exec_teardown_failure_does_not_flip_result():
         text = job.finalize_text(with_status=True, with_gaurds=True)
         subprocess.run(['bash', '-n'], input=text, text=True, check=True)
         subprocess.run(
-            ['bash'], input=text, text=True, cwd=str(tmp_path),
-            capture_output=True, check=False,
+            ['bash'],
+            input=text,
+            text=True,
+            cwd=str(tmp_path),
+            capture_output=True,
+            check=False,
         )
 
         assert td_marker.exists(), 'teardown should run'
@@ -645,8 +661,9 @@ def test_bashjob_teardown_trap_does_not_leak_across_jobs():
         tmp_path = ub.Path(tmp_path)
         td_marker = tmp_path / 'teardown_ran.txt'
 
-        j1 = BashJob('echo J1', name='j1',
-                     teardown=f'printf x >> "{td_marker}"')
+        j1 = BashJob(
+            'echo J1', name='j1', teardown=f'printf x >> "{td_marker}"'
+        )
         j1.log = False
         j1.stat_fpath = tmp_path / 'j1.status.json'
         j1.pass_fpath = tmp_path / 'j1.pass'
@@ -658,14 +675,20 @@ def test_bashjob_teardown_trap_does_not_leak_across_jobs():
         j2.pass_fpath = tmp_path / 'j2.pass'
         j2.fail_fpath = tmp_path / 'j2.fail'
 
-        text = '\n'.join([
-            j1.finalize_text(with_status=True, with_gaurds=True),
-            j2.finalize_text(with_status=True, with_gaurds=True),
-        ])
+        text = '\n'.join(
+            [
+                j1.finalize_text(with_status=True, with_gaurds=True),
+                j2.finalize_text(with_status=True, with_gaurds=True),
+            ]
+        )
         subprocess.run(['bash', '-n'], input=text, text=True, check=True)
         subprocess.run(
-            ['bash'], input=text, text=True, cwd=str(tmp_path),
-            capture_output=True, check=False,
+            ['bash'],
+            input=text,
+            text=True,
+            cwd=str(tmp_path),
+            capture_output=True,
+            check=False,
         )
 
         # Exactly one teardown invocation -- the trap did not leak to j2.
@@ -682,6 +705,7 @@ def test_bashjob_exec_teardown_runs_on_sigterm():
     import os
     import signal
     import time
+
     with tempfile.TemporaryDirectory() as tmp_path:
         tmp_path = ub.Path(tmp_path)
         td_marker = tmp_path / 'teardown_ran.txt'
@@ -740,8 +764,12 @@ def test_bashjob_exec_cwd_restores_worker_dir():
         probe = tmp_path / 'pwd_after.txt'
         script = text + f'\npwd -P > "{probe}"\n'
         subprocess.run(
-            ['bash'], input=script, text=True, cwd=str(tmp_path),
-            capture_output=True, check=False,
+            ['bash'],
+            input=script,
+            text=True,
+            cwd=str(tmp_path),
+            capture_output=True,
+            check=False,
         )
         assert job.pass_fpath.exists()
         assert probe.read_text().strip() == str(tmp_path.resolve()), (
@@ -755,9 +783,7 @@ def test_bashjob_teardown_traps_hup():
     run-EXIT-trap-on-unhandled-group-HUP behavior."""
     with tempfile.TemporaryDirectory() as tmp_path:
         tmp_path = ub.Path(tmp_path)
-        job, _ = _make_teardown_job(
-            tmp_path, 'true', teardown='echo done'
-        )
+        job, _ = _make_teardown_job(tmp_path, 'true', teardown='echo done')
         text = job.finalize_text(with_status=True, with_gaurds=True)
         assert "trap 'exit 129' HUP" in text
         subprocess.run(['bash', '-n'], input=text, text=True, check=True)

@@ -520,7 +520,6 @@ class Queue(ub.NiceRepr):
     def read_state(self, *args: Any, **kwargs: Any) -> Any:
         raise NotImplementedError
 
-
     def _coerce_style(
         self,
         style: str = 'auto',

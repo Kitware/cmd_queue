@@ -4,11 +4,11 @@ The public API remains ``Queue.create`` and the historical backend modules.
 This registry only centralizes the backend lookup so future refactors can move
 backend internals without changing user-facing imports.
 """
+
 from __future__ import annotations
 
 import importlib
 from typing import Any, Dict, Tuple, Type
-
 
 _BACKEND_SPECS: Dict[str, Tuple[str, str]] = {
     'serial': ('cmd_queue.backends.serial', 'SerialQueue'),

@@ -27,7 +27,9 @@ except ImportError:
             pass
 
         def run(self, *args: Any, **kwargs: Any) -> None:
-            raise ImportError('The textual monitor requires the textual package')
+            raise ImportError(
+                'The textual monitor requires the textual package'
+            )
 
 
 MonitorTableFn = Callable[[], Tuple[Any, bool, Any]]

@@ -1,4 +1,5 @@
 """Private rendering helpers shared by queue classes."""
+
 from __future__ import annotations
 
 from typing import Optional

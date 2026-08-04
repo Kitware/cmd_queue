@@ -3,6 +3,7 @@ References:
     https://jmmv.dev/2018/03/shell-readability-strict-mode.html
     https://stackoverflow.com/questions/13195655/bash-set-x-without-it-being-printed
 """
+
 from __future__ import annotations
 
 import uuid
@@ -127,7 +128,9 @@ class BashJob(base_queue.Job):
         # The base ``Job`` types ``command`` as ``str | None``; a BashJob always
         # has a concrete command, so narrow it (keeps ``'\n'.join`` well-typed).
         self.command: str = command
-        self.depends: List[base_queue.Job] = base_queue.coerce_job_depends(depends)
+        self.depends: List[base_queue.Job] = base_queue.coerce_job_depends(
+            depends
+        )
         self.bookkeeper = bookkeeper
         self.log = log
         if info_dpath is None:
@@ -1002,5 +1005,6 @@ def _check_bash_text_for_syntax_errors(bash_text: str) -> None:
         if info.returncode != 0:
             print(info.stderr)
             raise SyntaxError('bash syntax error')
+
 
 # the implementation now lives under cmd_queue.backends.

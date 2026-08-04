@@ -10,6 +10,7 @@ For help run:
     cmd_queue --help
 
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Callable, Sequence
@@ -580,7 +581,9 @@ class CmdQueueCLI(kw.ModalCLI):
 
         def run(config) -> None:
             print(
-                ub.urepr(list(config.cli_queue_dpath().glob('*.cmd_queue.json')))
+                ub.urepr(
+                    list(config.cli_queue_dpath().glob('*.cmd_queue.json'))
+                )
             )
 
 
