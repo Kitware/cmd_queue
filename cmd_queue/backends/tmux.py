@@ -48,7 +48,9 @@ Example:
     >>>     queue.run()
 
 """
+
 from __future__ import annotations
+
 import os
 import uuid
 from typing import Any, Dict, Iterable, List, Optional
@@ -58,8 +60,7 @@ import ubelt as ub
 # import itertools as it
 from cmd_queue import base_queue
 from cmd_queue.backends.serial import SerialQueue
-from cmd_queue.util.util_tmux import tmux
-from cmd_queue.util.util_tmux import block_deadline
+from cmd_queue.util.util_tmux import block_deadline, tmux
 
 
 class TMUXMultiQueue(base_queue.Queue):
@@ -659,18 +660,20 @@ class TMUXMultiQueue(base_queue.Queue):
         Find other tmux sessions that look like they were started with
         cmd_queue and kill them.
         """
-        import parse
-
-        queue_name_pattern = parse.Parser(
-            self._tmux_session_prefix + '{name}_{rootid}'
-        )
+        # A session of this queue is named ``<prefix><name>_<worker>_<rootid>``
+        # (see the worker construction in ``_init_workers``), so the prefix is
+        # the whole test. This used to parse the id with a ``{name}_{rootid}``
+        # template, whose fields are non-greedy: a queue named ``my_queue``
+        # parsed as ``my``, so it missed its own sessions -- and a queue
+        # actually named ``my`` matched ``my_queue``'s and offered to kill
+        # them. That is a bad way to be wrong in a function that kills things.
+        session_prefix = f'{self._tmux_session_prefix}{self.name}_'
         current_sessions = self._tmux_current_sessions()
-        other_session_ids = []
-        for info in current_sessions:
-            matched = queue_name_pattern.parse(info['id'])
-            if matched is not None:
-                if self.name == matched['name']:
-                    other_session_ids.append(info['id'])
+        other_session_ids = [
+            info['id']
+            for info in current_sessions
+            if info['id'].startswith(session_prefix)
+        ]
         # print(f'other_session_ids={other_session_ids}')
         if other_session_ids:
             print(
@@ -1084,9 +1087,15 @@ class TMUXMultiQueue(base_queue.Queue):
                 with_textual = False
 
         if with_textual:
-            self._textual_monitor(side_session=side_session, manifest_path=manifest_path)
+            self._textual_monitor(
+                side_session=side_session, manifest_path=manifest_path
+            )
         else:
-            self._simple_rich_monitor(refresh_rate, side_session=side_session, manifest_path=manifest_path)
+            self._simple_rich_monitor(
+                refresh_rate,
+                side_session=side_session,
+                manifest_path=manifest_path,
+            )
         table, finished, agg_state = self._build_status_table()
         if onexit == 'capture':
             self.capture()
@@ -1109,7 +1118,10 @@ class TMUXMultiQueue(base_queue.Queue):
 
         is_running = True
         while is_running:
-            table_fn = lambda: self._build_live_renderable(side_session=side_session)
+
+            def table_fn():
+                return self._build_live_renderable(side_session=side_session)
+
             app = CmdQueueMonitorApp(
                 table_fn, kill_fn=self.kill, attach_session=side_session
             )

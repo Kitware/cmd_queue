@@ -37,9 +37,10 @@ Example:
     >>>     else:
     >>>         print('output does not exist')
 """
+
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 
 import ubelt as ub
 
@@ -291,7 +292,9 @@ class SlurmJob(base_queue.Job):
         # concrete ``str`` here (the base ``Job`` types it as ``str | None``).
         self.name: str = name
         self.output_fpath = output_fpath
-        self.depends: List[base_queue.Job] = base_queue.coerce_job_depends(depends)
+        self.depends: List[base_queue.Job] = base_queue.coerce_job_depends(
+            depends
+        )
         self.cpus = cpus
         self.gpus = gpus
         self.mem = mem
@@ -1075,12 +1078,25 @@ class SlurmQueue(base_queue.Queue):
             # neither hangs waiting nor mislabels them. ``str.startswith`` takes a
             # tuple of prefixes.
             TERMINAL_FAIL = (
-                'FAILED', 'TIMEOUT', 'NODE_FAIL', 'OUT_OF_MEMORY',
-                'BOOT_FAIL', 'DEADLINE', 'PREEMPTED', 'SPECIAL_EXIT',
+                'FAILED',
+                'TIMEOUT',
+                'NODE_FAIL',
+                'OUT_OF_MEMORY',
+                'BOOT_FAIL',
+                'DEADLINE',
+                'PREEMPTED',
+                'SPECIAL_EXIT',
             )
             TRANSIENT = (
-                'PENDING', 'CONFIGURING', 'COMPLETING', 'SUSPENDED',
-                'RESIZING', 'REQUEUED', 'SIGNALING', 'STAGE_OUT', 'STOPPED',
+                'PENDING',
+                'CONFIGURING',
+                'COMPLETING',
+                'SUSPENDED',
+                'RESIZING',
+                'REQUEUED',
+                'SIGNALING',
+                'STAGE_OUT',
+                'STOPPED',
             )
             for row in job_status_table:
                 if row['needs_update']:
@@ -1506,7 +1522,10 @@ def _sacct_job_state(job_id: Any) -> str:
         return ''
     if getattr(out, 'returncode', 1) != 0:
         return ''
-    for line in (out.stdout or '').splitlines():
+    # ``ub.cmd`` returns text unless ``binary=True``; its annotation is the
+    # wider ``str | bytes``.
+    stdout = cast(str, out.stdout or '')
+    for line in stdout.splitlines():
         line = line.strip()
         if line:
             # First (primary) record; drop any trailing reason like

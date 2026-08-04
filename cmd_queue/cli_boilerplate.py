@@ -106,9 +106,11 @@ Example:
     >>> print('----------------')
     >>> my_cli_main(cmdline=0, run=1, print_queue=0, print_commands=0)
 """
+
 from __future__ import annotations
 
 import typing
+import warnings
 from typing import Any, Dict, Optional
 
 import kwconf as kw
@@ -121,6 +123,8 @@ if typing.TYPE_CHECKING:
 
 class CMDQueueConfig(scfg.DataConfig):
     """
+    DEPRECATED: use :class:`CmdQueueConfigMixin`, which is kwconf-based.
+
     A helper to carry around the common boilerplate for cmd-queue CLI's.  The
     general usage is that you will inherit from this class and define config
     options your CLI cares about, however they must not overload any of the
@@ -165,6 +169,21 @@ class CMDQueueConfig(scfg.DataConfig):
         slurm_options = scfg.Value(None, help='if the backend is slurm, provide a YAML dictionary for things like partition / etc...', group='cmd-queue')
 
     """
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        # Warn on subclassing rather than at import: importing this module is
+        # also how a caller reaches ``CmdQueueConfigMixin``, and warning there
+        # would fire for people who never touch the scriptconfig class.
+        super().__init_subclass__(**kwargs)
+        warnings.warn(
+            f'{cls.__name__} inherits from cmd_queue CMDQueueConfig, which is '
+            'deprecated and will be removed in a future release. Inherit from '
+            'cmd_queue.cli_boilerplate.CmdQueueConfigMixin instead; it is the '
+            'kwconf equivalent. Note that kwconf takes cli(argv=...) rather '
+            'than cli(cmdline=...), and a bool rather than an int.',
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
     run = scfg.Value(
         False,
