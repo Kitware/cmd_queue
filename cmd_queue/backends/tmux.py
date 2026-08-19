@@ -1608,6 +1608,37 @@ def _attach_hint_renderable(session_name: str) -> Any:
     )
 
 
+def _live_console():
+    """A rich Console for the live monitor, and whether we opened it.
+
+    ``rich.live.Live`` only animates when its console is a terminal. When
+    stdout is a PIPE -- which it is whenever a runner tees its output to a log,
+    as most of ours do -- Live silently degrades to printing one frame when the
+    context exits, so a long queue shows nothing at all while it runs.
+
+    The textual monitor never had this problem because it drives the terminal
+    directly, which is why the old ``with_textual='auto'`` default looked fine
+    and switching the default to the rich monitor appeared to remove the status
+    display entirely. It had not been removed; it was being written to a pipe.
+
+    So when stdout is not a tty, render to /dev/tty instead. The log keeps the
+    ordinary output and the operator keeps a live display. With no controlling
+    terminal at all (CI, pytest, nohup) there is nothing to attach to and we
+    fall back to the default console.
+    """
+    import sys
+
+    if sys.stdout.isatty():
+        return None, None
+    try:
+        handle = open('/dev/tty', 'w')
+    except OSError:
+        return None, None
+    from rich.console import Console
+
+    return Console(file=handle, force_terminal=True), handle
+
+
 def _run_live_with_attach(
     build_renderable: Any,
     refresh_rate: float,
@@ -1628,16 +1659,22 @@ def _run_live_with_attach(
 
     check_deadline = block_deadline(label='queue')
 
+    console, _console_handle = _live_console()
+
     if side_session is None:
         # Plain path with no input handling — preserves old behavior
         # exactly when there is no side session to attach to.
         renderable, finished, _ = build_renderable()
-        with Live(renderable, refresh_per_second=4) as live:
-            while not finished:
-                check_deadline()
-                time.sleep(refresh_rate)
-                renderable, finished, _ = build_renderable()
-                live.update(renderable)
+        try:
+            with Live(renderable, refresh_per_second=4, console=console) as live:
+                while not finished:
+                    check_deadline()
+                    time.sleep(refresh_rate)
+                    renderable, finished, _ = build_renderable()
+                    live.update(renderable)
+        finally:
+            if _console_handle is not None:
+                _console_handle.close()
         return
 
     import select
@@ -1651,7 +1688,7 @@ def _run_live_with_attach(
             tty.setcbreak(fd)
             attach_requested = False
             renderable, finished, _ = build_renderable()
-            with Live(renderable, refresh_per_second=4) as live:
+            with Live(renderable, refresh_per_second=4, console=console) as live:
                 while not finished:
                     check_deadline()
                     ready, _, _ = select.select(
@@ -1676,6 +1713,8 @@ def _run_live_with_attach(
             _attach_or_switch(side_session)
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        if _console_handle is not None:
+            _console_handle.close()
 
 
 def has_stdin() -> bool:

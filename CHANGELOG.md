@@ -24,6 +24,20 @@ press. The rich monitor degrades gracefully in all of those.
 Only defaults moved. `with_textual='auto'` still resolves as before, and
 `--with_textual=1` opts in.
 
+### The rich monitor renders when stdout is a pipe
+
+`rich.live.Live` only animates when its console is a terminal. With stdout
+piped -- which it is whenever a runner tees output to a log -- Live degraded to
+printing a single frame at context exit, so a long queue showed nothing while
+it ran. The textual monitor never hit this because it drives the terminal
+directly, which is why defaulting to the rich monitor looked like the status
+display had been removed. It had not; it was being written to a pipe.
+
+The live display now renders to `/dev/tty` when stdout is not a terminal, so
+the log keeps the ordinary output and the operator keeps a live view. With no
+controlling terminal at all (CI, pytest, nohup) it falls back to the previous
+behaviour.
+
 
 ## Version 0.3.2 - Released 2026-08-04
 
