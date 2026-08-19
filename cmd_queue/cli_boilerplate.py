@@ -157,7 +157,7 @@ class CMDQueueConfig(scfg.DataConfig):
 
         with_textual = scfg.Value(False, isflag=True, help='use the textual monitor instead of the rich one (opt-in)', group='cmd-queue')
 
-        other_session_handler = scfg.Value('ask', help='for tmux backend only. How to handle conflicting sessions. Can be ask, kill, or ignore, or auto', group='cmd-queue')
+        other_session_handler = scfg.Value('auto', help='for tmux backend only. How to handle conflicting sessions: ask, kill, ignore, or auto. `auto` asks only when a terminal is attached, so an unattended run cannot block on a prompt', group='cmd-queue')
 
         virtualenv_cmd = scfg.Value(None, type=str, help=ub.paragraph(
             '''
@@ -239,8 +239,8 @@ class CMDQueueConfig(scfg.DataConfig):
     )
 
     other_session_handler = scfg.Value(
-        'ask',
-        help='for tmux backend only. How to handle conflicting sessions. Can be ask, kill, or ignore, or auto',
+        'auto',
+        help='for tmux backend only. How to handle conflicting sessions: ask, kill, ignore, or auto. `auto` asks only when a terminal is attached, so an unattended run cannot block on a prompt',
         group='cmd-queue',
     )
 
@@ -392,6 +392,7 @@ class CMDQueueConfig(scfg.DataConfig):
                 with_textual=config.with_textual,
                 other_session_handler=config.other_session_handler,
                 monitor=config.monitor,
+                non_interactive=config['non_interactive'],
                 **kwargs,
             )
 
@@ -487,9 +488,21 @@ class CmdQueueConfigMixin(kw.Config):
         group='cmd-queue',
     )
 
+    non_interactive: Any = kw.Value(
+        False,
+        isflag=True,
+        help=(
+            'Declare that no human is present. Resolves --other_session_handler'
+            ' auto to "kill" and skips every prompt, so an unattended run can '
+            'never block. You are accepting that a still-running conflicting '
+            'session gets killed without being asked.'
+        ),
+        group='cmd-queue',
+    )
+
     other_session_handler: str = kw.Value(
-        'ask',
-        help='for tmux backend only. How to handle conflicting sessions. Can be ask, kill, or ignore, or auto',
+        'auto',
+        help='for tmux backend only. How to handle conflicting sessions: ask, kill, ignore, or auto. `auto` asks only when a terminal is attached, so an unattended run cannot block on a prompt',
         group='cmd-queue',
     )
 

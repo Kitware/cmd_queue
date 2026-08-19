@@ -675,29 +675,62 @@ class TMUXMultiQueue(base_queue.Queue):
             if info['id'].startswith(session_prefix)
         ]
         # print(f'other_session_ids={other_session_ids}')
-        if other_session_ids:
+        if not other_session_ids:
+            return
+
+        # Split by whether anything is actually running. An idle session is a
+        # finished run's leftovers -- inert, and reclaiming it costs nothing. A
+        # busy one is live work, and killing that is the only decision worth
+        # stopping a person for.
+        idle_ids, busy_ids = [], []
+        for sess_id in other_session_ids:
+            (busy_ids if session_is_busy(sess_id) else idle_ids).append(sess_id)
+
+        if idle_ids:
             print(
-                f'Detected {len(other_session_ids)} other running cmd-queue sessions with the same name'
+                f'Reclaiming {len(idle_ids)} idle cmd-queue session(s) '
+                f'(finished; nothing running):'
             )
-            print('Commands to kill them:')
-            kill_commands = []
-            for sess_id in other_session_ids:
-                command2 = f'tmux kill-session -t {sess_id}'
-                print(command2)
-                kill_commands.append(command2)
+            for sess_id in idle_ids:
+                print(f'  {sess_id}')
+                ub.cmd(
+                    f'tmux kill-session -t {sess_id}', verbose=self.cmd_verbose
+                )
+
+        if not busy_ids:
+            return
+
+        print(
+            f'Detected {len(busy_ids)} cmd-queue session(s) with the same name '
+            f'that are STILL RUNNING:'
+        )
+        for sess_id in busy_ids:
+            # Both commands, because the useful move is usually to look first.
+            print(f'  {sess_id}')
+            print(f'    inspect: tmux attach -t {sess_id}')
+            print(f'    kill:    tmux kill-session -t {sess_id}')
+
+        if ask_first:
             from rich import prompt
 
-            if not ask_first or prompt.Confirm().ask(
-                'Do you want to kill the other sessions?'
+            if not prompt.Confirm().ask(
+                'Do you want to kill the other RUNNING sessions?'
             ):
-                for command in kill_commands:
-                    ub.cmd(command, verbose=self.cmd_verbose)
+                return
+        for sess_id in busy_ids:
+            ub.cmd(f'tmux kill-session -t {sess_id}', verbose=self.cmd_verbose)
 
-    def handle_other_sessions(self, other_session_handler: str) -> None:
+    def handle_other_sessions(
+        self, other_session_handler: str, non_interactive: bool = False
+    ) -> None:
         if other_session_handler == 'auto':
-            from cmd_queue.tmux_queue import has_stdin
-
-            if has_stdin():
+            # `ask` only when a human can actually answer. This used to key off
+            # has_stdin(), which is true under nohup/cron/pipes -- so an
+            # unattended run resolved to 'ask' and then blocked on a prompt
+            # nobody would ever see.
+            if non_interactive:
+                other_session_handler = 'kill'
+            elif is_interactive():
                 other_session_handler = 'ask'
             else:
                 other_session_handler = 'kill'  # default headless behavior
@@ -720,6 +753,7 @@ class TMUXMultiQueue(base_queue.Queue):
         check_other_sessions: Optional[bool] = None,
         other_session_handler: str = 'auto',
         monitor: str = 'hybrid',
+        non_interactive: bool = False,
         **kw: Any,
     ) -> None:
         """
@@ -758,14 +792,16 @@ class TMUXMultiQueue(base_queue.Queue):
 
         # TODO: need to port or generalize some of this logic to serial / slurm
         # queues.
-        self.handle_other_sessions(other_session_handler)
+        self.handle_other_sessions(other_session_handler, non_interactive)
 
         if check_other_sessions:
             ub.schedule_deprecation(
                 'tmux_queue', 'check_other_sessions', 'argument'
             )
             if check_other_sessions == 'auto':
-                if not has_stdin():
+                # Same correction as handle_other_sessions: the question is
+                # whether a person can answer, not whether stdin exists.
+                if non_interactive or not is_interactive():
                     check_other_sessions = False
             if check_other_sessions:
                 self.kill_other_queues(ask_first=True)
@@ -1715,6 +1751,61 @@ def _run_live_with_attach(
         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
         if _console_handle is not None:
             _console_handle.close()
+
+
+# Shells a finished worker returns to. A pane whose foreground command is one
+# of these is sitting at a prompt with nothing running.
+_IDLE_SHELL_COMMANDS = frozenset({
+    'bash', 'sh', 'zsh', 'fish', 'dash', 'ksh', 'tcsh', 'csh',
+})
+
+
+def session_is_busy(target_session: str) -> bool:
+    """Is anything actually RUNNING in this tmux session?
+
+    A cmd_queue worker that has finished -- successfully or not -- drops back
+    to its shell prompt and the session lingers. That lingering session is the
+    whole point: it is where you look to see what went wrong without hunting
+    through logs. It is also inert, so nothing is lost by reclaiming it.
+
+    A session with a live foreground process is a different thing entirely:
+    killing it destroys work in progress. Only that case is worth interrupting
+    someone over.
+
+    Unreadable panes count as BUSY. If tmux cannot be queried the safe error is
+    to leave the session alone and ask, not to kill something that might be
+    running.
+    """
+    try:
+        panes = tmux.list_panes(target_session)
+    except Exception:  # noqa: BLE001
+        return True
+    if not panes:
+        return True
+    for pane in panes:
+        if str(pane.get('pane_dead', '0')) == '1':
+            continue  # the process exited; nothing to protect
+        command = str(pane.get('pane_current_command', '')).strip().lower()
+        if command and command not in _IDLE_SHELL_COMMANDS:
+            return True
+    return False
+
+
+def is_interactive() -> bool:
+    """Is there a human at a terminal who can answer a prompt?
+
+    NOT ``has_stdin()``. That only checks stdin has a file descriptor, which is
+    true under nohup, under cron with `</dev/null`, behind a pipe, and inside a
+    detached tmux -- i.e. true for exactly the unattended runs that cannot
+    answer. Resolving `auto` to 'ask' there meant an overnight job blocked on a
+    prompt forever, or died on EOFError, having done nothing.
+    """
+    import sys
+
+    try:
+        return bool(sys.stdin.isatty() and sys.stdout.isatty())
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def has_stdin() -> bool:

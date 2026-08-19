@@ -24,6 +24,24 @@ press. The rich monitor degrades gracefully in all of those.
 Only defaults moved. `with_textual='auto'` still resolves as before, and
 `--with_textual=1` opts in.
 
+### Conflicting tmux sessions no longer block unattended runs
+
+`other_session_handler` now defaults to `auto` (was `ask`), and `auto` asks
+only when a terminal is attached. It previously keyed off `has_stdin()`, which
+is true under `nohup`, under cron with `</dev/null`, behind a pipe, and inside
+a detached tmux -- i.e. true for exactly the unattended runs that cannot
+answer. An overnight job would sit on a y/n prompt forever having done nothing.
+
+Conflicts are also now judged by whether a session is doing work.
+`session_is_busy()` inspects the panes: a finished worker sits back at its
+shell, so that session is inert and is reclaimed silently. Only a session with
+a live foreground process prompts -- and the message prints `tmux attach` next
+to `tmux kill-session`, because looking is usually what you want. Panes that
+cannot be read count as busy: the safe error is to leave a session alone.
+
+New `--non_interactive` declares that nobody is present, resolving `auto` to
+`kill` and skipping every prompt.
+
 ### The rich monitor renders when stdout is a pipe
 
 `rich.live.Live` only animates when its console is a terminal. With stdout
