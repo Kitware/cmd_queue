@@ -985,7 +985,7 @@ class SlurmQueue(base_queue.Queue):
         refresh_rate: float = 0.4,
         # TODO: use or document as unused or make the signature sane across
         # clsses
-        with_textual: str | bool = 'auto',
+        with_textual: str | bool = False,
         onfail: str = '',
         onexit: str = '',
         side_session: Optional[str] = None,

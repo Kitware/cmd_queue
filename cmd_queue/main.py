@@ -408,7 +408,11 @@ class CmdQueueCLI(kw.ModalCLI):
         refresh_rate = kw.Value(0.4, help='monitor refresh rate, seconds')
 
         with_textual = kw.Value(
-            'auto', help='use textual UI if available (tmux backend only)'
+            False,
+            help=(
+                'use the textual UI instead of the rich monitor '
+                '(tmux backend only; opt-in, pass 1 to enable)'
+            ),
         )
 
         def run(config) -> None:

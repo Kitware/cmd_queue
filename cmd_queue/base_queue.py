@@ -496,7 +496,7 @@ class Queue(ub.NiceRepr):
     def monitor(
         self,
         refresh_rate: float = 0.4,
-        with_textual: str | bool = 'auto',
+        with_textual: str | bool = False,
         onfail: str = '',
         onexit: str = '',
     ) -> None:

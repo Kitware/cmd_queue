@@ -262,7 +262,7 @@ Example:
     >>> # The TMUX queue does not show output directly by default (although
     >>> # it does have access to methods that let it grab logs from tmux)
     >>> # But normally you can attach to the tmux sessions to look at them
-    >>> # The default monitor will depend on if you have textual installed or not.
+    >>> # The rich monitor is the default; pass with_textual=1 for the textual one.
     >>> # Another default behavior is that it will ask if you want to kill
     >>> # previous command queue tmux sessions, but this can be disabled.
     >>> import ubelt as ub

@@ -7,6 +7,23 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version 0.3.3 - Unreleased
 
+### The textual monitor is opt-in
+
+`with_textual` now defaults to `False` everywhere it had defaulted to
+`'auto'`: `Queue.monitor`, `TMUXMultiQueue.run` / `.monitor`,
+`SerialQueue.monitor`, `SlurmQueue.monitor`, the `cmd_queue monitor` CLI, and
+both `CMDQueueConfig` and `CmdQueueConfigMixin`.
+
+`'auto'` meant "textual whenever the package imports", so a transitive
+dependency decided which monitor you got. Most queues are driven
+non-interactively -- piped to a log, over ssh, inside docker, under an agent --
+and there a full-screen app fills the log with escape sequences and redrawn
+frames instead of job output, and can block on a keypress nobody is there to
+press. The rich monitor degrades gracefully in all of those.
+
+Only defaults moved. `with_textual='auto'` still resolves as before, and
+`--with_textual=1` opts in.
+
 
 ## Version 0.3.2 - Released 2026-08-04
 

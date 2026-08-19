@@ -716,7 +716,7 @@ class TMUXMultiQueue(base_queue.Queue):
         onfail: str = 'kill',
         onexit: str = '',
         system: bool = False,
-        with_textual: str = 'auto',
+        with_textual: str = False,
         check_other_sessions: Optional[bool] = None,
         other_session_handler: str = 'auto',
         monitor: str = 'hybrid',
@@ -844,7 +844,7 @@ class TMUXMultiQueue(base_queue.Queue):
         manifest_path: Any,
         onfail: str,
         onexit: str,
-        with_textual: str = 'auto',
+        with_textual: str = False,
     ) -> Any:
         if monitor == 'inline':
             return self.monitor(
@@ -1009,7 +1009,7 @@ class TMUXMultiQueue(base_queue.Queue):
     def monitor(
         self,
         refresh_rate: float = 0.4,
-        with_textual: str | bool = 'auto',
+        with_textual: str | bool = False,
         onfail: str = '',
         onexit: str = '',
         side_session: Optional[str] = None,

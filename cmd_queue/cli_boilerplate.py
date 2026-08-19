@@ -155,7 +155,7 @@ class CMDQueueConfig(scfg.DataConfig):
 
         print_queue = scfg.Value('auto', isflag=True, help='print the cmd queue DAG', group='cmd-queue')
 
-        with_textual = scfg.Value('auto', isflag=True, help='setting for cmd-queue monitoring', group='cmd-queue')
+        with_textual = scfg.Value(False, isflag=True, help='use the textual monitor instead of the rich one (opt-in)', group='cmd-queue')
 
         other_session_handler = scfg.Value('ask', help='for tmux backend only. How to handle conflicting sessions. Can be ask, kill, or ignore, or auto', group='cmd-queue')
 
@@ -232,9 +232,9 @@ class CMDQueueConfig(scfg.DataConfig):
     )
 
     with_textual = scfg.Value(
-        'auto',
+        False,
         isflag=True,
-        help='setting for cmd-queue monitoring',
+        help='use the textual monitor instead of the rich one (opt-in)',
         group='cmd-queue',
     )
 
@@ -481,9 +481,9 @@ class CmdQueueConfigMixin(kw.Config):
     )
 
     with_textual: Any = kw.Value(
-        'auto',
+        False,
         isflag=True,
-        help='setting for cmd-queue monitoring',
+        help='use the textual monitor instead of the rich one (opt-in)',
         group='cmd-queue',
     )
 
